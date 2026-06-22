@@ -14,7 +14,7 @@
 //! feature (`esp32c3` / `esp32c6` / `esp32` / `esp32s3`) and `build.rs` cfg
 //! seams already in place. Drivers are added **downstream-driven**: when a
 //! consumer needs, say, a rotary encoder on an ESP32-C6, the `esp-hal`
-//! dependency is wired behind the chip features (see `Cargo.toml`) and the
+//! dependency is wired behind the chip features (see `Cargo.toml`), and the
 //! driver is implemented as a thin wrapper that delegates all decoding to
 //! `tamer`.
 //!

@@ -2,9 +2,10 @@
 //! `tamer` — taming unruly hardware inputs into clean, testable events.
 //!
 //! `tamer` is the pure, host-buildable core of the rustyfarian *peripherals*
-//! stack. It holds the input logic that has no business touching hardware:
-//! debounce state machines, rotary-encoder quadrature decoding, and
-//! button-event detection (press, release, long-press, double-click).
+//! stack. It holds the input logic that has no business touching hardware —
+//! today, debounce state machines and rotary-encoder quadrature decoding, with
+//! higher-level button events (press, release, long-press, double-click)
+//! planned. See the [Status](#status) section for what has landed.
 //!
 //! The physical world is noisy. Mechanical buttons bounce; rotary encoders emit
 //! ragged quadrature transitions; lines float when nothing drives them. `tamer`
@@ -33,27 +34,66 @@
 //! `rustyfarian-esp-idf-peripherals` for ESP-IDF / std), which re-export this
 //! crate so firmware needs a single import.
 //!
-//! # Status — skeleton
+//! # Status
 //!
-//! This crate is intentionally empty of primitives today. The peripherals stack
-//! grows **on demand, driven by real downstream needs** (the same demand-driven
-//! discipline as the sibling rustyfarian crates), not speculatively. Each
-//! primitive lands in its own module following the pattern above:
+//! The following primitives have landed:
 //!
-//! - `debounce` — a sampled-input debounce state machine
-//! - `rotary` — quadrature / Gray-code decoding with detent handling
-//! - `button` — higher-level press / long-press / double-click events
+//! - [`debounce`] — sampled-input debounce state machine and edge detector.
+//! - [`rotary`] — quadrature / Gray-code decoding with detent handling.
 //!
-//! When the first consumer needs one of these, implement it here behind a
-//! trait, ship its `Noop*` mock in the same change, add host tests, and (if it
-//! has a hardware adapter) wire it behind the `hal` feature. Then surface the
-//! public types through [`prelude`].
+//! Still pending (arrive on demand, driven by real downstream needs):
+//!
+//! - `button` — higher-level press / long-press / double-click events.
+//! - `touch` — capacitive touch event detection.
+//! - `display` — simple character display abstractions.
 
-// Input primitives are added on demand — see "Status" above. Keep this module
-// list and the `prelude` re-exports in lockstep as they land.
+/// Debounced digital input — [`Debouncer`](debounce::Debouncer),
+/// [`Edge`](debounce::Edge), and [`EdgeDetector`](debounce::EdgeDetector).
+///
+/// Enable the `hal` feature to get the
+/// [`DebouncedInput`](debounce::DebouncedInput) adapter that reads an
+/// `embedded-hal` `InputPin` directly.
+pub mod debounce;
+pub use debounce::{Debouncer, Edge, EdgeDetector};
+
+#[cfg(feature = "hal")]
+pub use debounce::DebouncedInput;
+
+/// Quadrature rotary encoder decoder — [`QuadratureDecoder`](rotary::QuadratureDecoder)
+/// and [`EncoderDirection`](rotary::EncoderDirection).
+///
+/// Enable the `hal` feature to get the
+/// [`QuadratureInput`](rotary::QuadratureInput) adapter that reads two
+/// `embedded-hal` `InputPin`s directly.
+pub mod rotary;
+pub use rotary::{EncoderDirection, QuadratureDecoder};
+
+#[cfg(feature = "hal")]
+pub use rotary::QuadratureInput;
+
+/// Settable mock pin for unit-testing the `hal` adapters.
+///
+/// [`MockInputPin`](mock::MockInputPin) implements
+/// `embedded_hal::digital::InputPin` with an `Infallible` error type.
+/// Downstream crates should use it as a drop-in for real GPIO in host tests.
+#[cfg(feature = "hal")]
+pub mod mock;
+
+#[cfg(feature = "hal")]
+pub use mock::MockInputPin;
 
 /// Curated re-exports of the most-used types, for `use tamer::prelude::*;`.
 ///
-/// Empty while the crate is a skeleton; populated as primitives land so that
-/// downstream firmware has one stable, ergonomic import path.
-pub mod prelude {}
+/// Covers the pure types unconditionally and the `hal` adapters when the
+/// `hal` feature is enabled.
+pub mod prelude {
+    pub use crate::debounce::{Debouncer, Edge, EdgeDetector};
+    pub use crate::rotary::{EncoderDirection, QuadratureDecoder};
+
+    #[cfg(feature = "hal")]
+    pub use crate::debounce::DebouncedInput;
+    #[cfg(feature = "hal")]
+    pub use crate::mock::MockInputPin;
+    #[cfg(feature = "hal")]
+    pub use crate::rotary::QuadratureInput;
+}

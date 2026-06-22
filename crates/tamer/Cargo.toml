@@ -15,7 +15,7 @@ categories = ["embedded", "no-std"]
 [features]
 default = []
 # `hal`: opt-in `embedded-hal` adapters that drive the pure logic from real
-# `InputPin`s. Kept optional so the pure core has zero hardware dependencies and
+# `InputPin`s. Kept optional, so the pure core has zero hardware dependencies and
 # stays buildable on any host. See README "Architecture" for the seam.
 hal = ["dep:embedded-hal"]
 

@@ -4,7 +4,7 @@
 // on cfg flags from another crate's build script (those do not propagate to
 // dependents).
 //
-// The cargo:rustc-check-cfg lines register each key so Cargo's check-cfg lint
+// The cargo:rustc-check-cfg lines register each key, so Cargo's check-cfg lint
 // does not warn about unexpected_cfgs.
 //
 // This crate is a skeleton: there is no esp-hal dependency and no linker glue
