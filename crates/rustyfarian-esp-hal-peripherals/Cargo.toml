@@ -1,0 +1,43 @@
+[package]
+name = "rustyfarian-esp-hal-peripherals"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Bare-metal (esp-hal) input drivers for ESP32 — the no_std hardware tier of the rustyfarian peripherals stack (skeleton)"
+keywords = ["esp32", "esp-hal", "embedded", "no-std", "gpio"]
+categories = ["embedded", "hardware-support", "no-std"]
+readme = "README.md"
+
+[lib]
+name = "rustyfarian_esp_hal_peripherals"
+
+# docs.rs for a bare-metal crate needs a no_std target and exactly one chip
+# feature; the ESP32-C3 (RISC-V, broadest support) is the documented default.
+[package.metadata.docs.rs]
+default-target = "riscv32imc-unknown-none-elf"
+features = ["esp32c3"]
+
+[features]
+default = []
+
+# ── Chip features ────────────────────────────────────────────────────────────
+#
+# Wired now so downstream examples can request `--features esp32c6` from day
+# one. They are empty today: the `esp-hal` dependency is added with the first
+# real driver (downstream-driven), at which point each chip feature gains its
+# `esp-hal?/esp32cX` (and friends) selectors. See the chip-feature block in
+# rustyfarian-network's `rustyfarian-esp-hal-network` crate for the full
+# pattern (per-chip target triples, which radios/peripherals each supports).
+esp32c3 = [] # RISC-V, riscv32imc-unknown-none-elf
+esp32c6 = [] # RISC-V, riscv32imac-unknown-none-elf
+esp32 = []   # Xtensa LX6, xtensa-esp32-none-elf
+esp32s3 = [] # Xtensa LX7, xtensa-esp32s3-none-elf
+
+[dependencies]
+# Always-on, pure, host-buildable. The chip-specific HAL is added later:
+#   esp-hal = { workspace = true, features = ["unstable"], optional = true }
+tamer = { workspace = true }
+embedded-hal = { workspace = true }

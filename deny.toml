@@ -1,0 +1,40 @@
+[graph]
+targets = []
+all-features = false
+no-default-features = false
+
+[advisories]
+# No advisory ignores: all known advisories in this dependency graph either
+# have available fixes or do not affect the library's host-testable code.
+# Add entries here only for advisories with no available fix, with a comment
+# explaining the reason and a planned resolution date.
+ignore = []
+
+[licenses]
+# Allow-list shared with the sibling rustyfarian repos. The pure skeleton graph
+# (tamer + embedded-hal) only needs MIT / Apache-2.0 today; the rest of the list
+# is pre-approved for the esp-hal / esp-idf dependency trees the hardware crates
+# pull in once their drivers land, so this file does not need revisiting then.
+allow = [
+  "MIT",
+  "Apache-2.0",
+  "Apache-2.0 WITH LLVM-exception",
+  "BSD-3-Clause",
+  "ISC",
+  "Unlicense",
+  "Unicode-3.0",
+  "Zlib",
+]
+confidence-threshold = 0.8
+
+[bans]
+# `warn` (not `deny`): the esp dependency trees legitimately carry duplicate
+# minor versions during release waves. Revisit if a real bloat problem appears.
+multiple-versions = "warn"
+wildcards = "allow"
+highlight = "all"
+
+[sources]
+unknown-registry = "warn"
+unknown-git = "warn"
+allow-registry = ["https://github.com/rust-lang/crates.io-index"]

@@ -1,0 +1,26 @@
+[package]
+name = "tamer"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Platform-agnostic, host-testable input primitives (debounce, rotary decoding, button events) for embedded projects — the pure core of the rustyfarian peripherals stack"
+documentation = "https://docs.rs/tamer"
+readme = "README.md"
+keywords = ["embedded", "no-std", "gpio", "rotary", "debounce"]
+categories = ["embedded", "no-std"]
+
+[features]
+default = []
+# `hal`: opt-in `embedded-hal` adapters that drive the pure logic from real
+# `InputPin`s. Kept optional so the pure core has zero hardware dependencies and
+# stays buildable on any host. See README "Architecture" for the seam.
+hal = ["dep:embedded-hal"]
+
+[dependencies]
+embedded-hal = { workspace = true, optional = true }
+
+[package.metadata.docs.rs]
+all-features = true

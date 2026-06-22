@@ -1,0 +1,109 @@
+# Device-build config for rustyfarian-peripherals — OPT-IN.
+# Copy to .cargo/config.toml (via `just setup-cargo-config`) only when building
+# the hardware crates for a real board; it forces a device default target, so
+# leaving it in place would redirect plain `cargo` away from the host. The host
+# `just` recipes pass `--target <host>` explicitly and are unaffected.
+#
+# Covers both ESP-IDF (std, *-espidf) and bare-metal (esp-hal, *-none-elf)
+# targets for ESP32-C3 / C6 / classic ESP32 / S3. Trim to the chips you use.
+
+[build]
+target = "riscv32imac-esp-espidf"
+target-dir = "target/ide"
+
+# ESP-IDF for ESP32-C6 / ESP32-H2 (riscv32imac, with atomics)
+# Note: runner does not open the serial monitor automatically.
+# Use `just monitor` (or `espflash monitor`) to attach after flashing.
+[target.riscv32imac-esp-espidf]
+linker = "ldproxy"
+runner = "espflash flash --ignore-app-descriptor"
+rustflags = [
+    "--cfg", "espidf_time64",
+    "-C", "force-frame-pointers",
+]
+
+# ESP-IDF for ESP32-C3 (riscv32imc, no atomics)
+[target.riscv32imc-esp-espidf]
+linker = "ldproxy"
+runner = "espflash flash --ignore-app-descriptor"
+rustflags = [
+    "--cfg", "espidf_time64",
+    "-C", "force-frame-pointers",
+]
+
+# ESP-IDF for classic ESP32 (xtensa-esp32, dual-core LX6)
+[target.xtensa-esp32-espidf]
+linker = "ldproxy"
+runner = "espflash flash --ignore-app-descriptor"
+rustflags = [
+    "--cfg", "espidf_time64",
+    "-C", "force-frame-pointers",
+]
+
+# ESP-IDF for ESP32-S3 (xtensa-esp32s3, dual-core LX7)
+[target.xtensa-esp32s3-espidf]
+linker = "ldproxy"
+runner = "espflash flash --ignore-app-descriptor"
+rustflags = [
+    "--cfg", "espidf_time64",
+    "-C", "force-frame-pointers",
+]
+
+# Bare-metal (no ESP-IDF) for ESP32 (xtensa-esp32, dual-core LX6)
+# Requires `cargo +esp` and xtensa-esp-elf-gcc from espup.
+# `-Tlinkall.x` is the esp-hal top-level linker script; it includes memory.x,
+# alias.x, hal-defaults.x (which INCLUDEs device.x from the PAC), and the
+# chip-specific section layout.  Without this flag the linker never processes
+# any of those scripts, leaving all PAC interrupt stubs and __stack_chk_guard
+# unresolved.
+# `-fno-stack-protector` suppresses stack-guard references injected by
+# GCC 15.2 (esp-15.2.0_20250920) into esp-hal's init function.
+[target.xtensa-esp32-none-elf]
+runner = "espflash flash --ignore-app-descriptor"
+rustflags = [
+    "-C", "link-arg=-Tlinkall.x",
+    "-C", "link-arg=-fno-stack-protector",
+    "-C", "force-frame-pointers",
+]
+
+# Bare-metal (no ESP-IDF) for ESP32-S3 (xtensa-esp32s3, dual-core LX7)
+# Requires `cargo +esp` and xtensa-esp-elf-gcc from espup.
+# Same linker-script and stack-protector requirements as xtensa-esp32-none-elf.
+[target.xtensa-esp32s3-none-elf]
+runner = "espflash flash --ignore-app-descriptor"
+rustflags = [
+    "-C", "link-arg=-Tlinkall.x",
+    "-C", "link-arg=-fno-stack-protector",
+    "-C", "force-frame-pointers",
+]
+
+# Bare-metal (no ESP-IDF) for ESP32-C3 (riscv32imc, no atomics)
+[target.riscv32imc-unknown-none-elf]
+runner = "espflash flash --ignore-app-descriptor"
+rustflags = [
+    "-C", "link-arg=-Tlinkall.x",
+    "-C", "force-frame-pointers",
+]
+
+# Bare-metal (no ESP-IDF) for ESP32-C6 (riscv32imac, with atomics)
+[target.riscv32imac-unknown-none-elf]
+runner = "espflash flash --ignore-app-descriptor"
+rustflags = [
+    "-C", "link-arg=-Tlinkall.x",
+    "-C", "force-frame-pointers",
+]
+
+[unstable]
+build-std = ["std", "panic_abort"]
+
+[env]
+MCU = "esp32c6"
+# Default chip for bare `cargo` device builds; override per invocation with
+# `MCU=esp32 cargo ...`. Per-chip flash/build helper scripts arrive with the
+# first device example (see ROADMAP.md).
+ESP_IDF_VERSION = "v5.3.3"
+ESP_IDF_TOOLS_INSTALL_DIR = "global"
+# embuild (used by esp-idf-sys) checks RUSTC_LINKER to detect ldproxy and emit
+# --ldproxy-linker as a rustc-link-arg.  Cargo only sets RUSTC_LINKER for the
+# host-side build script when it is explicitly present here.
+RUSTC_LINKER = "ldproxy"
