@@ -11,19 +11,19 @@ bumps may carry breaking changes).
 ## [Unreleased]
 
 ### Added
-- `tamer::debounce` — `Debouncer` (caller-injected `u64` ticks; a `0` window
-  means no debouncing — transitions on the first changed sample), `Edge`,
-  `EdgeDetector`, and a `DebouncedInput<P>` adapter (`hal` feature) with a
-  `try_from_pin` constructor that seeds state from the live pin. Ported from
-  `rustbox-peripherals` — see [ADR-001](docs/adr/001-input-primitives-origin.md).
-- `tamer::rotary` — `QuadratureDecoder` (Gray-code decoding, accumulator-based
-  detent debouncing), `EncoderDirection`, and a `QuadratureInput<A, B>` adapter
-  (`hal` feature) with a `try_from_pins` constructor that seeds state from the
-  live pins. Ported from `rustyfarian-knob`'s `zoetrope` (relicensed
-  MIT → MIT OR Apache-2.0) — see [ADR-001](docs/adr/001-input-primitives-origin.md).
-- `tamer::mock::MockInputPin` (`hal` feature) — settable `InputPin` mock with an
-  `Infallible` error, for testing the `hal` adapters and downstream reuse.
-- Workspace skeleton: `tamer` (pure `no_std` core, optional `embedded-hal` seam)
-  plus thin `rustyfarian-esp-hal-peripherals` (esp-hal, `no_std`) and
-  `rustyfarian-esp-idf-peripherals` (ESP-IDF, std) re-export tiers.
-- Tooling, CI, docs, and dual MIT/Apache-2.0 licensing.
+- `tamer` workspace skeleton: the pure `no_std` core plus thin
+  `rustyfarian-esp-hal-peripherals` (esp-hal) and `rustyfarian-esp-idf-peripherals`
+  (ESP-IDF) re-export tiers, an optional `embedded-hal` `hal` seam, tooling, CI,
+  and dual MIT/Apache-2.0 licensing.
+- `tamer::debounce` — `Debouncer`, `Edge`, `EdgeDetector`, and the `hal`-gated
+  `DebouncedInput<P>` adapter (caller-owned `u64` clock; `try_from_pin`).
+- `tamer::rotary` — `QuadratureDecoder`, `EncoderDirection`, and the `hal`-gated
+  `QuadratureInput<A, B>` adapter (`try_from_pins`).
+- `tamer::button` — `ButtonDecoder` and `ButtonEvent` (raw `Press`/`Release`
+  edges plus layered `Click`/`DoubleClick`/`LongPress` gestures), and the
+  `hal`-gated `ButtonInput<P>` adapter (active-low/high; `try_from_pin`).
+- `tamer::mock::MockInputPin` (`hal`) — settable `InputPin` mock for host tests.
+- Primitives donated by clean reimplementation (relicensed to MIT OR Apache-2.0)
+  from `rustyfarian-knob` and `rustbox-peripherals`; the button event contract
+  intentionally diverges from the knob's — see
+  [ADR-001](docs/adr/001-input-primitives-origin.md).

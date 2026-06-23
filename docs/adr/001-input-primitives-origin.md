@@ -43,10 +43,14 @@ modules, rather than a verbatim copy or a git-history graft.
 ## Consequences
 - The new repo owns the primitives outright, with a clean history that matches
   its deliberately demand-driven, skeleton-grown-on-demand timeline.
-- Public APIs diverge from the sources where this repo's conventions differ —
-  e.g. `QuadratureDecoder::update` returns `Option<EncoderDirection>` rather than
-  the knob's raw `i32` delta. Downstream of the sources is unaffected; this is a
-  fresh API.
+- Public APIs diverge from the sources where this repo's conventions or a
+  better contract differ — e.g. `QuadratureDecoder::update` returns
+  `Option<EncoderDirection>` rather than the knob's raw `i32` delta, and
+  `ButtonDecoder` emits raw `Press`/`Release` on every debounced edge with
+  `Click`/`DoubleClick`/`LongPress` layered on top (the knob's gesture model
+  emitted `Release` only after a long press). Downstream of the sources is
+  unaffected; this is a fresh API, and the knob can adopt the new contract
+  separately.
 - Git blame does not trace back to the original commits. Provenance lives in the
   commit trailers, `CHANGELOG`, and this ADR instead — an acceptable trade for a
   clean start.
