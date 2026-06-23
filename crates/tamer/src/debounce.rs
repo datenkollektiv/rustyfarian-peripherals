@@ -128,7 +128,7 @@ impl Debouncer {
 }
 
 /// A detected signal transition direction.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum Edge {
     /// The signal transitioned from low to high.
     Rising,

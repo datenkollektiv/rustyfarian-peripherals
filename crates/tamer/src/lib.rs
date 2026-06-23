@@ -3,9 +3,9 @@
 //!
 //! `tamer` is the pure, host-buildable core of the rustyfarian *peripherals*
 //! stack. It holds the input logic that has no business touching hardware —
-//! today, debounce state machines and rotary-encoder quadrature decoding, with
-//! higher-level button events (press, release, long-press, double-click)
-//! planned. See the [Status](#status) section for what has landed.
+//! debounce state machines, rotary-encoder quadrature decoding, and
+//! higher-level button events (press, release, long-press, double-click). See
+//! the [Status](#status) section for what has landed.
 //!
 //! The physical world is noisy. Mechanical buttons bounce; rotary encoders emit
 //! ragged quadrature transitions; lines float when nothing drives them. `tamer`
@@ -40,10 +40,11 @@
 //!
 //! - [`debounce`] — sampled-input debounce state machine and edge detector.
 //! - [`rotary`] — quadrature / Gray-code decoding with detent handling.
+//! - [`button`] — press / release / click / double-click / long-press events,
+//!   built on the [`debounce`] edge detector.
 //!
 //! Still pending (arrive on demand, driven by real downstream needs):
 //!
-//! - `button` — higher-level press / long-press / double-click events.
 //! - `touch` — capacitive touch event detection.
 //! - `display` — simple character display abstractions.
 
@@ -71,6 +72,20 @@ pub use rotary::{EncoderDirection, QuadratureDecoder};
 #[cfg(feature = "hal")]
 pub use rotary::QuadratureInput;
 
+/// Button-event decoder — [`ButtonDecoder`](button::ButtonDecoder) and
+/// [`ButtonEvent`](button::ButtonEvent). Debounces a press/release signal (via
+/// the [`debounce`] edge detector) and emits press, release, click,
+/// double-click, and long-press events.
+///
+/// Enable the `hal` feature to get the [`ButtonInput`](button::ButtonInput)
+/// adapter that reads an `embedded-hal` `InputPin` (active-low or active-high)
+/// directly.
+pub mod button;
+pub use button::{ButtonDecoder, ButtonEvent};
+
+#[cfg(feature = "hal")]
+pub use button::ButtonInput;
+
 /// Settable mock pin for unit-testing the `hal` adapters.
 ///
 /// [`MockInputPin`](mock::MockInputPin) implements
@@ -87,9 +102,12 @@ pub use mock::MockInputPin;
 /// Covers the pure types unconditionally and the `hal` adapters when the
 /// `hal` feature is enabled.
 pub mod prelude {
+    pub use crate::button::{ButtonDecoder, ButtonEvent};
     pub use crate::debounce::{Debouncer, Edge, EdgeDetector};
     pub use crate::rotary::{EncoderDirection, QuadratureDecoder};
 
+    #[cfg(feature = "hal")]
+    pub use crate::button::ButtonInput;
     #[cfg(feature = "hal")]
     pub use crate::debounce::DebouncedInput;
     #[cfg(feature = "hal")]

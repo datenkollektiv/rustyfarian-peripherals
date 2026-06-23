@@ -37,7 +37,7 @@
 //! ```
 
 /// The direction of a confirmed encoder detent step.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum EncoderDirection {
     /// The encoder moved clockwise (position increased by 1).
     Clockwise,
