@@ -6,7 +6,7 @@ edition.workspace = true
 rust-version.workspace = true
 license.workspace = true
 repository.workspace = true
-description = "Bare-metal (esp-hal) input drivers for ESP32 — the no_std hardware tier of the rustyfarian peripherals stack (skeleton)"
+description = "Bare-metal (esp-hal) input drivers for ESP32 — the no_std hardware tier of the rustyfarian peripherals stack"
 keywords = ["esp32", "esp-hal", "embedded", "no-std", "gpio"]
 categories = ["embedded", "hardware-support", "no-std"]
 readme = "README.md"
@@ -21,23 +21,63 @@ default-target = "riscv32imc-unknown-none-elf"
 features = ["esp32c3"]
 
 [features]
-default = []
+# Project policy: "ESP32-C3 first" — C3 is the reference chip these examples
+# target, so a bare `cargo build`/`cargo doc` picks a working chip without extra
+# flags. Downstream consumers selecting another chip use
+# `--no-default-features --features <chip>` (as `just check-hal` and the
+# `[[example]]` `required-features` already do). `unstable` is bundled because
+# esp-hal gates its `main` macro and several GPIO types behind it.
+default = ["esp32c3", "unstable"]
 
 # ── Chip features ────────────────────────────────────────────────────────────
 #
-# Wired now so downstream examples can request `--features esp32c6` from day
-# one. They are empty today: the `esp-hal` dependency is added with the first
-# real driver (downstream-driven), at which point each chip feature gains its
-# `esp-hal?/esp32cX` (and friends) selectors. See the chip-feature block in
-# rustyfarian-network's `rustyfarian-esp-hal-network` crate for the full
-# pattern (per-chip target triples, which radios/peripherals each supports).
-esp32c3 = [] # RISC-V, riscv32imc-unknown-none-elf
-esp32c6 = [] # RISC-V, riscv32imac-unknown-none-elf
-esp32 = []   # Xtensa LX6, xtensa-esp32-none-elf
-esp32s3 = [] # Xtensa LX7, xtensa-esp32s3-none-elf
+# Each selects the matching chip across the esp-hal stack. All chips route
+# console output through `uart` (UART0), so `esp-println` lands on the UART
+# bridge that also handles flashing — visible on the same `/dev/cu.usbserial-*`
+# port used to flash and monitor, no separate native-USB connection required.
+# (esp-hal-network uses `jtag-serial` for C3/C6, which assumes the board's native
+# USB Serial/JTAG port is connected; these examples target the UART-bridge path.)
+esp32c3 = [
+    "esp-hal/esp32c3",
+    "esp-bootloader-esp-idf/esp32c3",
+    "esp-println/esp32c3",
+    "esp-println/uart",
+] # RISC-V, riscv32imc-unknown-none-elf
+esp32c6 = [
+    "esp-hal/esp32c6",
+    "esp-bootloader-esp-idf/esp32c6",
+    "esp-println/esp32c6",
+    "esp-println/uart",
+] # RISC-V, riscv32imac-unknown-none-elf
+esp32 = [
+    "esp-hal/esp32",
+    "esp-bootloader-esp-idf/esp32",
+    "esp-println/esp32",
+    "esp-println/uart",
+] # Xtensa LX6, xtensa-esp32-none-elf
+esp32s3 = [
+    "esp-hal/esp32s3",
+    "esp-bootloader-esp-idf/esp32s3",
+    "esp-println/esp32s3",
+    "esp-println/uart",
+] # Xtensa LX7, xtensa-esp32s3-none-elf
+
+# esp-hal gates its `main` macro and several GPIO types behind `unstable`; `rt`
+# pulls in the runtime/interrupt vectoring the examples need.
+unstable = ["esp-hal/unstable"]
+rt = ["esp-hal/rt"]
 
 [dependencies]
-# Always-on, pure, host-buildable. The chip-specific HAL is added later:
-#   esp-hal = { workspace = true, features = ["unstable"], optional = true }
+# `tamer` stays pure (no `hal` feature): the examples feed the pure
+# `EdgeDetector` directly from an esp-hal `Input`'s `is_high()`.
 tamer = { workspace = true }
 embedded-hal = { workspace = true }
+esp-hal = { workspace = true, features = ["unstable"] }
+esp-bootloader-esp-idf = { workspace = true }
+
+[dev-dependencies]
+esp-println = { workspace = true, features = ["uart"] }
+
+[[example]]
+name = "hal_c3_b3f"
+required-features = ["esp32c3", "rt", "unstable"]

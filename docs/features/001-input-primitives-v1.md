@@ -20,7 +20,8 @@
 ## Open Questions
 - [x] `button` events (click / long-press / double-click) — landed on top of `debounce`.
 - [ ] `touch` (CST816S) and `display` (GC9A01 / OLED) primitives — later slices.
-- [ ] First device example (`idf_s3_crowpanel`) wiring the esp-idf tier — needs the first hardware dependency (`esp-idf-hal`) pinned in `[workspace.dependencies]`.
+- [x] First hardware dependency wired — `esp-hal` / `esp-idf-hal` pinned in `[workspace.dependencies]`, both esp tiers carry their HALs, with ESP32-C3 B3F button examples (`hal_c3_b3f`, `idf_c3_b3f`) harvested from `rustbox-peripherals`.
+- [ ] Richer device example (`idf_s3_crowpanel`) and the `touch`/`display` primitives it needs — later slice.
 
 ## State
 - [x] Design approved
@@ -31,3 +32,5 @@
 ## Session Log
 - 2026-06-22 — debounce + rotary donated from `rustyfarian-knob` (`zoetrope`) and `rustbox-peripherals` (`rustbox-peripherals-pure`) at source rev `a169dd8`. See [ADR-001](../adr/001-input-primitives-origin.md).
 - 2026-06-23 — `button` donated from `zoetrope`'s `button_state_machine`; event contract diverges from the knob — raw `Press`/`Release` on every edge plus layered `Click`/`DoubleClick`/`LongPress` gestures (see [ADR-001](../adr/001-input-primitives-origin.md)).
+- 2026-06-23 — first hardware dependency wired: both esp tiers gain their HALs and ESP32-C3 B3F button examples (`hal_c3_b3f`, `idf_c3_b3f`) harvested from `rustbox-peripherals`. Host gates narrow to `tamer`; the esp tiers check via `just check-hal` / `check-idf`.
+- 2026-06-23 — adopted the esp-hal / esp-idf target split from `rustyfarian-ws2812` and `rustyfarian-network`: separate `target/hal` and `target/idf` dirs (RAM-disk aware) and `scripts/build-example.sh` / `flash.sh` routing by the `{tier}_{chip}_{name}` example-name convention.

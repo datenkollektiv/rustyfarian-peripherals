@@ -6,7 +6,7 @@ edition.workspace = true
 rust-version.workspace = true
 license.workspace = true
 repository.workspace = true
-description = "ESP-IDF (std) input drivers for ESP32 — the std hardware tier of the rustyfarian peripherals stack (skeleton)"
+description = "ESP-IDF (std) input drivers for ESP32 — the std hardware tier of the rustyfarian peripherals stack"
 keywords = ["esp32", "esp-idf", "embedded", "gpio", "rotary"]
 categories = ["embedded", "hardware-support"]
 readme = "README.md"
@@ -14,20 +14,32 @@ readme = "README.md"
 [lib]
 name = "rustyfarian_esp_idf_peripherals"
 
-[dependencies]
-# Always-on, pure, host-buildable. The ESP-IDF HAL is added with the first
-# driver:
-#   esp-idf-hal = { workspace = true }
-#   log         = { workspace = true }
-tamer = { workspace = true }
+[build-dependencies]
+# Re-emits the ESP-IDF link args in this crate's build script so example/test
+# binaries link against ESP-IDF (a dependency's link args do not propagate).
+embuild = { workspace = true }
 
-# Once esp-idf-hal is wired, add embuild so examples/tests link against ESP-IDF:
-# [build-dependencies]
-# embuild = { workspace = true }
+[dependencies]
+# `tamer` stays pure: the examples feed the pure `EdgeDetector` directly from an
+# esp-idf-hal `PinDriver`'s `is_high()`.
+tamer = { workspace = true }
+esp-idf-hal = { workspace = true }
+anyhow = { workspace = true }
+
+[dev-dependencies]
+# Examples only: `EspLogger` + `log` route output through ESP-IDF's unbuffered
+# `esp_log` path (the same one the boot logs use). Bare `println!` goes to a
+# buffered newlib stdout that never flushes inside an example's infinite loop,
+# so its output never reaches the serial monitor.
+esp-idf-svc = { workspace = true }
+log = { workspace = true }
+
+[[example]]
+name = "idf_c3_b3f"
 
 # docs.rs cannot build the Xtensa ESP-IDF targets (no Espressif LLVM fork in the
 # sandbox); point it at the RISC-V ESP target, which docs.rs supports. A failed
-# docs.rs build here is expected once esp-idf-hal lands — the README is the
+# docs.rs build here is expected for an ESP-IDF crate — the README is the
 # primary docs.
 [package.metadata.docs.rs]
 default-target = "riscv32imc-esp-espidf"

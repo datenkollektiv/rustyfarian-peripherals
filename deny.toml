@@ -4,11 +4,11 @@ all-features = false
 no-default-features = false
 
 [advisories]
-# No advisory ignores: all known advisories in this dependency graph either
-# have available fixes or do not affect the library's host-testable code.
-# Add entries here only for advisories with no available fix, with a comment
-# explaining the reason and a planned resolution date.
-ignore = []
+# RUSTSEC-2024-0436 (`paste` unmaintained) is pulled transitively by the
+# pinned esp-hal stack (`esp-hal` and `riscv`). The advisory has no safe upgrade
+# in this graph; remove this ignore when the next coordinated esp stack wave
+# drops `paste`, or review by 2026-09-30.
+ignore = ["RUSTSEC-2024-0436"]
 
 [licenses]
 # Allow-list shared with the sibling rustyfarian repos. The pure skeleton graph
