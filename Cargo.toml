@@ -24,21 +24,22 @@ tamer = { path = "crates/tamer", default-features = false }
 # pure; the esp-* stacks below switch to exact pins once they are wired.
 embedded-hal = { version = "1.0", default-features = false }
 
-# ── Hardware-tier dependencies (added downstream-driven) ─────────────────────
+# ── Hardware-tier dependencies ───────────────────────────────────────────────
 #
-# The hardware crates ship as skeletons today and pull in their HALs with the
-# first real driver. When that happens, pin the esp stacks here exactly (`=`),
-# not with carets: the esp-hal and esp-idf ecosystems release as coordinated
-# waves, and mixed minors produce feature-unification conflicts. Re-use the
-# same wave the sibling repos are on — see the `[workspace.dependencies]`
-# tables and rationale comments in rustyfarian-ws2812 and rustyfarian-network.
+# Pinned exactly (`=`), not with carets: the esp-hal and esp-idf ecosystems
+# release as coordinated waves, and mixed minors produce feature-unification
+# conflicts. Re-use the same wave the sibling repos are on — see the
+# `[workspace.dependencies]` tables and rationale comments in rustyfarian-ws2812
+# and rustyfarian-network.
 #
-# Bare-metal (esp-hal) tier, e.g.:
-#   esp-hal                = { version = "=1.1.0" }
-#   esp-bootloader-esp-idf = { version = "=0.5.0", default-features = false }
-#   esp-println            = { version = "=0.17.0", default-features = false }
-#
-# ESP-IDF (std) tier, e.g.:
-#   esp-idf-hal = { version = "0.46" }
-#   embuild     = { version = "0.33", features = ["espidf"] }
-#   log         = { version = "0.4" }
+# Bare-metal (esp-hal) tier:
+esp-hal                = { version = "=1.1.0" }
+esp-bootloader-esp-idf = { version = "=0.5.0", default-features = false }
+esp-println            = { version = "=0.17.0", default-features = false }
+
+# ESP-IDF (std) tier:
+esp-idf-hal = { version = "0.46" }
+esp-idf-svc = { version = "0.52" }
+embuild     = { version = "0.33", features = ["espidf"] }
+log         = { version = "0.4" }
+anyhow      = { version = "1.0" }

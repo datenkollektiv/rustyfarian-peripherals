@@ -9,11 +9,12 @@ firmware needs a single import.
 
 ## Status
 
-Skeleton — a thin re-export of `tamer` with the `build.rs` chip-cfg seam in
-place. Drivers are added downstream-driven; `esp-idf-hal` and `embuild` are
-wired when the first driver lands (see `build.rs` for the required
-`embuild::espidf::sysenv::output()` link step). See `rustyfarian-esp-idf-power`
-for the ESP-IDF wrapper pattern to follow.
+Carries `esp-idf-hal` (with `embuild` re-emitting the ESP-IDF link step in
+`build.rs`) and re-exports `tamer` so firmware needs a single import. The first
+example, [`idf_c3_b3f`](examples/idf_c3_b3f.rs), debounces a B3F button on an
+ESP32-C3 using the pure `tamer::debounce::EdgeDetector`. Library drivers beyond
+the re-export are added downstream-driven. Build or flash examples with
+`just build-example idf_c3_b3f` / `just run idf_c3_b3f` (needs the ESP toolchain).
 
 ## License
 

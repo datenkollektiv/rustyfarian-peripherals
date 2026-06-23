@@ -1,0 +1,15 @@
+# ESP-IDF project defaults for rustyfarian-peripherals
+#
+# These are example/runtime-support values chosen to make the std examples run
+# comfortably — not application-tuned production recommendations. Re-tune per
+# application before copying these into an unrelated project.
+#
+# CONFIG_ESP_MAIN_TASK_STACK_SIZE: The default 3584 bytes overflows in debug
+# builds. 16384 bytes gives comfortable headroom for the std runtime and
+# esp-idf-hal init.
+#
+# CONFIG_FREERTOS_ISR_STACKSIZE: The default 1536 bytes can overflow with
+# callback overhead; 4096 is sufficient.
+CONFIG_ESP_MAIN_TASK_STACK_SIZE=16384
+CONFIG_FREERTOS_ISR_STACKSIZE=4096
+CONFIG_PTHREAD_TASK_STACK_SIZE_DEFAULT=8192

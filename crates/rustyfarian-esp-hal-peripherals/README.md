@@ -9,11 +9,12 @@ single import.
 
 ## Status
 
-Skeleton — a thin re-export of `tamer` with the chip-feature
-(`esp32c3` / `esp32c6` / `esp32` / `esp32s3`) and `build.rs` cfg seams in place.
-Drivers are added downstream-driven; the `esp-hal` dependency is wired behind
-the chip features when the first driver lands. See
-`rustyfarian-esp-hal-network` for the esp-hal feature-gating pattern to follow.
+Carries `esp-hal` behind the chip features (`esp32c3` / `esp32c6` / `esp32` /
+`esp32s3`) and re-exports `tamer` so firmware needs a single import. The first
+example, [`hal_c3_b3f`](examples/hal_c3_b3f.rs), debounces a B3F button on an
+ESP32-C3 using the pure `tamer::debounce::EdgeDetector`. Library drivers beyond
+the re-export are added downstream-driven. Check it with `just check-hal`; build
+or flash examples with `just build-example hal_c3_b3f` / `just run hal_c3_b3f`.
 
 ## License
 

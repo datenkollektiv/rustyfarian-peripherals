@@ -23,6 +23,9 @@ bumps may carry breaking changes).
   edges plus layered `Click`/`DoubleClick`/`LongPress` gestures), and the
   `hal`-gated `ButtonInput<P>` adapter (active-low/high; `try_from_pin`).
 - `tamer::mock::MockInputPin` (`hal`) — settable `InputPin` mock for host tests.
+- ESP32-C3 B3F button examples on both esp tiers (`hal_c3_b3f`, `idf_c3_b3f`),
+  wiring the first hardware dependency (`esp-hal` / `esp-idf-hal`) and the
+  `build-example` / `run` / `check-hal` justfile recipes.
 - Primitives donated by clean reimplementation (relicensed to MIT OR Apache-2.0)
   from `rustyfarian-knob` and `rustbox-peripherals`; the button event contract
   intentionally diverges from the knob's — see

@@ -1,7 +1,15 @@
 #!/usr/bin/env bash
 set -euo pipefail
-# doctor.sh — report development tooling status for rustyfarian-peripherals
-# Usage: scripts/doctor.sh (no arguments)
+# doctor.sh — report development tooling status and resolved build dirs.
+# Usage: scripts/doctor.sh <ramdisk> <hal_dir> <idf_dir>
+
+ramdisk="${1:-}"
+hal_dir="${2:-target/hal}"
+idf_dir="${3:-target/idf}"
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=./lib.sh
+. "$SCRIPT_DIR/lib.sh"
 
 # status <name> <state> <detail>
 status() { printf '  %-16s %-9s %s\n' "$1" "$2" "$3"; }
@@ -52,6 +60,15 @@ if command -v espflash >/dev/null 2>&1; then
 else
     status "espflash" "optional" "cargo install espflash (only for flashing devices)"
 fi
+
+# --- Build target dirs (esp-hal / esp-idf split; optional RAM disk) -------
+if [ -n "$ramdisk" ] && is_ramdisk_mounted "$ramdisk"; then
+    status "ramdisk" "ok" "$ramdisk (shared; just ramdisk detach to release)"
+else
+    status "ramdisk" "optional" "not mounted — using on-disk target dirs (just ramdisk attach)"
+fi
+status "hal target" "" "$hal_dir"
+status "idf target" "" "$idf_dir"
 
 printf '\nHost work (check / test / clippy / deny) needs only rustc, cargo, and just.\n'
 printf 'The esp toolchain and espflash are required only for the hardware crates.\n'

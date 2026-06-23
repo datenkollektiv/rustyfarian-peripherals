@@ -7,14 +7,10 @@
 // The cargo:rustc-check-cfg lines register each key so Cargo's check-cfg lint
 // does not warn about unexpected_cfgs.
 //
-// This crate is a skeleton: there is no esp-idf-hal dependency yet. When the
-// first driver lands and pulls in esp-idf-hal, this build script must ALSO call
-//
-//     if target.ends_with("-espidf") { embuild::espidf::sysenv::output(); }
-//
-// (with `embuild` added under [build-dependencies]) so examples and tests link
-// against ESP-IDF — link args from a dependency's build script do not propagate
-// to dependents that build binaries. See rustyfarian-esp-idf-power/build.rs.
+// For ESP-IDF targets this build script also re-emits the ESP-IDF link args via
+// `embuild::espidf::sysenv::output()` so example and test binaries link against
+// ESP-IDF — link args from a dependency's build script do not propagate to
+// dependents that build binaries. See rustyfarian-esp-idf-power/build.rs.
 
 fn main() {
     println!("cargo:rustc-check-cfg=cfg(esp32)");
@@ -25,5 +21,9 @@ fn main() {
         "xtensa-esp32-espidf" => println!("cargo:rustc-cfg=esp32"),
         "xtensa-esp32s3-espidf" => println!("cargo:rustc-cfg=esp32s3"),
         _ => {}
+    }
+
+    if target.ends_with("-espidf") {
+        embuild::espidf::sysenv::output();
     }
 }
