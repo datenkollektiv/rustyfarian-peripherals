@@ -3,18 +3,21 @@ Cargo.lock
 .embuild/
 .cargo/config.toml
 
+# --- Developer-local / AI-tooling — never commit (this is a PUBLIC repo) ---
+# Only AGENTS.md (the generic, cross-tool agent guide) is committed. All
+# Claude-specific config and instructions stay private. See the "Repository
+# Privacy Policy" in CLAUDE.md. Do NOT un-ignore these paths, regardless of any
+# onboarding / settings-cleanup skill that suggests tracking .claude/ agents.
 .claude/
 CLAUDE.md
-archive/
+memory/
 review-queue/
-.idea/
+archive/
 release/
 audit/
+.idea/
+.envrc
+.codex/
 
 # Temporary scratch files — local only
 tmp/
-
-# Claude Code project-local memory — personal, not committed
-memory/
-
-.envrc

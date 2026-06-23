@@ -93,9 +93,10 @@ audit:
 update:
     cargo update
 
-# clean build artifacts
+# clean build artifacts and local scratch (tmp/)
 clean:
     cargo clean
+    rm -rf tmp
 
 # report development tooling status
 doctor:
