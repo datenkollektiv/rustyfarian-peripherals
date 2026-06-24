@@ -44,6 +44,12 @@ name = "idf_c3_ir_proximity"
 name = "idf_c3_reed"
 
 [[example]]
+name = "idf_c3_tilt_motion"
+
+[[example]]
+name = "idf_c3_tilt_orientation"
+
+[[example]]
 name = "idf_c3_touch"
 
 # docs.rs cannot build the Xtensa ESP-IDF targets (no Espressif LLVM fork in the
