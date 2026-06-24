@@ -3,15 +3,16 @@
 Platform-agnostic, host-testable **input primitives** for embedded projects —
 the pure core of the [rustyfarian peripherals](../../README.md) stack.
 
-`tamer` tames unruly hardware inputs (bouncing buttons, noisy rotary encoders,
-floating lines) into a calm, predictable stream of events. All of its logic is
-plain `no_std` Rust with no hardware dependency, so it is fully unit-testable on
-the host — no ESP32, no ESP toolchain.
+`tamer` tames unruly hardware inputs (bouncing buttons, noisy presence sensors,
+rotary encoders, floating lines) into a calm, predictable stream of events.
+All of its logic is plain `no_std` Rust with no hardware dependency, so it is
+fully unit-testable on the host — no ESP32, no ESP toolchain.
 
 ## Design
 
-- **Pure logic only.** Debounce, rotary quadrature decoding, and button-event
-  timing are state machines with no hardware dependency.
+- **Pure logic only.** Debounce, digital presence detection, rotary quadrature
+  decoding, and button-event timing are state machines with no hardware
+  dependency.
 - **Trait-first**, with a `Noop*` mock shipped beside every trait for downstream
   testing.
 - **`hal` feature** (optional): thin adapters over

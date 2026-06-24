@@ -15,6 +15,7 @@ host_target := `scripts/host-target.sh`
 # copied .cargo/config.toml would otherwise impose. The esp-hal/esp-idf tiers
 # are excluded here — they do not compile for the host.
 host_flags := "-p tamer --target " + host_target
+tamer_hal_flags := host_flags + " --features hal"
 doc_flags  := "-p tamer --target " + host_target + " --no-deps"
 
 # Default device targets for the per-tier check recipes (ESP32-C3, the example
@@ -71,6 +72,10 @@ clippy:
 # run host-side unit tests (no ESP toolchain required)
 test:
     cargo test {{ host_flags }}
+
+# run host-side unit tests with tamer's embedded-hal adapters enabled
+test-hal:
+    cargo test {{ tamer_hal_flags }}
 
 # run host-side tests with stdout/stderr visible
 test-verbose:

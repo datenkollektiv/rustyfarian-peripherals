@@ -39,6 +39,8 @@
 //! The following primitives have landed:
 //!
 //! - [`debounce`] — sampled-input debounce state machine and edge detector.
+//! - [`presence`] — polarity-aware debounced present / absent detection for
+//!   digital sensors.
 //! - [`rotary`] — quadrature / Gray-code decoding with detent handling.
 //! - [`button`] — press / release / click / double-click / long-press events,
 //!   built on the [`debounce`] edge detector.
@@ -59,6 +61,19 @@ pub use debounce::{Debouncer, Edge, EdgeDetector};
 
 #[cfg(feature = "hal")]
 pub use debounce::DebouncedInput;
+
+/// Digital presence detection — [`Presence`](presence::Presence),
+/// [`Polarity`](presence::Polarity), and
+/// [`DigitalPresence`](presence::DigitalPresence).
+///
+/// Enable the `hal` feature to get the
+/// [`DigitalPresenceInput`](presence::DigitalPresenceInput) adapter that reads
+/// an `embedded-hal` `InputPin` directly.
+pub mod presence;
+pub use presence::{DigitalPresence, Polarity, Presence};
+
+#[cfg(feature = "hal")]
+pub use presence::DigitalPresenceInput;
 
 /// Quadrature rotary encoder decoder — [`QuadratureDecoder`](rotary::QuadratureDecoder)
 /// and [`EncoderDirection`](rotary::EncoderDirection).
@@ -104,6 +119,7 @@ pub use mock::MockInputPin;
 pub mod prelude {
     pub use crate::button::{ButtonDecoder, ButtonEvent};
     pub use crate::debounce::{Debouncer, Edge, EdgeDetector};
+    pub use crate::presence::{DigitalPresence, Polarity, Presence};
     pub use crate::rotary::{EncoderDirection, QuadratureDecoder};
 
     #[cfg(feature = "hal")]
@@ -112,6 +128,8 @@ pub mod prelude {
     pub use crate::debounce::DebouncedInput;
     #[cfg(feature = "hal")]
     pub use crate::mock::MockInputPin;
+    #[cfg(feature = "hal")]
+    pub use crate::presence::DigitalPresenceInput;
     #[cfg(feature = "hal")]
     pub use crate::rotary::QuadratureInput;
 }

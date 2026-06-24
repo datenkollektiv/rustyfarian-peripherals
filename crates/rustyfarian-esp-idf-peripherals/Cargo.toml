@@ -37,6 +37,12 @@ log = { workspace = true }
 [[example]]
 name = "idf_c3_b3f"
 
+[[example]]
+name = "idf_c3_reed"
+
+[[example]]
+name = "idf_c3_touch"
+
 # docs.rs cannot build the Xtensa ESP-IDF targets (no Espressif LLVM fork in the
 # sandbox); point it at the RISC-V ESP target, which docs.rs supports. A failed
 # docs.rs build here is expected for an ESP-IDF crate — the README is the
