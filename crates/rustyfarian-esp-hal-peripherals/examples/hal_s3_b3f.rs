@@ -1,4 +1,4 @@
-//! ESP32-C3 — B3F Tactile Push Button
+//! ESP32-S3 CrowPanel Rotary Display — B3F Tactile Push Button
 //!
 //! Minimal example for a single B3F-style momentary tactile push button
 //! (e.g. Omron B3F-1000, 6×6 mm 4-leg through-hole).
@@ -13,8 +13,8 @@
 //!
 //! ## Components
 //!
-//! - ESP32-C3 development board (e.g. ESP32-C3-DevKitM-1, ESP32-C3 SuperMini)
-//! - 1 × B3F tactile push button (4-leg)
+//! - CrowPanel 1.28" HMI ESP32-S3 Rotary Display
+//! - 1 × B3F tactile push button (4-leg), or the board's GPIO41 button input
 //!
 //! ## Wiring
 //!
@@ -23,30 +23,29 @@
 //! pair — they form a simple SPST momentary switch.
 //!
 //! ```text
-//! B3F leg     ESP32-C3
-//! ───────     ────────
-//! one leg     GPIO 4
+//! B3F leg     CrowPanel ESP32-S3
+//! ───────     ──────────────────
+//! one leg     GPIO 41
 //! other leg   GND
 //! ```
 //!
-//! The internal pull-up keeps GPIO 4 HIGH at rest. Pressing the button shorts
+//! The internal pull-up keeps GPIO 41 HIGH at rest. Pressing the button shorts
 //! the line to GND, pulling it LOW.
 //!
-//! GPIO 4 is a convenient non-strapping general-purpose pin on common ESP32-C3
-//! dev boards (DevKitM-1, SuperMini); adjust the pin for your board if needed.
-//! Avoid GPIO 8 / GPIO 9 (strapping / BOOT) and any pins used by your board
-//! console or USB-UART bridge.
+//! GPIO 41 is the known-working button input for the CrowPanel 1.28" HMI
+//! ESP32-S3 Rotary Display.
+//! Avoid strapping pins and any pins used by your board console or USB-UART bridge.
 //!
 //! ## Build
 //!
 //! ```sh
-//! just build-example hal_c3_b3f
+//! just build-example hal_s3_b3f
 //! ```
 //!
 //! ## Flash
 //!
 //! ```sh
-//! just flash hal_c3_b3f
+//! just flash hal_s3_b3f
 //! ```
 
 #![no_std]
@@ -76,7 +75,7 @@ fn main() -> ! {
     let peripherals = esp_hal::init(esp_hal::Config::default());
 
     let button = Input::new(
-        peripherals.GPIO4,
+        peripherals.GPIO41,
         InputConfig::default().with_pull(Pull::Up),
     );
 
@@ -85,7 +84,7 @@ fn main() -> ! {
     let delay = Delay::new();
     let mut press_count: u32 = 0;
 
-    println!("B3F button ready on GPIO 4 — press to test.");
+    println!("B3F button ready on GPIO 41 — press to test.");
 
     loop {
         let now_ms: u64 = Instant::now().duration_since_epoch().as_millis();
