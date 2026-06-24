@@ -89,6 +89,14 @@ name = "hal_c3_reed"
 required-features = ["esp32c3", "rt", "unstable"]
 
 [[example]]
+name = "hal_c3_tilt_motion"
+required-features = ["esp32c3", "rt", "unstable"]
+
+[[example]]
+name = "hal_c3_tilt_orientation"
+required-features = ["esp32c3", "rt", "unstable"]
+
+[[example]]
 name = "hal_c3_touch"
 required-features = ["esp32c3", "rt", "unstable"]
 
