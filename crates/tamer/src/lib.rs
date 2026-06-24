@@ -38,6 +38,7 @@
 //!
 //! The following primitives have landed:
 //!
+//! - [`analog`] — raw ADC range normalization and deadbanded analog movement.
 //! - [`debounce`] — sampled-input debounce state machine and edge detector.
 //! - [`presence`] — polarity-aware debounced present / absent detection for
 //!   digital sensors.
@@ -61,6 +62,16 @@ pub use debounce::{Debouncer, Edge, EdgeDetector};
 
 #[cfg(feature = "hal")]
 pub use debounce::DebouncedInput;
+
+/// Analog input helpers — [`AnalogRange`](analog::AnalogRange),
+/// [`AnalogValue`](analog::AnalogValue), and
+/// [`AnalogInput`](analog::AnalogInput).
+///
+/// This module is HAL-agnostic.
+/// Hardware tiers feed it raw ADC samples; host tests can use
+/// [`MockAnalogRead`](analog::MockAnalogRead).
+pub mod analog;
+pub use analog::{AnalogInput, AnalogRange, AnalogRead, AnalogSample, AnalogValue, MockAnalogRead};
 
 /// Digital presence detection — [`Presence`](presence::Presence),
 /// [`Polarity`](presence::Polarity), and
@@ -117,6 +128,9 @@ pub use mock::MockInputPin;
 /// Covers the pure types unconditionally and the `hal` adapters when the
 /// `hal` feature is enabled.
 pub mod prelude {
+    pub use crate::analog::{
+        AnalogInput, AnalogRange, AnalogRead, AnalogSample, AnalogValue, MockAnalogRead,
+    };
     pub use crate::button::{ButtonDecoder, ButtonEvent};
     pub use crate::debounce::{Debouncer, Edge, EdgeDetector};
     pub use crate::presence::{DigitalPresence, Polarity, Presence};

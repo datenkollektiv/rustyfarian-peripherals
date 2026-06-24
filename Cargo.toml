@@ -23,6 +23,7 @@ tamer = { path = "crates/tamer", default-features = false }
 # device crates implement against the same traits. Kept at a caret range while
 # pure; the esp-* stacks below switch to exact pins once they are wired.
 embedded-hal = { version = "1.0", default-features = false }
+nb = { version = "1.1", default-features = false }
 
 # ── Hardware-tier dependencies ───────────────────────────────────────────────
 #

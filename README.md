@@ -12,8 +12,8 @@
 [![cargo audit](https://github.com/datenkollektiv/rustyfarian-peripherals/actions/workflows/audit.yml/badge.svg)](https://github.com/datenkollektiv/rustyfarian-peripherals/actions/workflows/audit.yml)
 
 Library-only workspace providing basic **input peripheral** abstractions —
-pins, debounced presence sensors, debounced switches, rotary encoders, and
-button events — for ESP32 and `no_std` embedded Rust projects.
+pins, debounced presence sensors, debounced switches, rotary encoders, analog
+controls, and button events — for ESP32 and `no_std` embedded Rust projects.
 No application code, just reusable, composable crates.
 
 > **Note:** Large parts of this library (and its documentation) were developed
@@ -33,7 +33,7 @@ graph TD
     net["rustyfarian-network<br/>Wi-Fi · MQTT · ESP-NOW · OTA"]
     leds["rustyfarian-ws2812<br/>WS2812 / NeoPixel effects"]
     pwr["rustyfarian-power<br/>battery · deep sleep · radio gating"]
-    periph["rustyfarian-peripherals<br/>pins · debounce · presence · rotary · buttons<br/>(this repo)"]
+    periph["rustyfarian-peripherals<br/>pins · debounce · presence · rotary · analog · buttons<br/>(this repo)"]
     app --> net
     app --> leds
     app --> pwr
@@ -42,7 +42,7 @@ graph TD
 
 | Repo                                                                             | Role                                                              |
 |:---------------------------------------------------------------------------------|:------------------------------------------------------------------|
-| **rustyfarian-peripherals** (this repo)                                          | Input peripherals: pins, debounce, presence sensors, rotary encoders, button events |
+| **rustyfarian-peripherals** (this repo)                                          | Input peripherals: pins, debounce, presence sensors, rotary encoders, analog controls, button events |
 | [rustyfarian-power](https://github.com/datenkollektiv/rustyfarian-power)         | Battery monitoring, deep sleep, radio power gating                |
 | [rustyfarian-network](https://github.com/datenkollektiv/rustyfarian-network)     | Wi-Fi, MQTT, LoRa, ESP-NOW, OTA                                   |
 | [rustyfarian-ws2812](https://github.com/datenkollektiv/rustyfarian-ws2812)       | WS2812 / NeoPixel LED effects (output)                            |
@@ -76,9 +76,9 @@ hardware-specific code** — a pattern common in application development but rar
 in embedded Rust.
 
 - **Hardware-independent core:** debounce, digital presence detection, rotary
-  quadrature decoding, and button-event timing live in [`tamer`](crates/tamer)
-  — plain `no_std` Rust with no hardware dependency, always compiled, fully
-  testable on the host.
+  quadrature decoding, analog normalization, and button-event timing live in
+  [`tamer`](crates/tamer) — plain `no_std` Rust with no hardware dependency,
+  always compiled, fully testable on the host.
 - **Thin hardware wrappers:** the `rustyfarian-esp-*` crates are minimal
   translation layers between `embedded-hal` pins and the pure logic. Real logic
   stays in the core.
@@ -95,7 +95,7 @@ ESP32 or ESP toolchain.
 
 | Crate                                                                       | Tier                  | Target   | Contents                                                                                                                    |
 |:----------------------------------------------------------------------------|:----------------------|:---------|:----------------------------------------------------------------------------------------------------------------------------|
-| [`tamer`](crates/tamer)                                                     | Pure / host-buildable | `no_std` | Debounce, digital presence detection, rotary decoding, and button-event logic behind traits, with `Noop*` mocks. No hardware dependency. |
+| [`tamer`](crates/tamer)                                                     | Pure / host-buildable | `no_std` | Debounce, digital presence detection, rotary decoding, analog normalization, and button-event logic behind traits, with `Noop*` mocks. No hardware dependency. |
 | [`rustyfarian-esp-hal-peripherals`](crates/rustyfarian-esp-hal-peripherals) | esp-hal (bare-metal)  | `no_std` | esp-hal GPIO drivers binding `tamer` to real pins. Re-exports `tamer`. **(skeleton)**                                       |
 | [`rustyfarian-esp-idf-peripherals`](crates/rustyfarian-esp-idf-peripherals) | ESP-IDF (std)         | `std`    | esp-idf-hal GPIO drivers binding `tamer` to real pins. Re-exports `tamer`. **(skeleton)**                                   |
 

@@ -41,6 +41,9 @@ name = "idf_c3_b3f"
 name = "idf_c3_ir_proximity"
 
 [[example]]
+name = "idf_c3_poti"
+
+[[example]]
 name = "idf_c3_reed"
 
 [[example]]
