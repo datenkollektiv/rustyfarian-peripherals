@@ -17,6 +17,9 @@ bumps may carry breaking changes).
   and dual MIT/Apache-2.0 licensing.
 - `tamer::debounce` — `Debouncer`, `Edge`, `EdgeDetector`, and the `hal`-gated
   `DebouncedInput<P>` adapter (caller-owned `u64` clock; `try_from_pin`).
+- `tamer::presence` — `Presence`, `Polarity`, `DigitalPresence`, and the
+  `hal`-gated `DigitalPresenceInput<P>` adapter for polarity-aware debounced
+  digital presence detection.
 - `tamer::rotary` — `QuadratureDecoder`, `EncoderDirection`, and the `hal`-gated
   `QuadratureInput<A, B>` adapter (`try_from_pins`).
 - `tamer::button` — `ButtonDecoder` and `ButtonEvent` (raw `Press`/`Release`
@@ -28,5 +31,7 @@ bumps may carry breaking changes).
   `build-example` / `run` / `check-hal` justfile recipes.
 - Primitives donated by clean reimplementation (relicensed to MIT OR Apache-2.0)
   from `rustyfarian-knob` and `rustbox-peripherals`; the button event contract
-  intentionally diverges from the knob's — see
-  [ADR-001](docs/adr/001-input-primitives-origin.md).
+  intentionally diverges from the knob's, and digital presence follows the
+  donor repo's accepted abstraction boundary — see
+  [ADR-001](docs/adr/001-input-primitives-origin.md) and
+  [ADR-002](docs/adr/002-digital-presence.md).

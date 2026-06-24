@@ -81,6 +81,14 @@ name = "hal_c3_b3f"
 required-features = ["esp32c3", "rt", "unstable"]
 
 [[example]]
+name = "hal_c3_reed"
+required-features = ["esp32c3", "rt", "unstable"]
+
+[[example]]
+name = "hal_c3_touch"
+required-features = ["esp32c3", "rt", "unstable"]
+
+[[example]]
 name = "hal_c6_b3f"
 required-features = ["esp32c6", "rt", "unstable"]
 
