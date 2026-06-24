@@ -1,4 +1,4 @@
-//! ESP32-C3 — B3F Tactile Push Button
+//! ESP32 — B3F Tactile Push Button
 //!
 //! Minimal example for a single B3F-style momentary tactile push button
 //! (e.g. Omron B3F-1000, 6×6 mm 4-leg through-hole).
@@ -13,7 +13,7 @@
 //!
 //! ## Components
 //!
-//! - ESP32-C3 development board (e.g. ESP32-C3-DevKitM-1, ESP32-C3 SuperMini)
+//! - ESP32 development board (e.g. ESP32-DevKitC with WROOM module)
 //! - 1 × B3F tactile push button (4-leg)
 //!
 //! ## Wiring
@@ -23,7 +23,7 @@
 //! pair — they form a simple SPST momentary switch.
 //!
 //! ```text
-//! B3F leg     ESP32-C3
+//! B3F leg     ESP32
 //! ───────     ────────
 //! one leg     GPIO 4
 //! other leg   GND
@@ -32,21 +32,20 @@
 //! The internal pull-up keeps GPIO 4 HIGH at rest. Pressing the button shorts
 //! the line to GND, pulling it LOW.
 //!
-//! GPIO 4 is a convenient non-strapping general-purpose pin on common ESP32-C3
-//! dev boards (DevKitM-1, SuperMini); adjust the pin for your board if needed.
-//! Avoid GPIO 8 / GPIO 9 (strapping / BOOT) and any pins used by your board
-//! console or USB-UART bridge.
+//! GPIO 4 is a convenient general-purpose pin on common ESP32 WROOM dev boards.
+//! Adjust the pin for your board if needed.
+//! Avoid strapping pins and any pins used by your board console or USB-UART bridge.
 //!
 //! ## Build
 //!
 //! ```sh
-//! just build-example hal_c3_b3f
+//! just build-example hal_esp_b3f
 //! ```
 //!
 //! ## Flash
 //!
 //! ```sh
-//! just flash hal_c3_b3f
+//! just flash hal_esp_b3f
 //! ```
 
 #![no_std]

@@ -31,35 +31,33 @@ default = ["esp32c3", "unstable"]
 
 # ── Chip features ────────────────────────────────────────────────────────────
 #
-# Each selects the matching chip across the esp-hal stack. All chips route
-# console output through `uart` (UART0), so `esp-println` lands on the UART
-# bridge that also handles flashing — visible on the same `/dev/cu.usbserial-*`
-# port used to flash and monitor, no separate native-USB connection required.
-# (esp-hal-network uses `jtag-serial` for C3/C6, which assumes the board's native
-# USB Serial/JTAG port is connected; these examples target the UART-bridge path.)
+# Each selects the matching chip across the esp-hal stack. Console output uses
+# `esp-println/auto`: C3/C6/S3 boards print over native USB Serial/JTAG when the
+# monitor is attached there, and otherwise fall back to UART. Classic ESP32 has
+# no USB Serial/JTAG path, so `auto` resolves to UART.
 esp32c3 = [
     "esp-hal/esp32c3",
     "esp-bootloader-esp-idf/esp32c3",
     "esp-println/esp32c3",
-    "esp-println/uart",
+    "esp-println/auto",
 ] # RISC-V, riscv32imc-unknown-none-elf
 esp32c6 = [
     "esp-hal/esp32c6",
     "esp-bootloader-esp-idf/esp32c6",
     "esp-println/esp32c6",
-    "esp-println/uart",
+    "esp-println/auto",
 ] # RISC-V, riscv32imac-unknown-none-elf
 esp32 = [
     "esp-hal/esp32",
     "esp-bootloader-esp-idf/esp32",
     "esp-println/esp32",
-    "esp-println/uart",
+    "esp-println/auto",
 ] # Xtensa LX6, xtensa-esp32-none-elf
 esp32s3 = [
     "esp-hal/esp32s3",
     "esp-bootloader-esp-idf/esp32s3",
     "esp-println/esp32s3",
-    "esp-println/uart",
+    "esp-println/auto",
 ] # Xtensa LX7, xtensa-esp32s3-none-elf
 
 # esp-hal gates its `main` macro and several GPIO types behind `unstable`; `rt`
@@ -76,8 +74,20 @@ esp-hal = { workspace = true, features = ["unstable"] }
 esp-bootloader-esp-idf = { workspace = true }
 
 [dev-dependencies]
-esp-println = { workspace = true, features = ["uart"] }
+esp-println = { workspace = true, features = ["auto"] }
 
 [[example]]
 name = "hal_c3_b3f"
 required-features = ["esp32c3", "rt", "unstable"]
+
+[[example]]
+name = "hal_c6_b3f"
+required-features = ["esp32c6", "rt", "unstable"]
+
+[[example]]
+name = "hal_esp_b3f"
+required-features = ["esp32", "rt", "unstable"]
+
+[[example]]
+name = "hal_s3_b3f"
+required-features = ["esp32s3", "rt", "unstable"]

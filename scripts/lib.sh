@@ -61,22 +61,28 @@ resolve_example() {
             EX_PKG="rustyfarian-esp-hal-peripherals"
             EX_TARGET_DIR="$hal_dir"
             case "$EX_CHIP" in
-                c3)      EX_TARGET="riscv32imc-unknown-none-elf";  EX_MCU="esp32c3" ;;
-                c6)      EX_TARGET="riscv32imac-unknown-none-elf"; EX_MCU="esp32c6" ;;
-                esp32)   EX_TARGET="xtensa-esp32-none-elf";        EX_MCU="esp32";   EX_XTENSA=1 ;;
-                esp32s3) EX_TARGET="xtensa-esp32s3-none-elf";      EX_MCU="esp32s3"; EX_XTENSA=1 ;;
-                *) printf 'Unknown chip "%s" in "%s" (expected c3|c6|esp32|esp32s3).\n' "$EX_CHIP" "$example" >&2; return 1 ;;
+                c3) EX_TARGET="riscv32imc-unknown-none-elf"; EX_MCU="esp32c3" ;;
+                c6) EX_TARGET="riscv32imac-unknown-none-elf"; EX_MCU="esp32c6" ;;
+                esp|esp32) EX_TARGET="xtensa-esp32-none-elf"; EX_MCU="esp32"; EX_XTENSA=1 ;;
+                s3|esp32s3) EX_TARGET="xtensa-esp32s3-none-elf"; EX_MCU="esp32s3"; EX_XTENSA=1 ;;
+                *)
+                    printf 'Unknown chip "%s" in "%s" (expected c3|c6|esp|s3|esp32|esp32s3).\n' "$EX_CHIP" "$example" >&2
+                    return 1
+                    ;;
             esac
             ;;
         idf)
             EX_PKG="rustyfarian-esp-idf-peripherals"
             EX_TARGET_DIR="$idf_dir"
             case "$EX_CHIP" in
-                c3)      EX_TARGET="riscv32imc-esp-espidf";  EX_MCU="esp32c3" ;;
-                c6)      EX_TARGET="riscv32imac-esp-espidf"; EX_MCU="esp32c6" ;;
-                esp32)   EX_TARGET="xtensa-esp32-espidf";    EX_MCU="esp32";   EX_XTENSA=1 ;;
-                esp32s3) EX_TARGET="xtensa-esp32s3-espidf";  EX_MCU="esp32s3"; EX_XTENSA=1 ;;
-                *) printf 'Unknown chip "%s" in "%s" (expected c3|c6|esp32|esp32s3).\n' "$EX_CHIP" "$example" >&2; return 1 ;;
+                c3) EX_TARGET="riscv32imc-esp-espidf"; EX_MCU="esp32c3" ;;
+                c6) EX_TARGET="riscv32imac-esp-espidf"; EX_MCU="esp32c6" ;;
+                esp|esp32) EX_TARGET="xtensa-esp32-espidf"; EX_MCU="esp32"; EX_XTENSA=1 ;;
+                s3|esp32s3) EX_TARGET="xtensa-esp32s3-espidf"; EX_MCU="esp32s3"; EX_XTENSA=1 ;;
+                *)
+                    printf 'Unknown chip "%s" in "%s" (expected c3|c6|esp|s3|esp32|esp32s3).\n' "$EX_CHIP" "$example" >&2
+                    return 1
+                    ;;
             esac
             ;;
         *)
@@ -86,8 +92,11 @@ resolve_example() {
     esac
 
     EX_FEATURES="$(get_example_features_from_toml "$example" "crates/$EX_PKG")"
-    # Bare-metal examples need a chip feature; default it if the manifest omits one.
+    # Bare-metal examples need a chip feature; default it from the resolved MCU
+    # if the manifest omits `required-features`. Reuse $EX_MCU (esp32c3 / esp32c6
+    # / esp32 / esp32s3) rather than "esp32$EX_CHIP" — the latter yields
+    # "esp32esp32" / "esp32esp32s3" for the esp32 and esp32s3 chips.
     if [ "$EX_TIER" = hal ] && [ -z "$EX_FEATURES" ]; then
-        EX_FEATURES="esp32${EX_CHIP},rt,unstable"
+        EX_FEATURES="${EX_MCU},rt,unstable"
     fi
 }
