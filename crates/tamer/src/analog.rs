@@ -3,8 +3,9 @@
 //! Analog peripherals usually produce raw ADC counts, while application code
 //! wants a stable, range-independent value.
 //! This module keeps that conversion pure and host-testable: callers feed raw
-//! samples, [`AnalogRange`] clamps and normalizes them, and [`AnalogValue`]
-//! reports only meaningful movement across a configured deadband.
+//! samples, [`AnalogCalibration`] can learn an observed range,
+//! [`AnalogRange`] clamps and normalizes values, and [`AnalogValue`] reports
+//! only meaningful movement across a configured deadband.
 //!
 //! # Example
 //!
@@ -24,6 +25,111 @@ use core::convert::Infallible;
 
 /// The maximum normalized analog value.
 pub const ANALOG_FULL_SCALE: u16 = u16::MAX;
+
+/// Observed raw ADC extrema for simple min/max calibration.
+///
+/// Feed samples with [`observe`](AnalogCalibration::observe), then turn the
+/// result into an [`AnalogRange`] with [`range`](AnalogCalibration::range) or
+/// [`range_with_min_span`](AnalogCalibration::range_with_min_span).
+/// This helper is volatile by design.
+/// Persisting calibration values belongs in the application or hardware tier.
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct AnalogCalibration {
+    min: Option<u16>,
+    max: Option<u16>,
+}
+
+impl AnalogCalibration {
+    /// Creates an empty calibration accumulator.
+    #[must_use]
+    pub const fn new() -> Self {
+        Self {
+            min: None,
+            max: None,
+        }
+    }
+
+    /// Creates an accumulator seeded with one raw sample.
+    #[must_use]
+    pub const fn from_sample(raw: u16) -> Self {
+        Self {
+            min: Some(raw),
+            max: Some(raw),
+        }
+    }
+
+    /// Observes one raw ADC sample.
+    pub fn observe(&mut self, raw: u16) {
+        self.min = Some(match self.min {
+            Some(min) => {
+                if raw < min {
+                    raw
+                } else {
+                    min
+                }
+            }
+            None => raw,
+        });
+
+        self.max = Some(match self.max {
+            Some(max) => {
+                if raw > max {
+                    raw
+                } else {
+                    max
+                }
+            }
+            None => raw,
+        });
+    }
+
+    /// Returns the lowest observed raw sample.
+    #[must_use]
+    pub const fn min(self) -> Option<u16> {
+        self.min
+    }
+
+    /// Returns the highest observed raw sample.
+    #[must_use]
+    pub const fn max(self) -> Option<u16> {
+        self.max
+    }
+
+    /// Returns the observed raw span when at least two distinct values exist.
+    #[must_use]
+    pub const fn span(self) -> Option<u16> {
+        match (self.min, self.max) {
+            (Some(min), Some(max)) if max > min => Some(max - min),
+            _ => None,
+        }
+    }
+
+    /// Returns an [`AnalogRange`] from the observed extrema.
+    ///
+    /// Returns `None` until at least two distinct raw values have been
+    /// observed.
+    #[must_use]
+    pub const fn range(self) -> Option<AnalogRange> {
+        match (self.min, self.max) {
+            (Some(min), Some(max)) if max > min => Some(AnalogRange::new(min, max)),
+            _ => None,
+        }
+    }
+
+    /// Returns an observed range only if it covers at least `min_span` counts.
+    ///
+    /// This avoids accidentally calibrating to a tiny range when the user did
+    /// not move the control during the calibration window.
+    #[must_use]
+    pub const fn range_with_min_span(self, min_span: u16) -> Option<AnalogRange> {
+        match (self.min, self.max) {
+            (Some(min), Some(max)) if max > min && max - min >= min_span => {
+                Some(AnalogRange::new(min, max))
+            }
+            _ => None,
+        }
+    }
+}
 
 /// A raw ADC range used to normalize samples.
 ///
@@ -388,8 +494,37 @@ mod tests {
     }
 
     #[test]
+    fn calibration_observes_min_max_and_range() {
+        let mut calibration = AnalogCalibration::new();
+
+        assert_eq!(calibration.range(), None);
+
+        calibration.observe(2000);
+        calibration.observe(1600);
+        calibration.observe(3800);
+
+        assert_eq!(calibration.min(), Some(1600));
+        assert_eq!(calibration.max(), Some(3800));
+        assert_eq!(calibration.span(), Some(2200));
+        assert_eq!(calibration.range(), Some(AnalogRange::new(1600, 3800)));
+    }
+
+    #[test]
+    fn calibration_can_require_minimum_span() {
+        let mut calibration = AnalogCalibration::from_sample(2000);
+        calibration.observe(2100);
+
+        assert_eq!(calibration.range_with_min_span(200), None);
+        assert_eq!(
+            calibration.range_with_min_span(100),
+            Some(AnalogRange::new(2000, 2100))
+        );
+    }
+
+    #[test]
     fn value_ignores_movement_inside_deadband() {
-        let mut value = AnalogValue::new(0, AnalogRange::zero_to(4095), 512);
+        let range = AnalogRange::zero_to(4095);
+        let mut value = AnalogValue::new(0, range, range.raw_delta_to_normalized(32));
 
         assert_eq!(value.update(10), None);
         assert_eq!(value.stable_value().raw(), 0);
@@ -397,7 +532,8 @@ mod tests {
 
     #[test]
     fn value_emits_movement_at_deadband() {
-        let mut value = AnalogValue::new(0, AnalogRange::zero_to(4095), 512);
+        let range = AnalogRange::zero_to(4095);
+        let mut value = AnalogValue::new(0, range, range.raw_delta_to_normalized(32));
 
         let sample = value.update(32).unwrap();
 

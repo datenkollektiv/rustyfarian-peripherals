@@ -63,15 +63,18 @@ pub use debounce::{Debouncer, Edge, EdgeDetector};
 #[cfg(feature = "hal")]
 pub use debounce::DebouncedInput;
 
-/// Analog input helpers — [`AnalogRange`](analog::AnalogRange),
-/// [`AnalogValue`](analog::AnalogValue), and
+/// Analog input helpers — [`AnalogCalibration`](analog::AnalogCalibration),
+/// [`AnalogRange`](analog::AnalogRange), [`AnalogValue`](analog::AnalogValue), and
 /// [`AnalogInput`](analog::AnalogInput).
 ///
 /// This module is HAL-agnostic.
 /// Hardware tiers feed it raw ADC samples; host tests can use
 /// [`MockAnalogRead`](analog::MockAnalogRead).
 pub mod analog;
-pub use analog::{AnalogInput, AnalogRange, AnalogRead, AnalogSample, AnalogValue, MockAnalogRead};
+pub use analog::{
+    AnalogCalibration, AnalogInput, AnalogRange, AnalogRead, AnalogSample, AnalogValue,
+    MockAnalogRead,
+};
 
 /// Digital presence detection — [`Presence`](presence::Presence),
 /// [`Polarity`](presence::Polarity), and
@@ -129,7 +132,8 @@ pub use mock::MockInputPin;
 /// `hal` feature is enabled.
 pub mod prelude {
     pub use crate::analog::{
-        AnalogInput, AnalogRange, AnalogRead, AnalogSample, AnalogValue, MockAnalogRead,
+        AnalogCalibration, AnalogInput, AnalogRange, AnalogRead, AnalogSample, AnalogValue,
+        MockAnalogRead,
     };
     pub use crate::button::{ButtonDecoder, ButtonEvent};
     pub use crate::debounce::{Debouncer, Edge, EdgeDetector};
