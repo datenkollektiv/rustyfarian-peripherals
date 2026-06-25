@@ -1,9 +1,9 @@
 //! ESP32-C3 — Potentiometer on ADC1
 //!
-//! Minimal analog-input example for a single potentiometer.
-//! Reads the wiper through ADC1, normalizes the raw 12-bit reading with
-//! [`AnalogValue`], and prints only when the value changes by a meaningful
-//! deadband.
+//! Self-calibrating analog-input example for a single potentiometer.
+//! It samples the wiper through ADC1, observes a short startup calibration sweep
+//! with [`AnalogCalibration`], normalizes the raw reading with [`AnalogValue`],
+//! and prints only when the value changes by a meaningful deadband.
 //!
 //! This exercises the pure [`tamer::analog`] logic over a real esp-hal ADC
 //! read.
@@ -51,10 +51,13 @@ use esp_hal::{
     main,
 };
 use esp_println::println;
-use tamer::analog::{AnalogRange, AnalogValue};
+use tamer::analog::{AnalogCalibration, AnalogRange, AnalogValue};
 
 const ADC_MAX: u16 = 4095;
 const DEADBAND_COUNTS: u16 = 32;
+const CALIBRATION_SAMPLES: u16 = 200;
+const CALIBRATION_DELAY_MS: u32 = 25;
+const MIN_CALIBRATION_SPAN: u16 = 512;
 
 #[panic_handler]
 fn panic(info: &core::panic::PanicInfo) -> ! {
@@ -70,8 +73,7 @@ fn main() -> ! {
     let mut poti_pin = adc1_config.enable_pin(peripherals.GPIO4, Attenuation::_11dB);
     let mut adc1 = Adc::new(peripherals.ADC1, adc1_config);
     let delay = Delay::new();
-    let range = AnalogRange::zero_to(ADC_MAX);
-    let deadband = range.raw_delta_to_normalized(DEADBAND_COUNTS);
+    let default_range = AnalogRange::zero_to(ADC_MAX);
 
     println!("Waiting for first ADC sample on GPIO 4...");
 
@@ -84,6 +86,56 @@ fn main() -> ! {
             }
         }
     };
+
+    println!(
+        "Calibration: turn the potentiometer end-to-end for {} seconds.",
+        (u32::from(CALIBRATION_SAMPLES) * CALIBRATION_DELAY_MS) / 1000
+    );
+
+    let mut calibration = AnalogCalibration::from_sample(initial_raw);
+    let mut calibration_read_failed = false;
+
+    for _ in 0..CALIBRATION_SAMPLES {
+        match nb::block!(adc1.read_oneshot(&mut poti_pin)) {
+            Ok(raw) => {
+                if calibration_read_failed {
+                    println!("ADC read recovered during calibration");
+                    calibration_read_failed = false;
+                }
+
+                calibration.observe(raw);
+            }
+            Err(_) => {
+                if !calibration_read_failed {
+                    println!("ADC read failed during calibration; suppressing repeated failures");
+                    calibration_read_failed = true;
+                }
+            }
+        }
+
+        delay.delay_millis(CALIBRATION_DELAY_MS);
+    }
+
+    let range = if let Some(range) = calibration.range_with_min_span(MIN_CALIBRATION_SPAN) {
+        println!("Calibration accepted; using calibrated range.");
+        range
+    } else {
+        println!(
+            "Calibration span below {} counts; falling back to full ADC range.",
+            MIN_CALIBRATION_SPAN
+        );
+        default_range
+    };
+    let deadband = range.raw_delta_to_normalized(DEADBAND_COUNTS);
+
+    println!(
+        "Calibration raw min={:?} max={:?} span={:?}; using range {}..{}",
+        calibration.min(),
+        calibration.max(),
+        calibration.span(),
+        range.min(),
+        range.max()
+    );
 
     let mut poti = AnalogValue::new(initial_raw, range, deadband);
     let initial = poti.stable_value();
