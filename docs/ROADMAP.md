@@ -126,6 +126,11 @@ double-beep, alarm) driven by host-tested logic.
 `build-example` justfile recipes and the per-chip flashing scripts (mirroring
 the sibling repos).
 
+**Status:** Button, rotary, potentiometer, IR proximity, tilt (motion/orientation),
+Reed switch, and Hall-effect sensor examples on ESP32-C3 are working on both
+esp-hal and esp-idf tiers (with two Hall paths: linear analog via ADC and digital
+switch via `tamer::presence`; see [Feature: Hall-effect Sensing](./features/002-hall-sensing-v1.md)).
+
 ---
 
 ## Long term — Character Display

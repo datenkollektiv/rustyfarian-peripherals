@@ -20,7 +20,11 @@ differences, linker glue, …).
 
 ## Hardware — inputs
 
-*(none yet)*
+**KY-003 and "Hall sensor" marketplace labels are ambiguous — verify the actual chip before modeling behavior.**
+KY-003 modules in the market mix two very different sensors that share similar physical form: the A3144 (`3144xUA-S`) is a unipolar, open-collector, Schmitt-trigger *digital* switch (idles HIGH via onboard pull-up, snaps LOW on a single magnetic pole only, ignoring the opposite pole), while industrial specs like SS49E (`49E`) or AH477 (`AH477`) are linear *analog* sensors that idle near VCC/2, output proportional voltage across both poles, and require ADC + threshold logic.
+Reading an A3144 via ADC and `tamer::hall::HallSensor` (which assumes linear behavior and symmetric bipolar response) produces the wrong abstraction: the sensor's single-pole output idles near 4095 (12-bit maximum), one polarity detects cleanly, and the opposite polarity clips to saturation because the sensor never drives below ~VCC/2.
+Fix: Always check the physical chip marking (look for `3144EUA`, `3144LUA`, `SS49E`, `AH477`, etc. on the TO-92 package). For A3144 KY-003 modules, read via `tamer::presence::DigitalPresence` (ActiveLow, 20 ms debounce) as a digital switch, not the `tamer::hall` + ADC linear model.
+Confirmed on ESP32-C3 test board: KY-003 module shipped with an A3144; switched the example from ADC + `SlidingAverage` + linear Hall model to GPIO + `DigitalPresence`, and the sensor's single-pole and no-magnet states became cleanly distinguishable.
 
 ## ESP-IDF — console output
 
