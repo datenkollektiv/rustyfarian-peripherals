@@ -35,6 +35,13 @@ bumps may carry breaking changes).
 - ESP32-C3 potentiometer examples on both esp tiers (`hal_c3_poti`,
   `idf_c3_poti`) using ADC1 and `tamer::analog` startup calibration /
   normalization.
+- `tamer::hall` — `HallSensor` for Hall-effect magnetic presence detection via ADC
+  and linear sensor model, with `SlidingAverage` smoothing, startup calibration,
+  and `set_midpoint` / `set_threshold` runtime control.
+- ESP32-C3 Hall-effect examples: linear analog sensor via ADC (`hal_c3_hall_linear`,
+  `idf_c3_hall_linear`; uses `tamer::hall` + calibration) and unipolar digital
+  switch (`hal_c3_hall_switch`; KY-003 / A3144 module read via
+  `tamer::presence::DigitalPresence`).
 - Primitives donated by clean reimplementation (relicensed to MIT OR Apache-2.0)
   from `rustyfarian-knob` and `rustbox-peripherals`; the button event contract
   intentionally diverges from the knob's, and digital presence follows the

@@ -40,6 +40,10 @@
 //!
 //! - [`analog`] — raw ADC range normalization and deadbanded analog movement.
 //! - [`debounce`] — sampled-input debounce state machine and edge detector.
+//! - [`hall`] — Hall-effect magnetic presence detection via configurable
+//!   deviation threshold; calibrates the no-magnet midpoint from samples.
+//! - [`smoothing`] — fixed-size O(1) sliding-window average for absorbing ADC
+//!   quantization noise before threshold evaluation.
 //! - [`presence`] — polarity-aware debounced present / absent detection for
 //!   digital sensors.
 //! - [`rotary`] — quadrature / Gray-code decoding with detent handling.
@@ -75,6 +79,26 @@ pub use analog::{
     AnalogCalibration, AnalogInput, AnalogRange, AnalogRead, AnalogSample, AnalogValue,
     MockAnalogRead,
 };
+
+/// Hall-effect magnetic presence detection — [`HallSensor`](hall::HallSensor)
+/// and [`HallCalibrationError`](hall::HallCalibrationError).
+///
+/// Pure, HAL-agnostic threshold evaluator: feed raw ADC samples, calibrate
+/// the no-magnet midpoint with
+/// [`calibrate_from_samples`](hall::HallSensor::calibrate_from_samples), and
+/// call [`evaluate`](hall::HallSensor::evaluate) to obtain a
+/// [`Presence`](presence::Presence) reading.
+pub mod hall;
+pub use hall::{HallCalibrationError, HallSensor};
+
+/// Sliding-window average smoother — [`SlidingAverage`](smoothing::SlidingAverage).
+///
+/// Maintains a circular `[u16; N]` buffer with a running `u32` sum so each
+/// `push` is O(1).
+/// Compose with [`hall`] or any threshold-based evaluator to absorb ADC
+/// quantization noise before detection.
+pub mod smoothing;
+pub use smoothing::SlidingAverage;
 
 /// Digital presence detection — [`Presence`](presence::Presence),
 /// [`Polarity`](presence::Polarity), and
@@ -137,8 +161,10 @@ pub mod prelude {
     };
     pub use crate::button::{ButtonDecoder, ButtonEvent};
     pub use crate::debounce::{Debouncer, Edge, EdgeDetector};
+    pub use crate::hall::{HallCalibrationError, HallSensor};
     pub use crate::presence::{DigitalPresence, Polarity, Presence};
     pub use crate::rotary::{EncoderDirection, QuadratureDecoder};
+    pub use crate::smoothing::SlidingAverage;
 
     #[cfg(feature = "hal")]
     pub use crate::button::ButtonInput;
