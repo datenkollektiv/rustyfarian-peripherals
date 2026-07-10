@@ -31,10 +31,10 @@ power devices count as peripherals here (see [VISION.md](../VISION.md)).
 timeline
     title rustyfarian-peripherals Roadmap
 
-    Ready     : (nothing ready yet — needs a feature doc)
+    Ready     : Analog range map — clamped linear remap (tamer range_map, feature-doc)
 
-    Near term : Debounced digital input (tamer::debounce)
-              : Rotary encoder (tamer::rotary quadrature decode)
+    Near term : Debounced digital input (tamer debounce)
+              : Rotary encoder (tamer rotary quadrature decode)
 
     Mid term  : Button events — long-press / double-click (after Debounced digital input)
               : Piezo buzzer — tamer tone/duration sequencer (first output peripheral)
@@ -65,6 +65,21 @@ These drive every peripheral below — input *and* output.
   (bare-metal) and `rustyfarian-esp-idf-peripherals` (std) keep parallel module
   structure so a peripheral added to one has an obvious home in the other.
 - **Demand-driven:** no peripheral lands without a real consumer.
+
+---
+
+## Ready — Analog Range Map
+
+**Goal:** A rustyfarian app can map a smoothed analog reading (e.g. ambient
+light) to an 8-bit PWM duty (e.g. a backlight or LED brightness) through pure,
+host-tested logic, instead of hand-rolled inline math in a device example.
+
+**Likely shape:**
+
+- `tamer::range_map::RangeMap` — a clamped linear `u16 → u8` remap with optional
+  inversion and round-to-nearest scaling (matching `AnalogRange::normalize`),
+  pure and host-tested. A pure value type, so no `Noop*` mock is needed.
+- Design settled in [`docs/features/003-range-map-v1.md`](features/003-range-map-v1.md).
 
 ---
 
