@@ -46,6 +46,12 @@ impl RangeMap {
     /// `reading`s passed to [`map`](Self::map) are clamped to
     /// `in_min..=in_max` before scaling onto `out_min..=out_max`.
     ///
+    /// `out_min` and `out_max` are the outputs at `in_min` and `in_max`
+    /// respectively. Passing `out_min > out_max` is supported and yields a
+    /// descending map directly (a rising reading lowers the output); for that
+    /// case prefer the more readable [`inverted`](Self::inverted), which swaps
+    /// the endpoints of an ascending range.
+    ///
     /// # Panics
     ///
     /// Panics if `in_min >= in_max`.
@@ -213,5 +219,35 @@ mod tests {
         // Also cover the exact endpoints.
         let _ = map.map(u16::MAX);
         let _ = inverted.map(u16::MAX);
+    }
+
+    #[test]
+    fn descending_output_bounds_without_inverted() {
+        // `out_min > out_max`: a rising reading lowers the output, no
+        // `inverted()` needed (the output span is signed).
+        let map = RangeMap::new(0, 100, 255, 0);
+
+        assert_eq!(map.map(0), 255);
+        assert_eq!(map.map(100), 0);
+
+        let mut previous = map.map(0);
+        for reading in 0..=100 {
+            let current = map.map(reading);
+            assert!(current <= previous, "map increased at reading {reading}");
+            previous = current;
+        }
+    }
+
+    #[test]
+    fn inverted_asymmetric_non_zero_range() {
+        // in 100..=1100 (span 1000), out 10..=200, inverted.
+        let map = RangeMap::new(100, 1100, 10, 200).inverted();
+
+        assert_eq!(map.map(100), 200); // in_min -> out_max
+        assert_eq!(map.map(1100), 10); // in_max -> out_min
+
+        // reading 350 -> offset 250; 250 * 190 / 1000 = 47.5 -> nearest 48.
+        // Ascending would give 10 + 48 = 58; inverted gives 200 - 48 = 152.
+        assert_eq!(map.map(350), 152);
     }
 }

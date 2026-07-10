@@ -98,6 +98,10 @@ name = "hal_c3_poti"
 required-features = ["esp32c3", "rt", "unstable"]
 
 [[example]]
+name = "hal_c3_poti_led"
+required-features = ["esp32c3", "rt", "unstable"]
+
+[[example]]
 name = "hal_c3_reed"
 required-features = ["esp32c3", "rt", "unstable"]
 
