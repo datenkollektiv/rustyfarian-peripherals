@@ -46,6 +46,8 @@
 //!   quantization noise before threshold evaluation.
 //! - [`presence`] — polarity-aware debounced present / absent detection for
 //!   digital sensors.
+//! - [`range_map`] — clamped linear remap from a `u16` analog reading to a
+//!   `u8` output (e.g. ADC counts to LEDC PWM duty).
 //! - [`rotary`] — quadrature / Gray-code decoding with detent handling.
 //! - [`button`] — press / release / click / double-click / long-press events,
 //!   built on the [`debounce`] edge detector.
@@ -113,6 +115,15 @@ pub use presence::{DigitalPresence, Polarity, Presence};
 #[cfg(feature = "hal")]
 pub use presence::DigitalPresenceInput;
 
+/// Clamped linear remap from a `u16` analog reading to a `u8` output —
+/// [`RangeMap`](range_map::RangeMap).
+///
+/// This module is HAL-agnostic and imports nothing outside `tamer`.
+/// Pair it with [`analog`] (and [`smoothing`] for noisy sources) to turn a
+/// raw ADC reading into a PWM duty or similar `u8` output.
+pub mod range_map;
+pub use range_map::RangeMap;
+
 /// Quadrature rotary encoder decoder — [`QuadratureDecoder`](rotary::QuadratureDecoder)
 /// and [`EncoderDirection`](rotary::EncoderDirection).
 ///
@@ -163,6 +174,7 @@ pub mod prelude {
     pub use crate::debounce::{Debouncer, Edge, EdgeDetector};
     pub use crate::hall::{HallCalibrationError, HallSensor};
     pub use crate::presence::{DigitalPresence, Polarity, Presence};
+    pub use crate::range_map::RangeMap;
     pub use crate::rotary::{EncoderDirection, QuadratureDecoder};
     pub use crate::smoothing::SlidingAverage;
 
