@@ -33,6 +33,14 @@ Confirmed on ESP32-C3 test board: KY-003 module shipped with an A3144; switched 
 Fix: call `esp_idf_svc::log::EspLogger::initialize_default()` once at startup and use `log::info!` instead of `println!` — `esp_log` is unbuffered, the same path the boot lines use. This matches the convention every idf example in the sibling `rustyfarian-network` repo already follows.
 Confirmed on ESP32-C3 with `idf_c3_b3f`: after the switch, the `B3F button ready` line and the press/release events appear immediately.
 
+## esp-hal vs esp-idf — ADC raw floor
+
+**A fixed-range ADC→output map (`RangeMap::new(0, 4095, …)`) reaches the rails on the ESP-IDF tier but not on esp-hal, because the two stacks floor the raw reading differently.**
+Symptom: the identical `hal_c3_poti_led` / `idf_c3_poti_led` dimmer (potentiometer → `tamer::range_map::RangeMap` → LEDC PWM LED) drove the LED to full dark *and* full bright on the ESP-IDF tier, but on the esp-hal tier the LED never fully darkened or reached full brightness — it stayed in a compressed mid-range.
+Cause: `esp-idf-hal`'s ADC oneshot driver applies the chip's factory (efuse) ADC calibration, so its raw reading reaches ~0 at the low rail and near full-scale at the high rail. `esp-hal`'s `read_oneshot` returns the *uncalibrated* SAR value when no `AdcCal*` scheme is attached; on the C3 that floors well above 0 (~100–200 counts) and ceilings below 4095, so a map hard-wired to `0..=4095` never reaches its input endpoints (`in_min`→duty 0, `in_max`→duty 255). This is the same ESP32 SAR ADC non-linearity noted under *Hardware — inputs*, surfacing as a **tier discrepancy** rather than an outright failure.
+Fix: never hard-code the ADC span for a control that must reach its output rails. Run an `AnalogCalibration` startup sweep and build the map from the observed range (`RangeMap::new(range.min(), range.max(), 0, 255)`); it self-adjusts to whatever floor/ceiling each stack produces, and both tiers then reach both rails. (Alternatively, attach esp-hal's `AdcCalCurve`/`AdcCalLine` scheme to lower the hal floor — but calibration is tier-agnostic and matches the `hal_c3_poti` precedent.)
+Confirmed on ESP32-C3-DevKitM-1 with the `poti_led` twin: after adding the calibration sweep, both the esp-hal and esp-idf examples sweep fully dark → full bright.
+
 ## esp-hal — console output
 
 **`esp-println` configured for `jtag-serial` is invisible on a board that only exposes its UART bridge.**

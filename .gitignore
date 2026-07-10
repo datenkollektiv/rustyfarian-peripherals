@@ -12,7 +12,6 @@ Cargo.lock
 CLAUDE.md
 memory/
 review-queue/
-archive/
 release/
 audit/
 .idea/

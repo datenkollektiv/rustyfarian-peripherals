@@ -47,6 +47,10 @@ bumps may carry breaking changes).
   round-to-nearest scaling matching `AnalogRange::normalize` and an
   `inverted()` builder for controls where a rising input should produce a
   falling output.
+- ESP32-C3 potentiometer-dimmed LED examples on both esp tiers (`hal_c3_poti_led`,
+  `idf_c3_poti_led`) — the repo's first output/PWM examples. A potentiometer on
+  ADC1 (GPIO 4) drives an external LED on GPIO 6 via 8-bit-resolution LEDC PWM,
+  mapping raw ADC counts straight onto PWM duty with `tamer::range_map::RangeMap`.
 - Primitives donated by clean reimplementation (relicensed to MIT OR Apache-2.0)
   from `rustyfarian-knob` and `rustbox-peripherals`; the button event contract
   intentionally diverges from the knob's, and digital presence follows the
