@@ -42,6 +42,11 @@ bumps may carry breaking changes).
   `idf_c3_hall_linear`; uses `tamer::hall` + calibration) and unipolar digital
   switch (`hal_c3_hall_switch`; KY-003 / A3144 module read via
   `tamer::presence::DigitalPresence`).
+- `tamer::range_map` — `RangeMap`, a clamped linear remap from a `u16` analog
+  reading to a `u8` output (e.g. ADC counts to LEDC PWM duty), with
+  round-to-nearest scaling matching `AnalogRange::normalize` and an
+  `inverted()` builder for controls where a rising input should produce a
+  falling output.
 - Primitives donated by clean reimplementation (relicensed to MIT OR Apache-2.0)
   from `rustyfarian-knob` and `rustbox-peripherals`; the button event contract
   intentionally diverges from the knob's, and digital presence follows the
