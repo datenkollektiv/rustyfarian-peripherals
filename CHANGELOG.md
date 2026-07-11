@@ -57,3 +57,17 @@ bumps may carry breaking changes).
   donor repo's accepted abstraction boundary — see
   [ADR-001](docs/adr/001-input-primitives-origin.md) and
   [ADR-002](docs/adr/002-digital-presence.md).
+- `tamer::mpu6050` — MPU6050 IMU protocol constants, raw 14-byte burst parsing
+  (`RawReading`, `parse_raw`), and accelerometer Y/Z offset calibration
+  (`AccelCalibration`, `AccelOffsets`, `apply_offsets`); `tamer`'s first
+  device-named module, donated by clean reimplementation (relicensed to MIT OR
+  Apache-2.0) from `rustbox-peripherals`. `RawReading` is
+  private-fields-plus-accessors (built only via `parse_raw`), `INIT_SEQUENCE` a
+  slice, and the offset pipeline is `i32` throughout (overflow-safe). See
+  [docs/features/mpu6050-imu-v1.md](docs/features/mpu6050-imu-v1.md).
+- `tamer::smoothing::EmaFilter` — exponential moving average, the `f32` sibling
+  of `SlidingAverage`; `new(alpha)` panics on out-of-range / `NaN` alpha.
+- `tamer::tilt` (opt-in `tilt` feature, `dep:micromath`) — `tilt_degrees` /
+  `tilt_degrees_i32`, scale-free two-axis inclination via `atan2`; `tamer`'s
+  first floating-point surface, feature-gated so the default build stays
+  dependency-free.

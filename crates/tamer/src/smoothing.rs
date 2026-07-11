@@ -126,6 +126,94 @@ impl<const N: usize> Default for SlidingAverage<N> {
     }
 }
 
+/// Exponential moving average (EMA) filter — the float, exponentially-weighted
+/// sibling of [`SlidingAverage`].
+///
+/// The EMA formula is `output = alpha * input + (1 - alpha) * previous_output`.
+/// A higher `alpha` tracks the input more closely (less smoothing); a lower
+/// `alpha` smooths more aggressively. Unlike [`SlidingAverage`], `EmaFilter`
+/// holds no window buffer — a single `f32` accumulator is enough — but its
+/// `alpha` weighting is a compile-time tuning constant rather than a window
+/// size, so out-of-range values are rejected by [`new`](Self::new) rather
+/// than silently clamped.
+///
+/// The filter is uninitialised until the first sample is provided — the
+/// first call to [`update`](Self::update) seeds the filter with the raw
+/// value directly, so there is no initial transient.
+///
+/// # Example
+///
+/// ```
+/// use tamer::smoothing::EmaFilter;
+///
+/// let mut f = EmaFilter::new(0.1);
+/// assert!(f.value().is_none());
+///
+/// let v = f.update(100.0);
+/// assert_eq!(v, 100.0); // first sample initialises directly
+///
+/// let v = f.update(0.0);
+/// assert!(v < 100.0); // subsequent samples blend toward the input
+/// ```
+#[derive(Debug, Clone, Copy)]
+pub struct EmaFilter {
+    alpha: f32,
+    value: Option<f32>,
+}
+
+impl EmaFilter {
+    /// Creates a new filter with the given smoothing factor.
+    ///
+    /// At `alpha = 1.0` the filter passes the input unchanged (no
+    /// smoothing). At `alpha` near `0.0` the filter barely moves from its
+    /// seeded value.
+    ///
+    /// # Panics
+    ///
+    /// Panics if `alpha` is not in `0.0..=1.0`, including `NaN`. `alpha` is a
+    /// compile-time-known tuning constant, so an out-of-range value is a
+    /// programmer error to surface loudly rather than a runtime condition —
+    /// matching the construction-invariant idiom of
+    /// [`crate::analog::AnalogRange::new`] and [`crate::range_map::RangeMap::new`].
+    #[must_use]
+    pub fn new(alpha: f32) -> Self {
+        assert!(
+            (0.0..=1.0).contains(&alpha),
+            "EmaFilter alpha must be in 0.0..=1.0, got {alpha}"
+        );
+        Self { alpha, value: None }
+    }
+
+    /// Feeds one raw sample and returns the filtered value.
+    ///
+    /// The first call initialises the filter to `raw` exactly, avoiding a
+    /// slow convergence from an arbitrary initial value.
+    #[must_use]
+    pub fn update(&mut self, raw: f32) -> f32 {
+        let filtered = match self.value {
+            None => raw,
+            Some(prev) => self.alpha * raw + (1.0 - self.alpha) * prev,
+        };
+        self.value = Some(filtered);
+        filtered
+    }
+
+    /// Returns the current filtered value, or `None` if no sample has been
+    /// fed yet.
+    #[must_use]
+    pub const fn value(&self) -> Option<f32> {
+        self.value
+    }
+
+    /// Resets the filter to the uninitialised state.
+    ///
+    /// The next call to [`update`](Self::update) re-initialises from the new
+    /// raw value.
+    pub fn reset(&mut self) {
+        self.value = None;
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -267,5 +355,88 @@ mod tests {
         assert_eq!(avg.push(0), 200); // (300 + 300 + 0) / 3
         assert_eq!(avg.push(0), 100); // (300 +   0 + 0) / 3
         assert_eq!(avg.push(0), 0); //   (0 +   0 + 0) / 3
+    }
+
+    // ── EmaFilter ───────────────────────────────────────────────────────
+
+    fn assert_approx(actual: f32, expected: f32, tolerance: f32) {
+        let diff = (actual - expected).abs();
+        assert!(
+            diff <= tolerance,
+            "expected {expected} +/- {tolerance}, got {actual} (diff {diff})"
+        );
+    }
+
+    #[test]
+    fn ema_value_none_before_first_sample() {
+        let f = EmaFilter::new(0.5);
+        assert!(f.value().is_none());
+    }
+
+    #[test]
+    fn ema_first_sample_initialises_to_raw_value() {
+        let mut f = EmaFilter::new(0.5);
+        let v = f.update(42.0);
+        assert_eq!(v, 42.0);
+        assert_eq!(f.value(), Some(42.0));
+    }
+
+    #[test]
+    fn ema_constant_input_converges() {
+        let mut f = EmaFilter::new(0.3);
+        let _ = f.update(100.0);
+        for _ in 0..50 {
+            let _ = f.update(100.0);
+        }
+        // After many identical samples the output should be extremely close to 100.
+        assert_approx(f.value().unwrap(), 100.0, 0.01);
+    }
+
+    #[test]
+    fn ema_alpha_one_passes_input_unchanged() {
+        let mut f = EmaFilter::new(1.0);
+        let _ = f.update(10.0);
+        let v = f.update(99.0);
+        assert_eq!(v, 99.0);
+    }
+
+    #[test]
+    fn ema_alpha_zero_freezes_after_first_sample() {
+        let mut f = EmaFilter::new(0.0);
+        let first = f.update(1.0);
+        assert_eq!(first, 1.0); // first sample always seeds directly
+        let second = f.update(1000.0);
+        // alpha=0 means the input never moves the filter after seeding.
+        assert_eq!(second, 1.0);
+    }
+
+    #[test]
+    fn ema_reset_clears_state() {
+        let mut f = EmaFilter::new(0.5);
+        let _ = f.update(100.0);
+        assert!(f.value().is_some());
+        f.reset();
+        assert!(f.value().is_none());
+        // After reset the next update re-initialises.
+        let v = f.update(7.0);
+        assert_eq!(v, 7.0);
+    }
+
+    #[test]
+    #[should_panic(expected = "EmaFilter alpha must be in 0.0..=1.0")]
+    fn ema_new_panics_on_alpha_below_range() {
+        let _ = EmaFilter::new(-0.01);
+    }
+
+    #[test]
+    #[should_panic(expected = "EmaFilter alpha must be in 0.0..=1.0")]
+    fn ema_new_panics_on_alpha_above_range() {
+        let _ = EmaFilter::new(1.01);
+    }
+
+    #[test]
+    #[should_panic(expected = "EmaFilter alpha must be in 0.0..=1.0")]
+    fn ema_new_panics_on_nan_alpha() {
+        let _ = EmaFilter::new(f32::NAN);
     }
 }

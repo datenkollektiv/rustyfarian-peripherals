@@ -16,6 +16,7 @@ host_target := `scripts/host-target.sh`
 # are excluded here — they do not compile for the host.
 host_flags := "-p tamer --target " + host_target
 tamer_hal_flags := host_flags + " --features hal"
+tamer_all_features_flags := host_flags + " --all-features"
 doc_flags  := "-p tamer --target " + host_target + " --no-deps"
 
 # Default device targets for the per-tier check recipes (ESP32-C3, the example
@@ -65,9 +66,17 @@ check-idf:
 
 # --- Code Quality ---------------------------------------------------------
 
+# print tamer's dependency tree for the given feature set (verifies feature gating)
+tree *features:
+    cargo tree -p tamer --target {{ host_target }} {{ features }}
+
 # run clippy on the host-buildable crates, denying warnings
 clippy:
     cargo clippy {{ host_flags }} -- -D warnings
+
+# run clippy with every tamer feature enabled (hal + tilt), denying warnings
+clippy-all-features:
+    cargo clippy {{ tamer_all_features_flags }} -- -D warnings
 
 # run host-side unit tests (no ESP toolchain required)
 test:
@@ -76,6 +85,10 @@ test:
 # run host-side unit tests with tamer's embedded-hal adapters enabled
 test-hal:
     cargo test {{ tamer_hal_flags }}
+
+# run host-side unit tests with every tamer feature enabled (hal + tilt)
+test-all-features:
+    cargo test {{ tamer_all_features_flags }}
 
 # run host-side tests with stdout/stderr visible
 test-verbose:
@@ -98,6 +111,10 @@ fmt-check:
 # build rustdoc for the pure core
 doc:
     cargo doc {{ doc_flags }}
+
+# build rustdoc with every tamer feature enabled (matches docs.rs' all-features build)
+doc-all-features:
+    cargo doc {{ doc_flags }} --all-features
 
 # build and open docs in the browser
 doc-open:
