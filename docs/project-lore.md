@@ -16,7 +16,11 @@ differences, linker glue, …).
 
 ## Build & Validation
 
-*(none yet)*
+**`just deny` can fail on `advisories` for crates your change never touched — suspect the esp-idf tier's build-dependency chain, and note there is no committed `Cargo.lock` to diff against (it is gitignored).**
+Symptom: `just deny` (and CI's `deny` step) reports `advisories FAILED` while `licenses`/`bans`/`sources` pass, flagging crates like `crossbeam-epoch` or an `anyhow`-family `Error::downcast_mut` unsoundness that appear nowhere in your diff.
+Cause: RUSTSEC advisories are published continuously, and `cargo deny check advisories` resolves them against the *current* dependency graph, not your change. The esp-idf tier pulls a deep build-dep chain (`esp-idf-hal → embuild → globwalk → ignore → crossbeam-deque → crossbeam-epoch`, plus `anyhow`) that periodically acquires fresh advisories. Because `Cargo.lock` is gitignored, there is no committed lock proving "this already failed on main" — confirm instead that the flagged crate sits in the esp-idf chain (grep `Cargo.lock` / `cargo tree`) and is absent from your change's own new dependencies.
+Fix/triage: treat it as pre-existing dependency-hygiene work, separate from a feature PR — do **not** silently add a `deny.toml` ignore just to green a feature branch. Remediate deliberately: `cargo update -p <crate>` to the patched version named in the advisory's `Solution`, or a dated, commented `deny.toml` ignore if the exact-pinned esp stack blocks the upgrade, coordinated with the sibling repos' esp pins.
+Confirmed 2026-07 during the `tamer::mpu6050` PR: RUSTSEC-2026-0204 (`crossbeam-epoch` 0.9.18 → upgrade ≥ 0.9.20) and RUSTSEC-2026-0190 (`downcast_mut` unsoundness) surfaced, while that PR's only new dependency — `micromath`, zero transitive deps — was advisory-clean and passed `deny` on licenses/bans/sources.
 
 ## Hardware — inputs
 

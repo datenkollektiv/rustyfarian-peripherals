@@ -24,6 +24,9 @@ tamer = { path = "crates/tamer", default-features = false }
 # pure; the esp-* stacks below switch to exact pins once they are wired.
 embedded-hal = { version = "1.0", default-features = false }
 nb = { version = "1.1", default-features = false }
+# `no_std`/`f32` CORDIC trig (atan2 etc.) for `tamer::tilt`, gated behind the
+# `tilt` feature — purpose-built for small no_std code size, not a full libm.
+micromath = { version = "2", default-features = false }
 
 # ── Hardware-tier dependencies ───────────────────────────────────────────────
 #

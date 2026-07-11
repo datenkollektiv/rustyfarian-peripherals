@@ -18,9 +18,14 @@ default = []
 # `InputPin`s. Kept optional, so the pure core has zero hardware dependencies and
 # stays buildable on any host. See README "Architecture" for the seam.
 hal = ["dep:embedded-hal"]
+# `tilt`: opt-in `atan2`-based tilt-angle trigonometry (`tamer::tilt`). Kept
+# optional so the default build stays dependency-free — only this feature
+# pulls in `micromath`, `tamer`'s first floating-point dependency.
+tilt = ["dep:micromath"]
 
 [dependencies]
 embedded-hal = { workspace = true, optional = true }
+micromath = { workspace = true, optional = true }
 
 [package.metadata.docs.rs]
 all-features = true

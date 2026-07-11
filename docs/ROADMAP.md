@@ -31,7 +31,7 @@ power devices count as peripherals here (see [VISION.md](../VISION.md)).
 timeline
     title rustyfarian-peripherals Roadmap
 
-    Ready     : (nothing ready yet — needs a feature doc)
+    Done      : MPU6050 accelerometer / IMU — sans-io parse + calibration + tilt (core module landed)
 
     Near term : Debounced digital input (tamer debounce)
               : Rotary encoder (tamer rotary quadrature decode)
@@ -130,7 +130,7 @@ the sibling repos).
 **Status:** Button, rotary, potentiometer, IR proximity, tilt (motion/orientation),
 Reed switch, and Hall-effect sensor examples on ESP32-C3 are working on both
 esp-hal and esp-idf tiers (with two Hall paths: linear analog via ADC and digital
-switch via `tamer::presence`; see [Feature: Hall-effect Sensing](./features/002-hall-sensing-v1.md)).
+switch via `tamer::presence`; see [Feature: Hall-effect Sensing](features/hall-sensing-v1.md)).
 
 ---
 
@@ -167,9 +167,9 @@ polling, for low-power deployments. Resolve the poll-vs-event API question in
 
 ## Open Questions
 
-| Question | Blocks | How to resolve |
-|:---------|:-------|:---------------|
-| Fold `ws2812` in vs. keep it a sibling? | ws2812 merge decision | Decide at the next real LED consumer |
-| Do battery / charging devices count as peripherals here? | Power-device drivers | Lean `rustyfarian-power`; revisit if a charging IC needs a driver |
-| Poll-driven vs. interrupt-driven state-machine API in `tamer`? | Interrupt-driven input | Decide when the first interrupt-driven consumer appears |
-| Which esp-hal / esp-idf wave to pin to? | First hardware driver | Match the wave the sibling repos are on (see their `[workspace.dependencies]`) |
+| Question                                                       | Blocks                 | How to resolve                                                                 |
+|:---------------------------------------------------------------|:-----------------------|:-------------------------------------------------------------------------------|
+| Fold `ws2812` in vs. keep it a sibling?                        | ws2812 merge decision  | Decide at the next real LED consumer                                           |
+| Do battery / charging devices count as peripherals here?       | Power-device drivers   | Lean `rustyfarian-power`; revisit if a charging IC needs a driver              |
+| Poll-driven vs. interrupt-driven state-machine API in `tamer`? | Interrupt-driven input | Decide when the first interrupt-driven consumer appears                        |
+| Which esp-hal / esp-idf wave to pin to?                        | First hardware driver  | Match the wave the sibling repos are on (see their `[workspace.dependencies]`) |

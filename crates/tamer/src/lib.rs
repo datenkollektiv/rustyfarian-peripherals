@@ -42,7 +42,8 @@
 //! - [`debounce`] — sampled-input debounce state machine and edge detector.
 //! - [`hall`] — Hall-effect magnetic presence detection via configurable
 //!   deviation threshold; calibrates the no-magnet midpoint from samples.
-//! - [`smoothing`] — fixed-size O(1) sliding-window average for absorbing ADC
+//! - [`smoothing`] — fixed-size O(1) sliding-window average and an
+//!   exponential moving average ([`EmaFilter`]) for absorbing ADC
 //!   quantization noise before threshold evaluation.
 //! - [`presence`] — polarity-aware debounced present / absent detection for
 //!   digital sensors.
@@ -51,6 +52,9 @@
 //! - [`rotary`] — quadrature / Gray-code decoding with detent handling.
 //! - [`button`] — press / release / click / double-click / long-press events,
 //!   built on the [`debounce`] edge detector.
+//! - [`mpu6050`] — MPU6050 IMU register map, raw-burst parsing, and
+//!   accelerometer offset calibration; `tamer`'s first device-named module.
+//!   Pair with the `tilt` feature for tilt-angle trigonometry.
 //!
 //! Still pending (arrive on demand, driven by real downstream needs):
 //!
@@ -93,14 +97,17 @@ pub use analog::{
 pub mod hall;
 pub use hall::{HallCalibrationError, HallSensor};
 
-/// Sliding-window average smoother — [`SlidingAverage`](smoothing::SlidingAverage).
+/// Sliding-window average smoother — [`SlidingAverage`](smoothing::SlidingAverage) —
+/// and exponential moving average filter — [`EmaFilter`](smoothing::EmaFilter).
 ///
-/// Maintains a circular `[u16; N]` buffer with a running `u32` sum so each
-/// `push` is O(1).
+/// `SlidingAverage` maintains a circular `[u16; N]` buffer with a running
+/// `u32` sum so each `push` is O(1).
+/// `EmaFilter` is its `f32`, exponentially-weighted sibling: a single
+/// accumulator updated by `output = alpha * input + (1 - alpha) * previous`.
 /// Compose with [`hall`] or any threshold-based evaluator to absorb ADC
 /// quantization noise before detection.
 pub mod smoothing;
-pub use smoothing::SlidingAverage;
+pub use smoothing::{EmaFilter, SlidingAverage};
 
 /// Digital presence detection — [`Presence`](presence::Presence),
 /// [`Polarity`](presence::Polarity), and
@@ -161,6 +168,31 @@ pub mod mock;
 #[cfg(feature = "hal")]
 pub use mock::MockInputPin;
 
+/// MPU6050 IMU protocol constants, raw-burst parsing, and accelerometer
+/// calibration — [`RawReading`](mpu6050::RawReading),
+/// [`parse_raw`](mpu6050::parse_raw), [`AccelCalibration`](mpu6050::AccelCalibration),
+/// [`AccelOffsets`](mpu6050::AccelOffsets), and [`apply_offsets`](mpu6050::apply_offsets).
+///
+/// This module is HAL-agnostic and imports no I2C, HAL, or chip crate — the
+/// caller performs the I2C burst read and feeds the 14-byte buffer in. Enable
+/// the `tilt` feature for `tamer::tilt`'s `atan2`-based tilt-angle
+/// trigonometry on the parsed axes.
+pub mod mpu6050;
+pub use mpu6050::{apply_offsets, parse_raw, AccelCalibration, AccelOffsets, RawReading};
+
+/// Scale-free two-axis tilt-angle trigonometry —
+/// [`tilt_degrees`](tilt::tilt_degrees) and [`tilt_degrees_i32`](tilt::tilt_degrees_i32).
+///
+/// Gated behind the `tilt` feature because `atan2` needs [`micromath`], a
+/// `no_std` CORDIC approximation library — `tamer`'s only floating-point
+/// trigonometry dependency. Pair with [`mpu6050`] or any other accelerometer
+/// source.
+#[cfg(feature = "tilt")]
+pub mod tilt;
+
+#[cfg(feature = "tilt")]
+pub use tilt::{tilt_degrees, tilt_degrees_i32};
+
 /// Curated re-exports of the most-used types, for `use tamer::prelude::*;`.
 ///
 /// Covers the pure types unconditionally and the `hal` adapters when the
@@ -173,10 +205,11 @@ pub mod prelude {
     pub use crate::button::{ButtonDecoder, ButtonEvent};
     pub use crate::debounce::{Debouncer, Edge, EdgeDetector};
     pub use crate::hall::{HallCalibrationError, HallSensor};
+    pub use crate::mpu6050::{AccelCalibration, RawReading};
     pub use crate::presence::{DigitalPresence, Polarity, Presence};
     pub use crate::range_map::RangeMap;
     pub use crate::rotary::{EncoderDirection, QuadratureDecoder};
-    pub use crate::smoothing::SlidingAverage;
+    pub use crate::smoothing::{EmaFilter, SlidingAverage};
 
     #[cfg(feature = "hal")]
     pub use crate::button::ButtonInput;
