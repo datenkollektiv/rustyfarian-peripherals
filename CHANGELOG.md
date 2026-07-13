@@ -77,3 +77,14 @@ bumps may carry breaking changes).
   of the upcoming MPU6050 hardware twin. The scan tallies non-NACK bus faults and
   warns if any occurred, so a shorted or pull-up-less bus is not misreported as an
   empty one. See [ADR-004](docs/adr/004-i2c-bus-pattern.md).
+- `tamer::tone` — a pure tone/duration sequencer (melody player): `Note`,
+  `SequenceMode`, `ToneOutput`, `SequenceEvent`, and `ToneSequencer<'notes>`,
+  stepping a borrowed `&[Note]` table into re-readable `ToneOutput` values for a
+  downstream buzzer/PWM/DAC adapter. `tamer`'s first output/actuator primitive;
+  caller-owned `u64` tick contract mirroring `debounce`/`button`. See
+  [docs/features/tone-sequencer-v1.md](docs/features/tone-sequencer-v1.md).
+- ESP32-C3 piezo-buzzer examples on both esp tiers (`hal_c3_buzzer`,
+  `idf_c3_buzzer`) — the first downstream consumer of `tamer::tone`: a
+  `ToneSequencer` melody drives a passive piezo on GPIO 6 via LEDC PWM, retuning
+  the timer frequency per note. All sequencing stays in the pure core; only the
+  PWM write lives in the example.

@@ -33,12 +33,12 @@ timeline
 
     Done      : MPU6050 accelerometer / IMU — sans-io parse + calibration + tilt (core module landed)
               : I2C bus scanner twin — ESP32-C3 bring-up diagnostic (hal/idf, GPIO4/5, 0x08–0x77 probe)
+              : Piezo buzzer — tamer::tone sequencer + C3 buzzer examples (hal/idf, first output peripheral)
 
     Near term : MPU6050 hardware example twin — repo's first I2C example (hal/idf c3, burst read → tilt)
               : Docs-sync — align README / AGENTS framing with VISION input+output scope
 
     Mid term  : Button events — long-press / double-click (after Debounced digital input)
-              : Piezo buzzer — tamer tone/duration sequencer (first output peripheral)
               : First device examples + flash/run recipes
 
     Long term : Character display — 7-segment / OLED (tamer text layout / framebuffer)
@@ -106,17 +106,25 @@ on top of the debounce primitive, with the timing logic host-tested.
 
 ---
 
-## Mid term — Piezo Buzzer
+## Done — Piezo Buzzer
 
 **Goal:** The first *output* peripheral, proving the pure-core discipline holds
 beyond input. A rustyfarian app can play tones and simple patterns (beep,
 double-beep, alarm) driven by host-tested logic.
 
-**Likely shape:**
+**Delivered:**
 
-- `tamer::buzzer` — a tone/duration sequencer (frequency + on/off timing) as a
-  pure state machine, host-tested, with its `Noop*` mock.
-- A `hal`-feature adapter that drives a GPIO / PWM output from the sequencer.
+- `tamer::tone` — a tone/duration sequencer (`Note` frequency + duration +
+  amplitude, played `OneShot` or `Loop`) as a pure, host-tested state machine
+  producing re-readable `ToneOutput` values. Named for the *mechanism* (`tone`),
+  matching the crate convention, rather than the `tamer::buzzer` device name
+  sketched here originally. No `Noop*` mock: the module introduces no hardware
+  trait (the "mock beside every trait" rule applies to interaction traits only).
+  See [Feature: Tone/Duration Sequencer](features/tone-sequencer-v1.md).
+- ESP32-C3 buzzer examples on both tiers (`hal_c3_buzzer`, `idf_c3_buzzer`)
+  drive a passive piezo via LEDC PWM, retuning the timer frequency per note.
+  Per the demand-driven rule the PWM glue stays inline in the examples (consumer
+  #1); a shared `hal`-feature / tier-crate adapter waits for a second consumer.
 
 ---
 

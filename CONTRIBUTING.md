@@ -23,7 +23,7 @@ Run `just doctor` for a one-glance check of your environment.
 ## 🌱 Project status: skeleton
 
 The workspace is a skeleton — structure, tooling, CI, and docs are in place, but
-the input primitives grow **downstream-driven** (see [ROADMAP.md](docs/ROADMAP.md)).
+the input and output primitives grow **downstream-driven** (see [ROADMAP.md](docs/ROADMAP.md)).
 When you add the first debounce or rotary primitive:
 
 - Put the pure logic in `tamer` (host-testable, no hardware dependency).

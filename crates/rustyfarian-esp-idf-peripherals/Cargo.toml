@@ -38,6 +38,9 @@ log = { workspace = true }
 name = "idf_c3_b3f"
 
 [[example]]
+name = "idf_c3_buzzer"
+
+[[example]]
 name = "idf_c3_hall_linear"
 
 [[example]]
