@@ -1,11 +1,11 @@
 #![cfg_attr(not(test), no_std)]
-//! `tamer` — taming unruly hardware inputs into clean, testable events.
+//! `tamer` — taming unruly hardware inputs and sequencing outputs into clean, testable logic.
 //!
 //! `tamer` is the pure, host-buildable core of the rustyfarian *peripherals*
-//! stack. It holds the input logic that has no business touching hardware —
-//! debounce state machines, rotary-encoder quadrature decoding, and
-//! higher-level button events (press, release, long-press, double-click). See
-//! the [Status](#status) section for what has landed.
+//! stack. It holds the logic that has no business touching hardware —
+//! debounce state machines, rotary-encoder quadrature decoding, button events
+//! (press, release, long-press, double-click), and tone/duration sequencing.
+//! See the [Status](#status) section for what has landed.
 //!
 //! The physical world is noisy. Mechanical buttons bounce; rotary encoders emit
 //! ragged quadrature transitions; lines float when nothing drives them. `tamer`
@@ -55,6 +55,10 @@
 //! - [`mpu6050`] — MPU6050 IMU register map, raw-burst parsing, and
 //!   accelerometer offset calibration; `tamer`'s first device-named module.
 //!   Pair with the `tilt` feature for tilt-angle trigonometry.
+//! - [`tone`] — a tone/duration sequencer (melody player) stepping a borrowed
+//!   `&[Note]` table into [`ToneOutput`] values;
+//!   `tamer`'s first output/actuator primitive, feeding a buzzer/PWM/DAC
+//!   adapter downstream.
 //!
 //! Still pending (arrive on demand, driven by real downstream needs):
 //!
@@ -193,6 +197,16 @@ pub mod tilt;
 #[cfg(feature = "tilt")]
 pub use tilt::{tilt_degrees, tilt_degrees_i32};
 
+/// Tone/duration sequencer (melody player) — [`ToneSequencer`], [`Note`],
+/// [`SequenceMode`], [`ToneOutput`], and [`SequenceEvent`].
+///
+/// This module is HAL-agnostic and imports nothing outside `tamer`; it never
+/// touches a pin, PWM peripheral, or DAC. `tamer`'s first output/actuator
+/// primitive — a downstream hardware adapter drives a buzzer or speaker from
+/// the [`ToneOutput`] values.
+pub mod tone;
+pub use tone::{Note, SequenceEvent, SequenceMode, ToneOutput, ToneSequencer};
+
 /// Curated re-exports of the most-used types, for `use tamer::prelude::*;`.
 ///
 /// Covers the pure types unconditionally and the `hal` adapters when the
@@ -210,6 +224,7 @@ pub mod prelude {
     pub use crate::range_map::RangeMap;
     pub use crate::rotary::{EncoderDirection, QuadratureDecoder};
     pub use crate::smoothing::{EmaFilter, SlidingAverage};
+    pub use crate::tone::{Note, SequenceMode, ToneSequencer};
 
     #[cfg(feature = "hal")]
     pub use crate::button::ButtonInput;
