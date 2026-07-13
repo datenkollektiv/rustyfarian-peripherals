@@ -41,6 +41,9 @@ name = "idf_c3_b3f"
 name = "idf_c3_hall_linear"
 
 [[example]]
+name = "idf_c3_i2c_scan"
+
+[[example]]
 name = "idf_c3_ir_proximity"
 
 [[example]]

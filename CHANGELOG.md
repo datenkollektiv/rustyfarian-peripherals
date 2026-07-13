@@ -71,3 +71,9 @@ bumps may carry breaking changes).
   `tilt_degrees_i32`, scale-free two-axis inclination via `atan2`; `tamer`'s
   first floating-point surface, feature-gated so the default build stays
   dependency-free.
+- ESP32-C3 I2C bus-scanner examples on both esp tiers (`hal_c3_i2c_scan`,
+  `idf_c3_i2c_scan`) — the repo's first I2C examples: a bring-up diagnostic that
+  probes `0x08..=0x77` (SDA GPIO 4 / SCL GPIO 5) and logs ACKing addresses, ahead
+  of the upcoming MPU6050 hardware twin. The scan tallies non-NACK bus faults and
+  warns if any occurred, so a shorted or pull-up-less bus is not misreported as an
+  empty one. See [ADR-004](docs/adr/004-i2c-bus-pattern.md).
