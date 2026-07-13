@@ -211,3 +211,16 @@ The mapping the implementation and its tests must satisfy.
   the offset pipeline to `i32` (`AccelOffsets`, `apply_offsets`) and added an
   extreme-negative-Z regression test. code-reviewer confirmed resolved; `just verify`
   green (149 + 18; 186 + 25 `--all-features`).
+- 2026-07-13 — I2C bus bring-up: twin bus scanners (`hal_c3_i2c_scan` /
+  `idf_c3_i2c_scan`) landed as diagnostics on ESP32-C3 to de-risk the bus before
+  the MPU6050 hardware example. Both build cleanly; GPIO 4 (SDA) / GPIO 5 (SCL) /
+  100 kHz are now the canonical bus pins, to be reused by the MPU6050 example and
+  future I2C peripherals (display, etc.). Recorded ADR-004 capturing the I2C bus
+  pattern and the bring-up-diagnostic exemption to the "every peripheral needs a
+  pure core" rule (diagnostics are validation tools, not drivers). Review catch:
+  the idf scanner originally collapsed all `I2cDriver::write` errors to "device
+  absent"; fixed to discriminate NACK (`ESP_FAIL`) from genuine bus faults
+  (`ESP_ERR_TIMEOUT`, etc.) via `err.code()` dispatch, mirroring esp-idf-hal's own
+  `to_i2c_err` classifier; esp-hal twin already distinguished
+  `Error::AcknowledgeCheckFailed` from other errors. Both scanners now surface
+  stuck buses as warnings, not silence.

@@ -32,9 +32,9 @@ timeline
     title rustyfarian-peripherals Roadmap
 
     Done      : MPU6050 accelerometer / IMU — sans-io parse + calibration + tilt (core module landed)
+              : I2C bus scanner twin — ESP32-C3 bring-up diagnostic (hal/idf, GPIO4/5, 0x08–0x77 probe)
 
-    Near term : Debounced digital input (tamer debounce)
-              : Rotary encoder (tamer rotary quadrature decode)
+    Near term : MPU6050 hardware example twin — repo's first I2C example (hal/idf c3, burst read → tilt)
               : Docs-sync — align README / AGENTS framing with VISION input+output scope
 
     Mid term  : Button events — long-press / double-click (after Debounced digital input)

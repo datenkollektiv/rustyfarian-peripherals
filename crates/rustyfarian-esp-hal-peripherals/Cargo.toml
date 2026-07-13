@@ -90,6 +90,10 @@ name = "hal_c3_hall_switch"
 required-features = ["esp32c3", "rt", "unstable"]
 
 [[example]]
+name = "hal_c3_i2c_scan"
+required-features = ["esp32c3", "rt", "unstable"]
+
+[[example]]
 name = "hal_c3_ir_proximity"
 required-features = ["esp32c3", "rt", "unstable"]
 
