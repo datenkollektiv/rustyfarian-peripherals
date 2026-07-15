@@ -11,6 +11,28 @@ bumps may carry breaking changes).
 ## [Unreleased]
 
 ### Added
+- `rustyfarian_esp_idf_peripherals::rotary::Encoder` — the esp-idf tier's first
+  library driver (not a re-export). An interrupt-driven rotary encoder with a
+  debounced push button, using persistent raw-FFI `gpio_isr_handler_add` (not
+  HAL subscriptions, which are one-shot and unsuitable for quadrature). Per-instance
+  heap-allocated ISR context (`Box<IsrContext>`), robust teardown with
+  critical-section barrier for dual-core safety. Delegates all decoding to
+  `tamer::rotary::QuadratureDecoder` and `tamer::button::ButtonDecoder`.
+  See [ADR-005](docs/adr/005-raw-ffi-persistent-interrupts.md) (raw FFI pattern)
+  and [ADR-006](docs/adr/006-interrupt-encoder-instance-and-api-shape.md)
+  (per-instance context and trait-readiness).
+- `idf_s3_rotary` example — the crate's first ESP32-S3 example, exercising CW/CCW
+  rotation and all five button events (Press, Release, Click, DoubleClick, LongPress)
+  on real hardware (CrowPanel 1.28" / KY-040 encoder).
+
+### Changed
+- `rustyfarian_esp_idf_peripherals` lib.rs documentation now distinguishes two
+  interrupt patterns: polled one-shot HAL subscriptions (for low-frequency signals
+  like button wakes) vs. persistent raw-FFI interrupts (for edge-dense inputs like
+  encoders). Corrects the skeleton's implicit assumption that HAL subscriptions
+  are universal. See `lib.rs` module docs and ADR-005 for details.
+
+### Added (pre-driver documentation)
 - `tamer` workspace skeleton: the pure `no_std` core plus thin
   `rustyfarian-esp-hal-peripherals` (esp-hal) and `rustyfarian-esp-idf-peripherals`
   (ESP-IDF) re-export tiers, an optional `embedded-hal` `hal` seam, tooling, CI,

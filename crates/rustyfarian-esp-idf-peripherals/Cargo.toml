@@ -24,14 +24,15 @@ embuild = { workspace = true }
 # esp-idf-hal `PinDriver`'s `is_high()`.
 tamer = { workspace = true }
 esp-idf-hal = { workspace = true }
+# The `critical-section` feature makes esp-idf-svc supply the `critical-section`
+# 1.0 implementation (FreeRTOS-backed, ISR-safe) that the rotary driver's ISR
+# relies on. Without a provider crate, linking fails with `undefined reference
+# to _critical_section_1_0_acquire/release` — and `cargo check` does not link,
+# so only a real device build (`just flash`) surfaces it. See project-lore.
+esp-idf-svc = { workspace = true, features = ["critical-section"] }
+esp-idf-sys = { workspace = true }
+critical-section = { workspace = true }
 anyhow = { workspace = true }
-
-[dev-dependencies]
-# Examples only: `EspLogger` + `log` route output through ESP-IDF's unbuffered
-# `esp_log` path (the same one the boot logs use). Bare `println!` goes to a
-# buffered newlib stdout that never flushes inside an example's infinite loop,
-# so its output never reaches the serial monitor.
-esp-idf-svc = { workspace = true }
 log = { workspace = true }
 
 [[example]]
@@ -66,6 +67,9 @@ name = "idf_c3_tilt_orientation"
 
 [[example]]
 name = "idf_c3_touch"
+
+[[example]]
+name = "idf_s3_rotary"
 
 # docs.rs cannot build the Xtensa ESP-IDF targets (no Espressif LLVM fork in the
 # sandbox); point it at the RISC-V ESP target, which docs.rs supports. A failed
