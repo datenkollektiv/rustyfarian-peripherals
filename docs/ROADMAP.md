@@ -1,6 +1,6 @@
 # Roadmap
 
-*Last updated: July 2026*
+*Last updated: July 15, 2026*
 
 A re-derived vision broadened this repo from input-only peripherals to a single
 home for **all** hardware peripherals — input *and* output (buttons, encoders,
@@ -34,6 +34,7 @@ timeline
     Done      : MPU6050 accelerometer / IMU — sans-io parse + calibration + tilt (core module landed)
               : I2C bus scanner twin — ESP32-C3 bring-up diagnostic (hal/idf, GPIO4/5, 0x08–0x77 probe)
               : Piezo buzzer — tamer::tone sequencer + C3 buzzer examples (hal/idf, first output peripheral)
+              : Interrupt-driven rotary encoder — persistent raw-FFI, per-instance ISR context, ESP32-S3 (idf_s3_rotary example)
 
     Near term : MPU6050 hardware example twin — repo's first I2C example (hal/idf c3, burst read → tilt)
               : Docs-sync — align README / AGENTS framing with VISION input+output scope
@@ -82,20 +83,6 @@ press/release transitions, with the debounce logic fully host-tested.
   `embedded_hal::digital::InputPin`.
 - Thin re-exports / wiring in the esp-hal and esp-idf tiers as a consumer needs
   them.
-
----
-
-## Near term — Rotary Encoder
-
-**Goal:** A rustyfarian app can read an incremental rotary encoder (e.g. a
-config knob) as detented steps, debounced and direction-aware.
-
-**Likely shape:**
-
-- `tamer::rotary` — quadrature / Gray-code decoding with detent handling, pure
-  and host-tested across the full transition table.
-- A `hal`-feature adapter fed from two `InputPin`s (A/B), optionally a third for
-  the push switch.
 
 ---
 
@@ -165,11 +152,36 @@ boundary is next tested by a real LED consumer (see [VISION.md](../VISION.md)).
 
 ---
 
-## Long term — Interrupt-Driven Input
+## Done — Interrupt-Driven Input
 
-**Goal:** Feed the pure state machines from pin-change interrupts rather than
-polling, for low-power deployments. Resolve the poll-vs-event API question in
-[VISION.md](../VISION.md) when the first interrupt-driven consumer appears.
+**Status: First consumer landed.**
+
+- `rustyfarian_esp_idf_peripherals::rotary::Encoder` — interrupt-driven quadrature
+  encoder with persistent raw-FFI edge capture (not one-shot HAL subscriptions).
+  See [ADR-005](docs/adr/005-raw-ffi-persistent-interrupts.md) (persistent FFI pattern
+  for edge-dense inputs) and [ADR-006](docs/adr/006-interrupt-encoder-instance-and-api-shape.md)
+  (per-instance context, trait-readiness, sync API).
+- Resolves the poll-vs-interrupt question: **demand-driven. Pick polled if low latency
+  is not a blocker** (uses `QuadratureInput` in `tamer::rotary` behind the `hal` feature).
+  **Pick interrupt-driven if a slow main loop loses edges** (use the esp-idf raw-FFI
+  encoder). Both feed the same pure decoder; call the right tool for the latency budget.
+- Verification: hardware-proven — the upstreamed per-instance driver + `idf_s3_rotary` example
+  build, link, flash, and run on a real ESP32-S3 (`just run idf_s3_rotary`). Confirmed on device:
+  clean boot/ISR arming, symmetric CW/CCW detent counting with no lost edges on fast spins, and
+  Press/Release/Click/DoubleClick button events.
+
+---
+
+## Mid term — IRAM-Safe Interrupt Handler
+
+**Goal:** Run the encoder ISR in on-chip SRAM so it can service edges even when the
+flash cache is disabled (NVS / OTA operations). Today the encoder is **not IRAM-safe**
+and can crash if an edge arrives during a flash write.
+
+**Status: Skeleton and scope documented** (see
+[Feature: IRAM-Safe ISR v1](docs/features/iram-safe-isr-v1.md)).
+Roadmapped as a follow-up when a consumer needs OTA without encoder glitch.
+Decisions pending: compile-time opt-in vs. always-on; `QUAD_TABLE` placement (tamer or esp-idf tier).
 
 ---
 

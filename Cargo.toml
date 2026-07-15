@@ -42,8 +42,10 @@ esp-bootloader-esp-idf = { version = "=0.5.0", default-features = false }
 esp-println            = { version = "=0.17.0", default-features = false }
 
 # ESP-IDF (std) tier:
-esp-idf-hal = { version = "0.46" }
-esp-idf-svc = { version = "0.52" }
-embuild     = { version = "0.33", features = ["espidf"] }
+esp-idf-hal  = { version = "=0.46.2" }
+esp-idf-svc  = { version = "=0.52.1" }
+esp-idf-sys  = { version = "=0.37.2" }
+embuild      = { version = "=0.33.1", features = ["espidf"] }
+critical-section = { version = "=1.2.0" }
 log         = { version = "0.4" }
 anyhow      = { version = "1.0" }
