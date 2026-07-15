@@ -454,6 +454,34 @@ mod tests {
         assert_eq!(dec.position(), 0);
     }
 
+    #[test]
+    fn sustained_rotation_never_overflows_accumulator() {
+        // Degenerate/long-run input: keep turning one way for far more detents
+        // than any real session. The `i32` accumulator resets to 0 every detent,
+        // so it stays bounded by `steps_per_detent` (4) forever — it never
+        // approaches any integer limit and never panics in a debug build. This
+        // pins the no-overflow invariant so a future change to the accumulator
+        // type or the reset-on-detent logic can't silently reintroduce the
+        // former `i8`-era overflow bug.
+        let mut dec = decoder();
+        for i in 1..=100_000_i32 {
+            assert_eq!(one_cw(&mut dec), Some(EncoderDirection::Clockwise));
+            assert_eq!(dec.position(), i);
+        }
+    }
+
+    #[test]
+    fn sustained_reverse_rotation_never_overflows_accumulator() {
+        // Symmetric counterpart to `sustained_rotation_never_overflows_accumulator`:
+        // the same bounded-accumulator invariant must hold turning the other way,
+        // so the no-overflow guarantee is pinned for both directions.
+        let mut dec = decoder();
+        for i in 1..=100_000_i32 {
+            assert_eq!(one_ccw(&mut dec), Some(EncoderDirection::CounterClockwise));
+            assert_eq!(dec.position(), -i);
+        }
+    }
+
     // --- QuadratureInput (hal adapter) ---
 
     #[cfg(feature = "hal")]
