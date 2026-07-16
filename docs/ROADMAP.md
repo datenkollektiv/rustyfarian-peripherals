@@ -1,6 +1,6 @@
 # Roadmap
 
-*Last updated: July 15, 2026*
+*Last updated: July 16, 2026*
 
 A re-derived vision broadened this repo from input-only peripherals to a single
 home for **all** hardware peripherals — input *and* output (buttons, encoders,
@@ -12,6 +12,9 @@ roadmap is **fuzzy by design**: peripherals are added when a real downstream
 project needs them, and the order reflects likely demand, not a commitment.
 Open questions: whether `rustyfarian-ws2812` folds in, and whether battery /
 power devices count as peripherals here (see [VISION.md](../VISION.md)).
+
+Shipped milestones are recorded in [`CHANGELOG.md`](../CHANGELOG.md); this roadmap
+tracks only upcoming work.
 
 ```mermaid
 %%{init: {
@@ -31,20 +34,13 @@ power devices count as peripherals here (see [VISION.md](../VISION.md)).
 timeline
     title rustyfarian-peripherals Roadmap
 
-    Done      : MPU6050 accelerometer / IMU — sans-io parse + calibration + tilt (core module landed)
-              : I2C bus scanner twin — ESP32-C3 bring-up diagnostic (hal/idf, GPIO4/5, 0x08–0x77 probe)
-              : Piezo buzzer — tamer::tone sequencer + C3 buzzer examples (hal/idf, first output peripheral)
-              : Interrupt-driven rotary encoder — persistent raw-FFI, per-instance ISR context, ESP32-S3 (idf_s3_rotary example)
-
     Near term : MPU6050 hardware example twin — repo's first I2C example (hal/idf c3, burst read → tilt)
               : Docs-sync — align README / AGENTS framing with VISION input+output scope
 
-    Mid term  : Button events — long-press / double-click (after Debounced digital input)
-              : First device examples + flash/run recipes
+    Mid term  : IRAM-safe encoder ISR — run from SRAM for OTA / flash-cache-off safety
 
     Long term : Character display — 7-segment / OLED (tamer text layout / framebuffer)
               : Decide — fold ws2812 in vs. keep sibling (at next real LED use)
-              : Interrupt-driven input path
               : Ecosystem currency — new chips / HAL waves
 ```
 
@@ -67,65 +63,6 @@ These drive every peripheral below — input *and* output.
   (bare-metal) and `rustyfarian-esp-idf-peripherals` (std) keep parallel module
   structure so a peripheral added to one has an obvious home in the other.
 - **Demand-driven:** no peripheral lands without a real consumer.
-
----
-
-## Near term — Debounced Digital Input
-
-**Goal:** A rustyfarian app can read a bouncing button or switch as clean
-press/release transitions, with the debounce logic fully host-tested.
-
-**Likely shape:**
-
-- `tamer::debounce` — a sampled-input debounce state machine (integrator or
-  shift-register style), pure and host-tested, plus its `Noop*`/test seam.
-- A `hal`-feature adapter that ticks the state machine from an
-  `embedded_hal::digital::InputPin`.
-- Thin re-exports / wiring in the esp-hal and esp-idf tiers as a consumer needs
-  them.
-
----
-
-## Mid term — Button Events
-
-**Goal:** Higher-level events — press, release, long-press, double-click — built
-on top of the debounce primitive, with the timing logic host-tested.
-
----
-
-## Done — Piezo Buzzer
-
-**Goal:** The first *output* peripheral, proving the pure-core discipline holds
-beyond input. A rustyfarian app can play tones and simple patterns (beep,
-double-beep, alarm) driven by host-tested logic.
-
-**Delivered:**
-
-- `tamer::tone` — a tone/duration sequencer (`Note` frequency + duration +
-  amplitude, played `OneShot` or `Loop`) as a pure, host-tested state machine
-  producing re-readable `ToneOutput` values. Named for the *mechanism* (`tone`),
-  matching the crate convention, rather than the `tamer::buzzer` device name
-  sketched here originally. No `Noop*` mock: the module introduces no hardware
-  trait (the "mock beside every trait" rule applies to interaction traits only).
-  See [Feature: Tone/Duration Sequencer](features/tone-sequencer-v1.md).
-- ESP32-C3 buzzer examples on both tiers (`hal_c3_buzzer`, `idf_c3_buzzer`)
-  drive a passive piezo via LEDC PWM, retuning the timer frequency per note.
-  Per the demand-driven rule the PWM glue stays inline in the examples (consumer
-  #1); a shared `hal`-feature / tier-crate adapter waits for a second consumer.
-
----
-
-## Mid term — First Device Examples
-
-**Goal:** Runnable `{driver}_{chip}_{name}` examples (e.g. `hal_c6_rotary`,
-`idf_esp32_button`) on real boards, which brings in the `flash` / `run` /
-`build-example` justfile recipes and the per-chip flashing scripts (mirroring
-the sibling repos).
-
-**Status:** Button, rotary, potentiometer, IR proximity, tilt (motion/orientation),
-Reed switch, and Hall-effect sensor examples on ESP32-C3 are working on both
-esp-hal and esp-idf tiers (with two Hall paths: linear analog via ADC and digital
-switch via `tamer::presence`; see [Feature: Hall-effect Sensing](features/hall-sensing-v1.md)).
 
 ---
 
@@ -152,26 +89,6 @@ boundary is next tested by a real LED consumer (see [VISION.md](../VISION.md)).
 
 ---
 
-## Done — Interrupt-Driven Input
-
-**Status: First consumer landed.**
-
-- `rustyfarian_esp_idf_peripherals::rotary::Encoder` — interrupt-driven quadrature
-  encoder with persistent raw-FFI edge capture (not one-shot HAL subscriptions).
-  See [ADR-005](docs/adr/005-raw-ffi-persistent-interrupts.md) (persistent FFI pattern
-  for edge-dense inputs) and [ADR-006](docs/adr/006-interrupt-encoder-instance-and-api-shape.md)
-  (per-instance context, trait-readiness, sync API).
-- Resolves the poll-vs-interrupt question: **demand-driven. Pick polled if low latency
-  is not a blocker** (uses `QuadratureInput` in `tamer::rotary` behind the `hal` feature).
-  **Pick interrupt-driven if a slow main loop loses edges** (use the esp-idf raw-FFI
-  encoder). Both feed the same pure decoder; call the right tool for the latency budget.
-- Verification: hardware-proven — the upstreamed per-instance driver + `idf_s3_rotary` example
-  build, link, flash, and run on a real ESP32-S3 (`just run idf_s3_rotary`). Confirmed on device:
-  clean boot/ISR arming, symmetric CW/CCW detent counting with no lost edges on fast spins, and
-  Press/Release/Click/DoubleClick button events.
-
----
-
 ## Mid term — IRAM-Safe Interrupt Handler
 
 **Goal:** Run the encoder ISR in on-chip SRAM so it can service edges even when the
@@ -179,7 +96,7 @@ flash cache is disabled (NVS / OTA operations). Today the encoder is **not IRAM-
 and can crash if an edge arrives during a flash write.
 
 **Status: Skeleton and scope documented** (see
-[Feature: IRAM-Safe ISR v1](docs/features/iram-safe-isr-v1.md)).
+[Feature: IRAM-Safe ISR v1](features/iram-safe-isr-v1.md)).
 Roadmapped as a follow-up when a consumer needs OTA without encoder glitch.
 Decisions pending: compile-time opt-in vs. always-on; `QUAD_TABLE` placement (tamer or esp-idf tier).
 
@@ -191,5 +108,4 @@ Decisions pending: compile-time opt-in vs. always-on; `QUAD_TABLE` placement (ta
 |:---------------------------------------------------------------|:-----------------------|:-------------------------------------------------------------------------------|
 | Fold `ws2812` in vs. keep it a sibling?                        | ws2812 merge decision  | Decide at the next real LED consumer                                           |
 | Do battery / charging devices count as peripherals here?       | Power-device drivers   | Lean `rustyfarian-power`; revisit if a charging IC needs a driver              |
-| Poll-driven vs. interrupt-driven state-machine API in `tamer`? | Interrupt-driven input | Decide when the first interrupt-driven consumer appears                        |
 | Which esp-hal / esp-idf wave to pin to?                        | First hardware driver  | Match the wave the sibling repos are on (see their `[workspace.dependencies]`) |
