@@ -415,6 +415,19 @@ impl<'d> Encoder<'d> {
     /// Never panics: `steps_per_detent == 0` is validated and rejected
     /// before [`QuadratureDecoder::new`] (which would otherwise panic on
     /// that input) is called.
+    ///
+    /// # Operational notes
+    ///
+    /// - **Startup edge window.** The A/B interrupts are published atomically
+    ///   only after *both* are armed (see the `armed` tombstone); any edge that
+    ///   occurs *during* construction is deliberately ignored. If the knob is
+    ///   already turning while `new`/`new_with_config` runs, that initial motion
+    ///   is not counted. The decoder is seeded from the live A/B level at the
+    ///   end of construction, so steady-state decoding stays correct — only
+    ///   in-construction motion is dropped.
+    /// - **Not IRAM-safe (v1).** An edge during a flash-cache-disabled window
+    ///   (an NVS or OTA write) can crash the device — see the [`rotary` module
+    ///   docs](crate::rotary) for the full caveat.
     pub fn new_with_config(
         pin_a: impl InputPin + OutputPin + 'd,
         pin_b: impl InputPin + OutputPin + 'd,
@@ -557,8 +570,13 @@ impl<'d> Encoder<'d> {
         self.button_sm.is_pressed()
     }
 
-    /// Total ISR invocation count since the interrupts were armed
-    /// (diagnostics).
+    /// Total ISR invocation count since the interrupts were armed.
+    ///
+    /// **Diagnostic only** — intended for bring-up (e.g. confirming edges are
+    /// arriving) and not part of the semantic contract. It counts raw ISR
+    /// entries, not detents, saturates by wrapping (`u32`), and its exact value
+    /// may change between versions. Do not build application logic on it; use
+    /// [`position`](Encoder::position) for motion.
     #[must_use]
     pub fn isr_count(&self) -> u32 {
         self.ctx.isr_count.load(Ordering::Relaxed)
@@ -581,59 +599,20 @@ impl Drop for Encoder<'_> {
     /// Tears down the armed interrupts before the `PinDriver`s and the
     /// heap-allocated [`IsrContext`] are released.
     ///
-    /// # Safety
+    /// The teardown order is load-bearing and closes a use-after-free race
+    /// against an ISR that may be mid-flight on another core (dual-core
+    /// ESP32-S3): (1) `gpio_intr_disable` both pins, (2) `gpio_isr_handler_remove`
+    /// both pins, (3) store `armed = false` (`Release`) then take a
+    /// `critical_section::with(|_| {})` barrier that cannot return until any
+    /// in-flight [`encoder_isr`] (whose *entire* body runs in one critical
+    /// section) has exited, (4) the compiler then frees the `Box<IsrContext>`.
+    /// Steps 1–2 are best-effort (failures logged in [`disarm_gpio_isr`], not
+    /// propagated — `Drop` cannot return `Result`).
     ///
-    /// The teardown order below is load-bearing and closes a use-after-free
-    /// race against an ISR that may be mid-flight on another core (e.g. a
-    /// dual-core ESP32-S3) at the moment `drop` runs:
-    ///
-    /// 1. Disable both pins' interrupts (`gpio_intr_disable`) so no *new*
-    ///    edge can trigger the ISR.
-    /// 2. Remove both pins' handlers (`gpio_isr_handler_remove`) so ESP-IDF
-    ///    no longer dispatches to [`encoder_isr_trampoline`] for either pin.
-    /// 3. Publish `armed = false` (`Release`), then take a
-    ///    `critical_section::with(|_| {})` barrier. Steps 1-2 only stop
-    ///    *future* interrupts — an edge that fired just before them can
-    ///    still be executing `encoder_isr` on another core. [`encoder_isr`]
-    ///    wraps its *entire* body (tombstone check included) in one
-    ///    `critical_section::with` call, and a critical section is mutually
-    ///    exclusive across cores, so this barrier cannot return — and this
-    ///    function cannot proceed to step 4 — until any such in-flight ISR
-    ///    invocation that has already entered its critical section has
-    ///    exited it, having finished touching `self.ctx`. Any ISR invocation
-    ///    that instead enters its critical section *after* this barrier
-    ///    (none should, but the tombstone check is defense in depth) sees
-    ///    `armed == false` and returns immediately instead of touching
-    ///    `self.ctx`.
-    /// 4. `self.ctx` (the `Box<IsrContext>`) is then dropped by the compiler
-    ///    after this function returns, freeing the heap allocation — safe
-    ///    only because steps 1-3 have already proven nothing can still
-    ///    observe it.
-    ///
-    /// Steps 1-2 are best-effort: `gpio_intr_disable` /
-    /// `gpio_isr_handler_remove` failures are logged (`log::warn!`) inside
-    /// [`disarm_gpio_isr`], never propagated — `Drop::drop` cannot return a
-    /// `Result`.
-    ///
-    /// Residual risk (needs device confirmation): the barrier above only
-    /// synchronizes with an ISR
-    /// invocation that has *already entered* its critical section by the
-    /// time this function's own `critical_section::with` call is made. It
-    /// does not, by itself, prove that an invocation dispatched a few
-    /// instructions earlier — after the hardware edge fired but before
-    /// [`encoder_isr`] reaches its `critical_section::with` call — cannot
-    /// still race a subsequent `Box` free. In practice this window is a
-    /// handful of instructions (the trampoline's pointer cast plus the call
-    /// into `encoder_isr`), and ESP-IDF's shared GPIO ISR service is
-    /// expected to serialize `gpio_isr_handler_remove` against any in-flight
-    /// dispatch of the handler being removed on another core — which would
-    /// make step 2 alone sufficient and this barrier pure defense in depth.
-    /// That expectation has not been confirmed against ESP-IDF's internal
-    /// locking and should be verified (either by reading the ESP-IDF GPIO
-    /// driver source for this IDF version, or by a hardware stress test that
-    /// repeatedly constructs/drops an `Encoder` while another core spins the
-    /// physical encoder) before relying on this driver in a
-    /// safety-sensitive context.
+    /// The full proof, and a residual-risk note (the barrier does not cover an
+    /// ISR dispatched but not yet inside its critical section — a few-instruction
+    /// window expected to be serialized by ESP-IDF's ISR service but not yet
+    /// device-confirmed), lives in ADR-006, not restated here.
     fn drop(&mut self) {
         // SAFETY: `pin_a` / `pin_b` were successfully armed together in
         // `new_with_config` — a construction failure tears itself down and
