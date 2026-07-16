@@ -14,8 +14,6 @@ hardware write is entirely downstream.
 - **Why mechanism name (`tone`).** Matches the crate convention (`debounce`, `rotary`, `button`, etc.); no chip coupling or datasheet justifies a device name (unlike `mpu6050`).
 - **Why borrowed `&'notes [Note]` slice.** Zero-alloc, `Copy`-cheap; a melody is naturally a `const` table (matches `mpu6050::INIT_SEQUENCE`'s precedent). Owned `const N`-buffer reversal is breaking either way.
 
-See [`review-queue/tone-sequencer-donation-v1.md`](../../review-queue/tone-sequencer-donation-v1.md) for the full rationale.
-
 ## Decisions
 
 |                                                                     Decision | Reason                                                                                                                         |

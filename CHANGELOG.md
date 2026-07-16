@@ -104,7 +104,7 @@ bumps may carry breaking changes).
   stepping a borrowed `&[Note]` table into re-readable `ToneOutput` values for a
   downstream buzzer/PWM/DAC adapter. `tamer`'s first output/actuator primitive;
   caller-owned `u64` tick contract mirroring `debounce`/`button`. See
-  [docs/features/tone-sequencer-v1.md](docs/features/tone-sequencer-v1.md).
+  [docs/features/archive/tone-sequencer-v1.md](docs/features/archive/tone-sequencer-v1.md).
 - ESP32-C3 piezo-buzzer examples on both esp tiers (`hal_c3_buzzer`,
   `idf_c3_buzzer`) — the first downstream consumer of `tamer::tone`: a
   `ToneSequencer` melody drives a passive piezo on GPIO 6 via LEDC PWM, retuning

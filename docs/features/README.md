@@ -19,16 +19,13 @@ Start a new doc from [`template.md`](template.md), or run `/feature`.
 
 ## Active
 
+This index lists only feature docs still **in flight** (design or scoped stage).
+Docs for already-shipped features are intentionally omitted — they remain in this
+directory as historical records, and move to [`archive/`](archive/) once fully
+closed out; [`../../CHANGELOG.md`](../../CHANGELOG.md) is the source of truth for
+what has landed.
+
 | Feature                                                                                           | Status                  |
 |:--------------------------------------------------------------------------------------------------|:------------------------|
-| [Input primitives](input-primitives-v1.md) — debounce, rotary, button, digital presence           | Implemented             |
-| [Hall-effect sensing](hall-sensing-v1.md) — linear analog + digital switch                        | Implemented             |
 | [MPU6050 accelerometer / IMU](mpu6050-imu-v1.md) — sans-IO parse, calibration, feature-gated tilt | Design approved (Ready) |
-
-## Archived
-
-Completed features whose work has fully landed move to [`archive/`](archive/):
-
-| Feature                                                                | Status  |
-|:-----------------------------------------------------------------------|:--------|
-| [Range map](archive/range-map-v1.md) — clamped linear `u16 → u8` remap | Shipped |
+| [IRAM-safe ISR](iram-safe-isr-v1.md) — run the encoder ISR from SRAM for flash-cache-off safety   | Scoped (skeleton)       |

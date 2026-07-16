@@ -7,9 +7,10 @@
 // The cargo:rustc-check-cfg lines register each key, so Cargo's check-cfg lint
 // does not warn about unexpected_cfgs.
 //
-// This crate is a skeleton: there is no esp-hal dependency and no linker glue
-// yet. When the first driver lands and pulls in esp-hal, no change is needed
-// here — the cfg seam is already in place.
+// esp-hal is wired in behind the chip features and the crate ships device
+// examples; the cfg seam here stays independent of it, emitting the chip flags
+// straight from the target triple so driver code can branch without relying on
+// esp-hal's own cfgs (which do not propagate to dependents).
 
 fn main() {
     println!("cargo:rustc-check-cfg=cfg(esp32)");
