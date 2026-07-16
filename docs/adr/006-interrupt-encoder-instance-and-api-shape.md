@@ -44,6 +44,19 @@ This ADR **records the departure** from AGENTS.md's "every hardware interaction 
 - The public API (synchronous, `update(now_ms)` poll) is compatible with a later trait extraction, but the async shape question is **deliberately deferred**: when the esp-hal twin lands and its design is proven on hardware, the trait is extracted and both impls are unified.
   If the esp-hal side needs async, that is discovered then and the trait is designed to subsume both shapes (or both are kept separate, per AGENTS.md's demand-driven rule).
 
+## Teardown ordering and residual risk
+
+`Drop` must free `Box<IsrContext>` without racing an ISR that may be mid-flight on another core (dual-core ESP32/ESP32-S3). The order is load-bearing:
+
+1. `gpio_intr_disable` both pins — no *new* edge can trigger the ISR.
+2. `gpio_isr_handler_remove` both pins — ESP-IDF stops dispatching to the trampoline.
+3. Store `armed = false` (`Release`), then take a `critical_section::with(|_| {})` barrier. Steps 1–2 only stop *future* interrupts; an edge that fired just before them can still be running `encoder_isr` on the other core. The ISR wraps its *entire* body (tombstone check included) in one `critical_section::with`, and a critical section is mutually exclusive across cores, so this barrier cannot return until any in-flight invocation that already entered its critical section has exited it. Any invocation that enters *after* the barrier sees `armed == false` and returns without touching `self.ctx`.
+4. The compiler frees `Box<IsrContext>` after `drop` returns — safe only because 1–3 proved nothing can still observe it.
+
+Steps 1–2 are best-effort: failures are logged (`log::warn!`), never propagated (`Drop` cannot return `Result`).
+
+**Residual risk (needs device confirmation):** the barrier only synchronizes with an ISR invocation that has *already entered* its critical section when `drop` makes its own `critical_section::with` call. It does not, by itself, prove that an invocation dispatched a few instructions earlier — after the hardware edge fired but before `encoder_isr` reaches its critical section — cannot race a subsequent free. That window is a handful of instructions (trampoline pointer cast + call). ESP-IDF's shared GPIO ISR service is *expected* to serialize `gpio_isr_handler_remove` against any in-flight dispatch on another core, which would make step 2 alone sufficient and the barrier pure defense-in-depth — but this has not been confirmed against ESP-IDF's internal locking. Verify by reading the IDF GPIO driver source for this wave, or by a construct/drop stress test while another core spins the encoder, before relying on this in a safety-critical context. The `rotary` module's `Drop` doc points here rather than restating this proof.
+
 ## Alternatives Considered
 |                                              Alternative | Pros                                                          | Cons                                                                                                                       | Why Rejected                                                                                                             |
 |---------------------------------------------------------:|:--------------------------------------------------------------|:---------------------------------------------------------------------------------------------------------------------------|:-------------------------------------------------------------------------------------------------------------------------|

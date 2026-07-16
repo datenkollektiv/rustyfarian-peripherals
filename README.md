@@ -108,6 +108,10 @@ tiers use the technical `rustyfarian-<hal>-<repo>` convention.
 > tiers add drivers as real downstream projects need them: `rustyfarian-esp-idf-peripherals`
 > now ships the first driver (interrupt-driven rotary encoder). See [ROADMAP.md](./docs/ROADMAP.md).
 
+> **⚠️ Rotary encoder v1 is not IRAM-safe** — an edge during a flash-cache-disabled
+> window (NVS/OTA) can crash the device. See the roadmapped fix in
+> [`docs/features/iram-safe-isr-v1.md`](./docs/features/iram-safe-isr-v1.md).
+
 ## Common Tasks
 
 [`just`](https://github.com/casey/just) is the canonical interface; run it with
