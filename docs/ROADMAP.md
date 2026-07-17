@@ -39,7 +39,7 @@ timeline
 
     Mid term  : IRAM-safe encoder ISR — run from SRAM for OTA / flash-cache-off safety
 
-    Long term : Character display — 7-segment / OLED (tamer text layout / framebuffer)
+    Long term : Display UI logic — touch hit-testing + framebuffer dirty-rect diffing (reuse embedded-graphics; ADR-008)
               : Decide — fold ws2812 in vs. keep sibling (at next real LED use)
               : Ecosystem currency — new chips / HAL waves
 ```
@@ -66,17 +66,30 @@ These drive every peripheral below — input *and* output.
 
 ---
 
-## Long term — Character Display
+## Long term — Display UI logic
 
-**Goal:** Print a line of text or simple glyphs on a 7-segment or OLED display,
-with the text layout / framebuffer logic host-tested in `tamer` and the hardware
-tier only pushing bytes over the bus.
+**Goal:** Own only the *pure UI-logic gaps* above a display — not a display
+abstraction. Rendering is `embedded-graphics` (`DrawTarget`), text and box-layout
+are `embedded-text` / `embedded-layout`, and per-board bus / rotation / backlight
+glue lives in the chip tiers. `tamer`'s reserved `display` slot holds just the
+pure, host-testable logic those don't provide.
 
-**Likely shape:**
+**Likely shape (two modules, on demand):**
 
-- `tamer` text/framebuffer layer — glyph maps, line layout, and framebuffer
-  diffing, pure and host-tested.
-- A `hal`-feature adapter over the relevant `embedded-hal` bus (I²C / SPI).
+- **Touch-region hit-testing** (`TouchPoint` → region id) — composes the landed
+  `tamer::touch`, needs no `DrawTarget`, and is the first module: it makes touch
+  actionable by routing display-space points to tappable regions.
+- **Framebuffer dirty-rect diffing** — rect union / merge, the gap
+  `embedded-graphics-framebuf` leaves; lands when a driver-tier consumer measures
+  redraw cost.
+
+`tamer` takes **no `embedded-graphics` dependency**, even feature-gated.
+Sequencing is demand-driven: land the CYD / S3-knob `mipidsi` +
+`embedded-graphics` driver in the chip tier first (prerequisite), then donate
+each module as a consumer needs it, freezing either API only at a second
+consumer. This **refines** the earlier "Character Display" framing (glyph maps +
+line layout built in `tamer`) to *reuse* — see
+[ADR-008](adr/008-display-scope.md).
 
 ---
 

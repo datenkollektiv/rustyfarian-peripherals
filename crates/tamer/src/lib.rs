@@ -68,7 +68,11 @@
 //!
 //! Still pending (arrive on demand, driven by real downstream needs):
 //!
-//! - `display` — simple character display abstractions.
+//! - `display` — pure, host-testable UI *logic* above a `DrawTarget`, composing
+//!   with [`touch`]: touch-region hit-testing first, then framebuffer dirty-rect
+//!   diffing. `embedded-graphics` stays the display HAL — `tamer` grows no
+//!   display trait and no `embedded-graphics` dependency, and text / layout are
+//!   reused upstream. See ADR-008 for the full rationale.
 
 /// Debounced digital input — [`Debouncer`](debounce::Debouncer),
 /// [`Edge`](debounce::Edge), and [`EdgeDetector`](debounce::EdgeDetector).
