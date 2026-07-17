@@ -1,7 +1,7 @@
 # ADR-007: Touch event detection (`tamer::touch`)
 
 ## Status
-Proposed
+Accepted
 
 ## Context
 `tamer`'s module roadmap reserves a `touch` slot ("capacitive touch event

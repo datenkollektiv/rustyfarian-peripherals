@@ -16,7 +16,7 @@ bumps may carry breaking changes).
   debounced push button, using persistent raw-FFI `gpio_isr_handler_add` (not
   HAL subscriptions, which are one-shot and unsuitable for quadrature). Per-instance
   heap-allocated ISR context (`Box<IsrContext>`), robust teardown with
-  critical-section barrier for dual-core safety. Delegates all decoding to
+  a critical-section barrier for dual-core safety. Delegates all decoding to
   `tamer::rotary::QuadratureDecoder` and `tamer::button::ButtonDecoder`.
   See [ADR-005](docs/adr/005-raw-ffi-persistent-interrupts.md) (raw FFI pattern)
   and [ADR-006](docs/adr/006-interrupt-encoder-instance-and-api-shape.md)
@@ -24,6 +24,15 @@ bumps may carry breaking changes).
 - `idf_s3_rotary` example — the crate's first ESP32-S3 example, exercising CW/CCW
   rotation and all five button events (Press, Release, Click, DoubleClick, LongPress)
   on real hardware (CrowPanel 1.28" / KY-040 encoder).
+- `tamer::touch` — pure touch-panel event detection: `TouchTracker` turns
+  per-frame `(Option<TouchPoint>, now)` samples into raw `Down`/`Move`/`Up`
+  contact edges plus derived `Tap`/`LongPress`/`Swipe` gestures (at most one
+  event per update; a lift emits `Up` and queues the terminal gesture for the
+  next call). Chip-agnostic and clock-injected — works on controllers with no
+  hardware gesture engine (e.g. the CYD's XPT2046); resistive `touched`
+  flicker composes with `tamer::debounce::Debouncer` upstream. See
+  [ADR-007](docs/adr/007-touch-event-detection.md) and
+  [docs/features/touch-event-detection-v1.md](docs/features/touch-event-detection-v1.md).
 
 ### Changed
 - `rustyfarian_esp_idf_peripherals` lib.rs documentation now distinguishes two
@@ -109,4 +118,4 @@ bumps may carry breaking changes).
   `idf_c3_buzzer`) — the first downstream consumer of `tamer::tone`: a
   `ToneSequencer` melody drives a passive piezo on GPIO 6 via LEDC PWM, retuning
   the timer frequency per note. All sequencing stays in the pure core; only the
-  PWM write lives in the example.
+  PWM writing lives in the example.

@@ -24,7 +24,9 @@
 //! - **Trait-first.** Every hardware interaction is expressed behind a trait;
 //!   consumers program against the trait, not a concrete pin type.
 //! - **A `Noop*` mock ships with every trait.** Downstream test suites use the
-//!   crate's own mocks rather than inventing their own.
+//!   crate's own mocks rather than inventing their own. Seam-free pure modules
+//!   ([`hall`], [`mpu6050`], [`touch`]) have no trait to mock — the raw-sample
+//!   feed itself is the test seam.
 //! - **The `hal` feature is the only hardware seam.** Enabling it adds thin
 //!   adapters over [`embedded_hal::digital::InputPin`] that feed the pure logic;
 //!   the default build pulls in nothing hardware-related.
@@ -59,10 +61,13 @@
 //!   `&[Note]` table into [`ToneOutput`] values;
 //!   `tamer`'s first output/actuator primitive, feeding a buzzer/PWM/DAC
 //!   adapter downstream.
+//! - [`touch`] — touch event detection: raw `Down`/`Move`/`Up` contact edges
+//!   plus derived `Tap`/`LongPress`/`Swipe` gestures from per-frame
+//!   `Option<TouchPoint>` samples; chip-agnostic, works on controllers
+//!   without a hardware gesture engine.
 //!
 //! Still pending (arrive on demand, driven by real downstream needs):
 //!
-//! - `touch` — capacitive touch event detection.
 //! - `display` — simple character display abstractions.
 
 /// Debounced digital input — [`Debouncer`](debounce::Debouncer),
@@ -207,6 +212,18 @@ pub use tilt::{tilt_degrees, tilt_degrees_i32};
 pub mod tone;
 pub use tone::{Note, SequenceEvent, SequenceMode, ToneOutput, ToneSequencer};
 
+/// Touch-panel event detection — [`TouchTracker`](touch::TouchTracker),
+/// [`TouchEvent`](touch::TouchEvent), [`TouchPoint`](touch::TouchPoint), and
+/// [`SwipeDirection`](touch::SwipeDirection).
+///
+/// This module is HAL-agnostic and imports nothing outside `tamer` — no
+/// `embedded-hal` touch trait exists, so the chip driver feeds decoded,
+/// calibrated `Option<TouchPoint>` frames straight into the pure tracker.
+/// Resistive controllers debounce the raw touched flag upstream with a
+/// [`Debouncer`](debounce::Debouncer).
+pub mod touch;
+pub use touch::{SwipeDirection, TouchEvent, TouchPoint, TouchTracker};
+
 /// Curated re-exports of the most-used types, for `use tamer::prelude::*;`.
 ///
 /// Covers the pure types unconditionally and the `hal` adapters when the
@@ -225,6 +242,7 @@ pub mod prelude {
     pub use crate::rotary::{EncoderDirection, QuadratureDecoder};
     pub use crate::smoothing::{EmaFilter, SlidingAverage};
     pub use crate::tone::{Note, SequenceMode, ToneSequencer};
+    pub use crate::touch::{SwipeDirection, TouchEvent, TouchPoint, TouchTracker};
 
     #[cfg(feature = "hal")]
     pub use crate::button::ButtonInput;
