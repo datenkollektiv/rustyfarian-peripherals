@@ -38,13 +38,13 @@
 //! ## Build
 //!
 //! ```sh
-//! just build-example idf_c3_buzzer
+//! just build-example idf_c3_passive_buzzer_arpeggio
 //! ```
 //!
 //! ## Flash
 //!
 //! ```sh
-//! just flash idf_c3_buzzer
+//! just flash idf_c3_passive_buzzer_arpeggio
 //! ```
 //!
 //! ## Caveats

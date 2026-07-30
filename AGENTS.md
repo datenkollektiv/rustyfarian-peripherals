@@ -80,7 +80,7 @@ goes above. ADRs follow the Michael Nygard format under
 `docs/adr/NNN-short-description.md`; feature docs in `docs/features/name-vN.md`.
 
 **Example naming.** `{hal|idf}_{chip}_{name}` (chip ∈ `c3|c6|esp32|esp32s3`),
-e.g. `hal_c3_buzzer`, `idf_s3_rotary`.
+e.g. `hal_c3_passive_buzzer_arpeggio`, `idf_s3_rotary`.
 
 ## Coding Principles
 

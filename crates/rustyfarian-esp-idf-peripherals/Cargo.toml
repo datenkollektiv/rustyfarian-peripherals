@@ -36,10 +36,13 @@ anyhow = { workspace = true }
 log = { workspace = true }
 
 [[example]]
+name = "idf_c3_active_buzzer_morse"
+
+[[example]]
 name = "idf_c3_b3f"
 
 [[example]]
-name = "idf_c3_buzzer"
+name = "idf_c3_passive_buzzer_arpeggio"
 
 [[example]]
 name = "idf_c3_hall_linear"

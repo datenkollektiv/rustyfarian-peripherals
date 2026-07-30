@@ -61,6 +61,10 @@
 //!   `&[Note]` table into [`ToneOutput`] values;
 //!   `tamer`'s first output/actuator primitive, feeding a buzzer/PWM/DAC
 //!   adapter downstream.
+//! - [`morse`] — a Morse-code keyer stepping a borrowed message `&[u8]` into
+//!   [`KeyState`] on/off values per ITU-R M.1677-1 timing;
+//!   `tamer`'s second output/actuator primitive, feeding an active-buzzer/LED
+//!   adapter downstream.
 //! - [`touch`] — touch event detection: raw `Down`/`Move`/`Up` contact edges
 //!   plus derived `Tap`/`LongPress`/`Swipe` gestures from per-frame
 //!   `Option<TouchPoint>` samples; chip-agnostic, works on controllers
@@ -216,6 +220,16 @@ pub use tilt::{tilt_degrees, tilt_degrees_i32};
 pub mod tone;
 pub use tone::{Note, SequenceEvent, SequenceMode, ToneOutput, ToneSequencer};
 
+/// Morse-code keyer — [`MorseKeyer`], [`MorseMode`], [`MorseEvent`], and
+/// [`KeyState`].
+///
+/// This module is HAL-agnostic and imports nothing outside `tamer`; it never
+/// touches a pin or GPIO peripheral. `tamer`'s second output/actuator
+/// primitive after [`tone`] — a downstream hardware adapter drives an active
+/// buzzer or LED from the [`KeyState`] values.
+pub mod morse;
+pub use morse::{KeyState, MorseEvent, MorseKeyer, MorseMode};
+
 /// Touch-panel event detection — [`TouchTracker`](touch::TouchTracker),
 /// [`TouchEvent`](touch::TouchEvent), [`TouchPoint`](touch::TouchPoint), and
 /// [`SwipeDirection`](touch::SwipeDirection).
@@ -240,6 +254,7 @@ pub mod prelude {
     pub use crate::button::{ButtonDecoder, ButtonEvent};
     pub use crate::debounce::{Debouncer, Edge, EdgeDetector};
     pub use crate::hall::{HallCalibrationError, HallSensor};
+    pub use crate::morse::{MorseKeyer, MorseMode};
     pub use crate::mpu6050::{AccelCalibration, RawReading};
     pub use crate::presence::{DigitalPresence, Polarity, Presence};
     pub use crate::range_map::RangeMap;

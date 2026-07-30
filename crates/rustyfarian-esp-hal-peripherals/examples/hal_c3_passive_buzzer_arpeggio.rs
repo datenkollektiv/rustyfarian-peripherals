@@ -37,13 +37,13 @@
 //! ## Build
 //!
 //! ```sh
-//! just build-example hal_c3_buzzer
+//! just build-example hal_c3_passive_buzzer_arpeggio
 //! ```
 //!
 //! ## Flash
 //!
 //! ```sh
-//! just flash hal_c3_buzzer
+//! just flash hal_c3_passive_buzzer_arpeggio
 //! ```
 //!
 //! ## Caveats
