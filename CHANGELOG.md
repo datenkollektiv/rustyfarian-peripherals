@@ -33,6 +33,19 @@ bumps may carry breaking changes).
   flicker composes with `tamer::debounce::Debouncer` upstream. See
   [ADR-007](docs/adr/007-touch-event-detection.md) and
   [docs/features/touch-event-detection-v1.md](docs/features/touch-event-detection-v1.md).
+- `tamer::morse` — International Morse code on/off keyer: `MorseKeyer`,
+  `KeyState`, `MorseMode`, `MorseEvent`, and `code_for` constant mapper for
+  ASCII to ITU-R M.1677-1 dots and dashes. Caller provides message slice and
+  unit tick duration; the keyer reports on/off key state via side-effect-free
+  `output()` queries and emits `CharacterStarted` / `Finished` events.
+  `tamer`'s second output/actuator primitive (after `tone`); timing-agnostic
+  and host-testable, with no GPIO/PWM/chip coupling. See
+  [docs/features/archive/morse-keyer-v1.md](docs/features/archive/morse-keyer-v1.md).
+- `hal_c3_active_buzzer_morse` and `idf_c3_active_buzzer_morse` examples —
+  active electromagnetic buzzer driven directly by GPIO on/off keying (GPIO6 at
+  max drive strength), transmitting `CQ` in a loop via `tamer::morse::MorseKeyer`. First
+  downstream consumer of the new `tamer::morse` output primitive; demonstrates
+  the contrast with passive-piezo arpeggio (which needs PWM frequency modulation).
 
 ### Changed
 - `rustyfarian_esp_idf_peripherals` lib.rs documentation now distinguishes two
@@ -40,6 +53,10 @@ bumps may carry breaking changes).
   like button wakes) vs. persistent raw-FFI interrupts (for edge-dense inputs like
   encoders). Corrects the skeleton's implicit assumption that HAL subscriptions
   are universal. See `lib.rs` module docs and ADR-005 for details.
+- Passive-piezo arpeggio examples renamed to disambiguate by buzzer type and
+  pattern: `hal_c3_buzzer` → `hal_c3_passive_buzzer_arpeggio` and
+  `idf_c3_buzzer` → `idf_c3_passive_buzzer_arpeggio`. New active-buzzer Morse
+  examples use GPIO on/off keying (not PWM), making the distinction explicit.
 
 ### Added (pre-driver documentation)
 - `tamer` workspace skeleton: the pure `no_std` core plus thin
