@@ -11,6 +11,8 @@ bumps may carry breaking changes).
 ## [Unreleased]
 
 ### Added
+- `hal_c3_blink` and `idf_c3_blink` examples — basic active-high LED blinking
+  on GPIO7 with a one-second on/off interval.
 - `rustyfarian_esp_idf_peripherals::rotary::Encoder` — the esp-idf tier's first
   library driver (not a re-export). An interrupt-driven rotary encoder with a
   debounced push button, using persistent raw-FFI `gpio_isr_handler_add` (not

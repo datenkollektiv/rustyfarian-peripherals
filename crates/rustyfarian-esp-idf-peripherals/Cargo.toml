@@ -42,6 +42,9 @@ name = "idf_c3_active_buzzer_morse"
 name = "idf_c3_b3f"
 
 [[example]]
+name = "idf_c3_blink"
+
+[[example]]
 name = "idf_c3_passive_buzzer_arpeggio"
 
 [[example]]
