@@ -86,6 +86,10 @@ name = "hal_c3_b3f"
 required-features = ["esp32c3", "rt", "unstable"]
 
 [[example]]
+name = "hal_c3_blink"
+required-features = ["esp32c3", "rt", "unstable"]
+
+[[example]]
 name = "hal_c3_passive_buzzer_arpeggio"
 required-features = ["esp32c3", "rt", "unstable"]
 
