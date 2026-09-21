@@ -10,44 +10,62 @@ bumps may carry breaking changes).
 
 ## [Unreleased]
 
+Pre-1.0 groundwork: the workspace skeleton, the pure `tamer` core, the two esp
+tiers, and the first hardware driver. Entries are grouped by theme; per-module
+detail lives in the module docs, the ADRs, and the feature docs linked below.
+
 ### Added
-- `hal_c3_blink` and `idf_c3_blink` examples — basic active-high LED blinking
-  on GPIO7 with a one-second on/off interval.
+- `tamer` workspace skeleton — the pure `no_std` core plus thin
+  `rustyfarian-esp-hal-peripherals` (esp-hal) and `rustyfarian-esp-idf-peripherals`
+  (ESP-IDF) tiers, an optional `embedded-hal` `hal` seam with `MockInputPin`,
+  tooling, CI, and dual MIT/Apache-2.0 licensing.
+- Digital input primitives — `tamer::debounce`, `tamer::presence`,
+  `tamer::rotary`, and `tamer::button`, each with its `hal`-gated
+  `try_from_pin(s)` adapter, donated by clean reimplementation from
+  `rustyfarian-knob` and `rustbox-peripherals` with an intentionally divergent
+  button event contract (see [ADR-001](docs/adr/001-input-primitives-origin.md),
+  [ADR-002](docs/adr/002-digital-presence.md)).
+- Analog and sensor primitives — `tamer::analog` (calibration, normalization,
+  deadbanding), `tamer::hall` (linear Hall model), `tamer::smoothing`
+  (`SlidingAverage`, `EmaFilter`), `tamer::range_map` (clamped `u16` → `u8`
+  remap), `tamer::mpu6050` (burst parsing plus accel offset calibration), and
+  the opt-in `tilt` feature (`dep:micromath`, `tamer`'s only floating-point
+  surface) — see
+  [docs/features/mpu6050-imu-v1.md](docs/features/mpu6050-imu-v1.md).
+- `tamer::touch` — pure touch-panel event detection turning per-frame
+  `(Option<TouchPoint>, now)` samples into `Down`/`Move`/`Up` edges plus derived
+  `Tap`/`LongPress`/`Swipe` gestures, chip-agnostic and clock-injected for
+  controllers with no hardware gesture engine (see
+  [ADR-007](docs/adr/007-touch-event-detection.md),
+  [feature doc](docs/features/touch-event-detection-v1.md)).
+- `tamer::presence::PresenceSession` — warm-up-gated session state machine over
+  a debounced `Presence` level that hides latched-sensor boot pulses, arms on
+  the first observed `Absent`, then emits `Started`/`Ended` with `last`/`max`
+  dwell tracking (see
+  [feature doc](docs/features/archive/presence-session-v1.md)).
+  Arming *always* requires an observed `Absent` sample: even with
+  `warmup == 0`, a sensor already `Present` on the first poll is suppressed as
+  `Settling` and starts no session.
+- Output primitives — `tamer::tone` (a `ToneSequencer` stepping a borrowed
+  `&[Note]` table into re-readable `ToneOutput` values) and `tamer::morse` (an
+  ITU-R M.1677-1 on/off keyer), both timing-agnostic and host-testable with no
+  GPIO/PWM coupling (see
+  [tone](docs/features/archive/tone-sequencer-v1.md),
+  [morse](docs/features/archive/morse-keyer-v1.md)).
 - `rustyfarian_esp_idf_peripherals::rotary::Encoder` — the esp-idf tier's first
-  library driver (not a re-export). An interrupt-driven rotary encoder with a
-  debounced push button, using persistent raw-FFI `gpio_isr_handler_add` (not
-  HAL subscriptions, which are one-shot and unsuitable for quadrature). Per-instance
-  heap-allocated ISR context (`Box<IsrContext>`), robust teardown with
-  a critical-section barrier for dual-core safety. Delegates all decoding to
-  `tamer::rotary::QuadratureDecoder` and `tamer::button::ButtonDecoder`.
-  See [ADR-005](docs/adr/005-raw-ffi-persistent-interrupts.md) (raw FFI pattern)
-  and [ADR-006](docs/adr/006-interrupt-encoder-instance-and-api-shape.md)
-  (per-instance context and trait-readiness).
-- `idf_s3_rotary` example — the crate's first ESP32-S3 example, exercising CW/CCW
-  rotation and all five button events (Press, Release, Click, DoubleClick, LongPress)
-  on real hardware (CrowPanel 1.28" / KY-040 encoder).
-- `tamer::touch` — pure touch-panel event detection: `TouchTracker` turns
-  per-frame `(Option<TouchPoint>, now)` samples into raw `Down`/`Move`/`Up`
-  contact edges plus derived `Tap`/`LongPress`/`Swipe` gestures (at most one
-  event per update; a lift emits `Up` and queues the terminal gesture for the
-  next call). Chip-agnostic and clock-injected — works on controllers with no
-  hardware gesture engine (e.g. the CYD's XPT2046); resistive `touched`
-  flicker composes with `tamer::debounce::Debouncer` upstream. See
-  [ADR-007](docs/adr/007-touch-event-detection.md) and
-  [docs/features/touch-event-detection-v1.md](docs/features/touch-event-detection-v1.md).
-- `tamer::morse` — International Morse code on/off keyer: `MorseKeyer`,
-  `KeyState`, `MorseMode`, `MorseEvent`, and `code_for` constant mapper for
-  ASCII to ITU-R M.1677-1 dots and dashes. Caller provides message slice and
-  unit tick duration; the keyer reports on/off key state via side-effect-free
-  `output()` queries and emits `CharacterStarted` / `Finished` events.
-  `tamer`'s second output/actuator primitive (after `tone`); timing-agnostic
-  and host-testable, with no GPIO/PWM/chip coupling. See
-  [docs/features/archive/morse-keyer-v1.md](docs/features/archive/morse-keyer-v1.md).
-- `hal_c3_active_buzzer_morse` and `idf_c3_active_buzzer_morse` examples —
-  active electromagnetic buzzer driven directly by GPIO on/off keying (GPIO6 at
-  max drive strength), transmitting `CQ` in a loop via `tamer::morse::MorseKeyer`. First
-  downstream consumer of the new `tamer::morse` output primitive; demonstrates
-  the contrast with passive-piezo arpeggio (which needs PWM frequency modulation).
+  library driver: an interrupt-driven rotary encoder with debounced push button
+  using persistent raw-FFI `gpio_isr_handler_add`, per-instance heap-allocated
+  ISR context, and critical-section teardown for dual-core safety, delegating
+  all decoding to `tamer` (see
+  [ADR-005](docs/adr/005-raw-ffi-persistent-interrupts.md),
+  [ADR-006](docs/adr/006-interrupt-encoder-instance-and-api-shape.md)).
+- ESP32-C3 example twins on both esp tiers — `b3f` (button), `poti` and
+  `poti_led` (ADC plus LEDC PWM), `hall_linear` and `hall_switch`, `i2c_scan`
+  (bus-scanner bring-up diagnostic, see [ADR-004](docs/adr/004-i2c-bus-pattern.md)),
+  `passive_buzzer_arpeggio`, `active_buzzer_morse`, and `blink`, plus
+  `idf_s3_rotary` (the first ESP32-S3 example, hardware-verified on a CrowPanel
+  1.28" / KY-040 encoder) and the `build-example` / `run` / `check-hal`
+  justfile recipes.
 
 ### Changed
 - `rustyfarian_esp_idf_peripherals` lib.rs documentation now distinguishes two
@@ -59,82 +77,3 @@ bumps may carry breaking changes).
   pattern: `hal_c3_buzzer` → `hal_c3_passive_buzzer_arpeggio` and
   `idf_c3_buzzer` → `idf_c3_passive_buzzer_arpeggio`. New active-buzzer Morse
   examples use GPIO on/off keying (not PWM), making the distinction explicit.
-
-### Added (pre-driver documentation)
-- `tamer` workspace skeleton: the pure `no_std` core plus thin
-  `rustyfarian-esp-hal-peripherals` (esp-hal) and `rustyfarian-esp-idf-peripherals`
-  (ESP-IDF) re-export tiers, an optional `embedded-hal` `hal` seam, tooling, CI,
-  and dual MIT/Apache-2.0 licensing.
-- `tamer::debounce` — `Debouncer`, `Edge`, `EdgeDetector`, and the `hal`-gated
-  `DebouncedInput<P>` adapter (caller-owned `u64` clock; `try_from_pin`).
-- `tamer::presence` — `Presence`, `Polarity`, `DigitalPresence`, and the
-  `hal`-gated `DigitalPresenceInput<P>` adapter for polarity-aware debounced
-  digital presence detection.
-- `tamer::rotary` — `QuadratureDecoder`, `EncoderDirection`, and the `hal`-gated
-  `QuadratureInput<A, B>` adapter (`try_from_pins`).
-- `tamer::button` — `ButtonDecoder` and `ButtonEvent` (raw `Press`/`Release`
-  edges plus layered `Click`/`DoubleClick`/`LongPress` gestures), and the
-  `hal`-gated `ButtonInput<P>` adapter (active-low/high; `try_from_pin`).
-- `tamer::analog` — `AnalogCalibration`, `AnalogRange`, `AnalogValue`,
-  `AnalogInput<R>`, and `MockAnalogRead` for host-testable ADC calibration,
-  normalization, and deadbanded analog movement.
-- `tamer::mock::MockInputPin` (`hal`) — settable `InputPin` mock for host tests.
-- ESP32-C3 B3F button examples on both esp tiers (`hal_c3_b3f`, `idf_c3_b3f`),
-  wiring the first hardware dependency (`esp-hal` / `esp-idf-hal`) and the
-  `build-example` / `run` / `check-hal` justfile recipes.
-- ESP32-C3 potentiometer examples on both esp tiers (`hal_c3_poti`,
-  `idf_c3_poti`) using ADC1 and `tamer::analog` startup calibration /
-  normalization.
-- `tamer::hall` — `HallSensor` for Hall-effect magnetic presence detection via ADC
-  and linear sensor model, with `SlidingAverage` smoothing, startup calibration,
-  and `set_midpoint` / `set_threshold` runtime control.
-- ESP32-C3 Hall-effect examples: linear analog sensor via ADC (`hal_c3_hall_linear`,
-  `idf_c3_hall_linear`; uses `tamer::hall` + calibration) and unipolar digital
-  switch (`hal_c3_hall_switch`; KY-003 / A3144 module read via
-  `tamer::presence::DigitalPresence`).
-- `tamer::range_map` — `RangeMap`, a clamped linear remap from a `u16` analog
-  reading to a `u8` output (e.g. ADC counts to LEDC PWM duty), with
-  round-to-nearest scaling matching `AnalogRange::normalize` and an
-  `inverted()` builder for controls where a rising input should produce a
-  falling output.
-- ESP32-C3 potentiometer-dimmed LED examples on both esp tiers (`hal_c3_poti_led`,
-  `idf_c3_poti_led`) — the repo's first output/PWM examples. A potentiometer on
-  ADC1 (GPIO 4) drives an external LED on GPIO 6 via 8-bit-resolution LEDC PWM,
-  mapping raw ADC counts straight onto PWM duty with `tamer::range_map::RangeMap`.
-- Primitives donated by clean reimplementation (relicensed to MIT OR Apache-2.0)
-  from `rustyfarian-knob` and `rustbox-peripherals`; the button event contract
-  intentionally diverges from the knob's, and digital presence follows the
-  donor repo's accepted abstraction boundary — see
-  [ADR-001](docs/adr/001-input-primitives-origin.md) and
-  [ADR-002](docs/adr/002-digital-presence.md).
-- `tamer::mpu6050` — MPU6050 IMU protocol constants, raw 14-byte burst parsing
-  (`RawReading`, `parse_raw`), and accelerometer Y/Z offset calibration
-  (`AccelCalibration`, `AccelOffsets`, `apply_offsets`); `tamer`'s first
-  device-named module, donated by clean reimplementation (relicensed to MIT OR
-  Apache-2.0) from `rustbox-peripherals`. `RawReading` is
-  private-fields-plus-accessors (built only via `parse_raw`), `INIT_SEQUENCE` a
-  slice, and the offset pipeline is `i32` throughout (overflow-safe). See
-  [docs/features/mpu6050-imu-v1.md](docs/features/mpu6050-imu-v1.md).
-- `tamer::smoothing::EmaFilter` — exponential moving average, the `f32` sibling
-  of `SlidingAverage`; `new(alpha)` panics on out-of-range / `NaN` alpha.
-- `tamer::tilt` (opt-in `tilt` feature, `dep:micromath`) — `tilt_degrees` /
-  `tilt_degrees_i32`, scale-free two-axis inclination via `atan2`; `tamer`'s
-  first floating-point surface, feature-gated so the default build stays
-  dependency-free.
-- ESP32-C3 I2C bus-scanner examples on both esp tiers (`hal_c3_i2c_scan`,
-  `idf_c3_i2c_scan`) — the repo's first I2C examples: a bring-up diagnostic that
-  probes `0x08..=0x77` (SDA GPIO 4 / SCL GPIO 5) and logs ACKing addresses, ahead
-  of the upcoming MPU6050 hardware twin. The scan tallies non-NACK bus faults and
-  warns if any occurred, so a shorted or pull-up-less bus is not misreported as an
-  empty one. See [ADR-004](docs/adr/004-i2c-bus-pattern.md).
-- `tamer::tone` — a pure tone/duration sequencer (melody player): `Note`,
-  `SequenceMode`, `ToneOutput`, `SequenceEvent`, and `ToneSequencer<'notes>`,
-  stepping a borrowed `&[Note]` table into re-readable `ToneOutput` values for a
-  downstream buzzer/PWM/DAC adapter. `tamer`'s first output/actuator primitive;
-  caller-owned `u64` tick contract mirroring `debounce`/`button`. See
-  [docs/features/archive/tone-sequencer-v1.md](docs/features/archive/tone-sequencer-v1.md).
-- ESP32-C3 piezo-buzzer examples on both esp tiers (`hal_c3_buzzer`,
-  `idf_c3_buzzer`) — the first downstream consumer of `tamer::tone`: a
-  `ToneSequencer` melody drives a passive piezo on GPIO 6 via LEDC PWM, retuning
-  the timer frequency per note. All sequencing stays in the pure core; only the
-  PWM writing lives in the example.

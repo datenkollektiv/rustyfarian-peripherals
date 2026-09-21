@@ -48,7 +48,9 @@
 //!   exponential moving average ([`EmaFilter`]) for absorbing ADC
 //!   quantization noise before threshold evaluation.
 //! - [`presence`] — polarity-aware debounced present / absent detection for
-//!   digital sensors.
+//!   digital sensors, plus [`PresenceSession`]:
+//!   warm-up-gated session counting with dwell tracking for latched sensors
+//!   such as PIR modules.
 //! - [`range_map`] — clamped linear remap from a `u16` analog reading to a
 //!   `u8` output (e.g. ADC counts to LEDC PWM duty).
 //! - [`rotary`] — quadrature / Gray-code decoding with detent handling.
@@ -128,13 +130,17 @@ pub use smoothing::{EmaFilter, SlidingAverage};
 
 /// Digital presence detection — [`Presence`](presence::Presence),
 /// [`Polarity`](presence::Polarity), and
-/// [`DigitalPresence`](presence::DigitalPresence).
+/// [`DigitalPresence`](presence::DigitalPresence) — plus
+/// [`PresenceSession`](presence::PresenceSession), a warm-up-gated session
+/// layer that counts sessions and measures dwell above a `Presence` stream.
 ///
 /// Enable the `hal` feature to get the
 /// [`DigitalPresenceInput`](presence::DigitalPresenceInput) adapter that reads
 /// an `embedded-hal` `InputPin` directly.
 pub mod presence;
-pub use presence::{DigitalPresence, Polarity, Presence};
+pub use presence::{
+    DigitalPresence, Polarity, Presence, PresenceSession, SessionEvent, SessionPhase, TriggerMode,
+};
 
 #[cfg(feature = "hal")]
 pub use presence::DigitalPresenceInput;
@@ -256,7 +262,10 @@ pub mod prelude {
     pub use crate::hall::{HallCalibrationError, HallSensor};
     pub use crate::morse::{MorseKeyer, MorseMode};
     pub use crate::mpu6050::{AccelCalibration, RawReading};
-    pub use crate::presence::{DigitalPresence, Polarity, Presence};
+    pub use crate::presence::{
+        DigitalPresence, Polarity, Presence, PresenceSession, SessionEvent, SessionPhase,
+        TriggerMode,
+    };
     pub use crate::range_map::RangeMap;
     pub use crate::rotary::{EncoderDirection, QuadratureDecoder};
     pub use crate::smoothing::{EmaFilter, SlidingAverage};
