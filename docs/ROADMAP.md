@@ -1,6 +1,6 @@
 # Roadmap
 
-*Last updated: July 16, 2026*
+*Last updated: September 21, 2026*
 
 A re-derived vision broadened this repo from input-only peripherals to a single
 home for **all** hardware peripherals — input *and* output (buttons, encoders,
