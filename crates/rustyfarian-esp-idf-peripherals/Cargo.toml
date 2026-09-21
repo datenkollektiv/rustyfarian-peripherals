@@ -3,7 +3,9 @@ name = "rustyfarian-esp-idf-peripherals"
 version.workspace = true
 authors.workspace = true
 edition.workspace = true
-rust-version.workspace = true
+# Above the workspace floor (1.88, which is `tamer`'s MSRV) by policy, in step
+# with rustyfarian-esp-hal-peripherals; the ESP-IDF stack itself only needs 1.82.
+rust-version = "1.95"
 license.workspace = true
 repository.workspace = true
 description = "ESP-IDF (std) input drivers for ESP32 — the std hardware tier of the rustyfarian peripherals stack"

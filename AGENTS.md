@@ -11,7 +11,8 @@ analog controls, button events, Hall/tilt sensing) *and* output (tone/buzzer
 sequencing). The design is **sans-io**: pure decoding/timing/rendering logic
 lives in a `no_std` crate with no hardware dependency, and two thin hardware
 tiers (esp-hal, ESP-IDF) provide the GPIO glue. Target hardware: ESP32 (RISC-V
-C3/C6 and Xtensa ESP32/S3). MSRV is `1.88`. It is the peripheral layer of the
+C3/C6 and Xtensa ESP32/S3). MSRV is `1.88` for `tamer`; the two hardware tiers
+declare `1.95`, required by `esp-hal 1.2`. It is the peripheral layer of the
 rustyfarian family; LED output lives in the separate `rustyfarian-ws2812` repo,
 which this repo never depends on.
 

@@ -36,16 +36,25 @@ micromath = { version = "2", default-features = false }
 # `[workspace.dependencies]` tables and rationale comments in rustyfarian-ws2812
 # and rustyfarian-network.
 #
-# Bare-metal (esp-hal) tier:
-esp-hal                = { version = "=1.1.0" }
-esp-bootloader-esp-idf = { version = "=0.5.0", default-features = false }
-esp-println            = { version = "=0.17.0", default-features = false }
+# Bumps land via the maintenance cycle (see `maintenance-plan.md`), not by
+# transparent fresh-resolution drift.
+#
+# Bare-metal (esp-hal) tier — September 2026 wave. esp-hal 1.2 and its
+# companions declare `rust-version = "1.95.0"`, which is why the hal tier crate
+# sets its own `rust-version` above the workspace floor.
+esp-hal                = { version = "=1.2.2" }
+esp-bootloader-esp-idf = { version = "=0.6.0", default-features = false }
+esp-println            = { version = "=0.18.0", default-features = false }
 
-# ESP-IDF (std) tier:
-esp-idf-hal  = { version = "=0.46.2" }
-esp-idf-svc  = { version = "=0.52.1" }
-esp-idf-sys  = { version = "=0.37.2" }
-embuild      = { version = "=0.33.1", features = ["espidf"] }
+# ESP-IDF (std) tier — esp-idf-hal 0.47 requires esp-idf-sys 0.38 and
+# embuild >= 0.33.5; esp-idf-svc 0.53 requires esp-idf-hal 0.47. Move all four
+# together. (esp-idf-sys 0.38.0 is yanked upstream — stay on 0.38.1.)
+esp-idf-hal  = { version = "=0.47.0" }
+esp-idf-svc  = { version = "=0.53.0" }
+esp-idf-sys  = { version = "=0.38.1" }
+embuild      = { version = "=0.33.5", features = ["espidf"] }
+# Exact: the rotary ISR relies on esp-idf-hal supplying the FreeRTOS-backed,
+# ISR-safe `critical-section` impl; see docs/project-lore.md.
 critical-section = { version = "=1.2.0" }
 log         = { version = "0.4" }
 anyhow      = { version = "1.0" }
