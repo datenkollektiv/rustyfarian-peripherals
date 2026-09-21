@@ -6,8 +6,9 @@ no-default-features = false
 [advisories]
 # RUSTSEC-2024-0436 (`paste` unmaintained) is pulled transitively by the
 # pinned esp-hal stack (`esp-hal` and `riscv`). The advisory has no safe upgrade
-# in this graph; remove this ignore when the next coordinated esp stack wave
-# drops `paste`, or review by 2026-09-30.
+# in this graph; remove this ignore when a coordinated esp stack wave drops
+# `paste`. Re-checked 2026-09-25: `esp-hal 1.2.2` still declares
+# `paste = "1.0.15"` as a direct dependency. Review by 2026-12-31.
 ignore = ["RUSTSEC-2024-0436"]
 
 [licenses]

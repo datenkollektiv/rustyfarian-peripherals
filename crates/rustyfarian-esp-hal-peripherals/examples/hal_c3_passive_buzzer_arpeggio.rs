@@ -63,9 +63,10 @@
 //!   makes retuning the *same* timer while a *long-lived* channel still holds
 //!   it a compile error (verified against the pinned esp-hal 1.1.0 sources —
 //!   `rustc` rejects it: "cannot borrow `timer` as mutable because it is also
-//!   borrowed as immutable"). Declaring the channel fresh inside each note's
-//!   branch means its borrow of `timer` ends before the *next* note's
-//!   `timer.configure()` call.
+//!   borrowed as immutable" — and re-checked on 1.2.2, whose `Channel` still
+//!   holds `Option<&'a dyn TimerIFace<S>>`). Declaring the channel fresh inside
+//!   each note's branch means its borrow of `timer` ends before the *next*
+//!   note's `timer.configure()` call.
 //! - The LEDC timer here uses [`Duty::Duty10Bit`](esp_hal::ledc::timer::config::Duty::Duty10Bit)
 //!   (1024 duty levels), not the 8-bit resolution `hal_c3_poti_led.rs` uses.
 //!   esp-hal's `LowSpeed` LEDC timer on the ESP32-C3/C6 is APB-clock-only (no

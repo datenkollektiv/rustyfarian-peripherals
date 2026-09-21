@@ -3,7 +3,15 @@ name = "rustyfarian-esp-hal-peripherals"
 version.workspace = true
 authors.workspace = true
 edition.workspace = true
-rust-version.workspace = true
+# Above the workspace floor (1.88, which is `tamer`'s MSRV): esp-hal 1.2,
+# esp-bootloader-esp-idf 0.6 and esp-println 0.18 declare rust-version 1.95.
+# Cargo enforces `rust-version` against the active toolchain, so both stable
+# (used by `check-hal` / RISC-V examples) and the espup `esp` toolchain (Xtensa)
+# must report a numeric version >= 1.95.0 (Cargo ignores the `-nightly` suffix
+# when comparing against `rust-version`; see docs/project-lore.md § Build &
+# Validation). A toolchain below that fails with "not supported by the
+# following package".
+rust-version = "1.95"
 license.workspace = true
 repository.workspace = true
 description = "Bare-metal (esp-hal) input drivers for ESP32 — the no_std hardware tier of the rustyfarian peripherals stack"

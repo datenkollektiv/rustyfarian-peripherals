@@ -23,6 +23,16 @@ Cause: two blind spots. (1) `cargo check` skips linking, so missing-symbol error
 Fix: re-declare the feature on the consuming crate — `esp-idf-svc = { workspace = true, features = ["critical-section"] }` — so esp-idf-svc supplies the FreeRTOS-backed, ISR-safe impl. Never report "device-verified" from `check-idf` alone; run `just flash` to confirm the link.
 Confirmed 2026-07 on ESP32-S3 (`idf_s3_rotary`): `check-idf` green, `just flash` failed to link, and adding the feature made the release build link and flash cleanly. See [[cargo-check-doesnt-link-critical-section]].
 
+**`just verify` can fail a single `tamer` doctest with `no X in module` for a type that plainly exists and is re-exported — the doctest linked a stale `libtamer-*.rlib`, not your source.**
+Symptom: `cargo test -p tamer --doc` reports `unresolved imports tamer::presence::PresenceSession, …` on a clean tree at a commit where the type is defined; every unit test and the other doctests pass.
+Cause: `.cargo/config.toml` sends builds to `target/ide`, where several `libtamer-<hash>.rlib` accumulate across branches. Cargo treated an older one as fresh, so rustdoc's `--extern tamer=…` (visible with `cargo test -v`) pointed at an rlib built before the type existed — `strings <rlib> | grep -c PresenceSession` returned 0 for it and 63 for its newer sibling.
+Fix: `touch` the source file (or `cargo clean -p tamer`) and re-run; the doctest passes once the rlib is rebuilt. Check the `--extern` path before suspecting the code. Hit 2026-09-25 on `presence-session` at `8659420`.
+
+**A floating `nightly` satisfies `rust-version = "1.95"` yet can fail to compile the pinned esp-hal stack — `1.95.0-nightly` from January lacks features that 1.95.0 stabilised in March.**
+Symptom: `just check-hal` (then `cargo +nightly … -Zbuild-std=core,alloc`) failed on `esp-sync 0.3.0` with `error[E0658]: use of unstable library feature cfg_select … this compiler was built on 2026-01-26`, while `just check-idf` on the `esp` toolchain and the stable toolchain both compiled the same crate.
+Cause: Cargo compares only the numeric version, so a nightly older than a stabilisation date passes the MSRV gate and then rejects the code (the sibling `rustyfarian-ws2812` hit the same class on its AVR nightly). The RISC-V bare-metal targets have prebuilt `core` on stable, so `-Zbuild-std` — the only reason for nightly — was never needed there.
+Fix: RISC-V bare-metal recipes (`check-hal`, `scripts/build-example.sh`) build on stable with the rustup target (as the sibling does); only Xtensa keeps `+esp -Zbuild-std=core,alloc`. Applied 2026-09-25 during the esp-hal 1.2.2 bump.
+
 ## Hardware — inputs
 
 **KY-003 and "Hall sensor" marketplace labels are ambiguous — verify the actual chip before modeling behavior.**
@@ -66,3 +76,4 @@ Fix: for edge-dense inputs, call `gpio_isr_handler_add` directly (via `esp_idf_s
 Symptom: the encoder wraps its decoder in a `critical_section::Mutex<RefCell<QuadratureDecoder>>` taken from ISR context on every edge; the wrong backend risks a deadlock or panic under cross-core preemption.
 Cause: `critical-section` has pluggable backends and the default may not be ISR-safe; `esp-idf-hal` selects a mutex backend that disables interrupts during the section, which is ISR-safe.
 Fix: pin `critical-section = "=1.2.0"` exactly and note the pinning in the dependency comments so an esp-idf-hal upgrade cannot silently break the ISR contract. Confirmed 2026-07 safe on esp-idf-hal 0.46 with `critical-section` 1.2.0.
+Re-confirmed 2026-09-25 on esp-idf-hal 0.47.0: `critical_section::set_impl!(EspCriticalSection)` in `src/task.rs` and `IsrCriticalSection` / `vPortEnterCritical` in `src/interrupt.rs` are line-for-line identical to 0.46.2. Repeat this source check on every `esp-idf-hal` bump (see `maintenance-plan.md`).

@@ -6,10 +6,10 @@ set -euo pipefail
 #   chip ∈ {c3, c6, esp32, esp32s3}
 #
 # Chip, crate, target triple, and required-features are derived from the name.
-# Bare-metal builds use the host nightly toolchain (RISC-V) or `cargo +esp`
-# (Xtensa); ESP-IDF builds use `MCU=<mcu> cargo` (RISC-V) or `cargo +esp`
-# (Xtensa). All builds need `just setup-cargo-config` (the linker scripts); the
-# ESP-IDF and Xtensa paths additionally need `just setup-toolchain`.
+# Bare-metal builds use the stable toolchain with the rustup target (RISC-V) or
+# `cargo +esp -Zbuild-std=core,alloc` (Xtensa, no prebuilt core); ESP-IDF builds
+# always use `cargo +esp`. All builds need `just setup-cargo-config` (the linker
+# scripts); the ESP-IDF and Xtensa paths additionally need `just setup-toolchain`.
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
@@ -44,10 +44,16 @@ if [ "$EX_XTENSA" = 1 ]; then
 fi
 
 if [ "$EX_TIER" = hal ]; then
-    # RISC-V bare-metal builds on plain nightly (no espup); Xtensa needs +esp.
-    [ "$EX_XTENSA" = 1 ] || cargo_bin=(cargo +nightly)
+    # RISC-V bare-metal builds on stable with the prebuilt rustup target (no
+    # nightly, no espup) — a floating nightly older than a stabilisation date
+    # cannot compile the pinned esp-hal stack (see docs/project-lore.md). Xtensa
+    # has no prebuilt core, so it needs `+esp` and `-Zbuild-std`.
+    # `${arr[@]+"${arr[@]}"}` expands an empty array to nothing under `set -u`
+    # on bash 3.2 (/bin/bash on macOS), where a bare "${arr[@]}" is an error.
+    std_args=()
+    [ "$EX_XTENSA" = 1 ] && std_args=(-Zbuild-std=core,alloc)
     printf 'Building %s for bare-metal %s (features=%s)...\n' "$example" "$EX_TARGET" "$EX_FEATURES"
-    "${cargo_bin[@]}" build --release -Zbuild-std=core,alloc \
+    "${cargo_bin[@]}" build --release ${std_args[@]+"${std_args[@]}"} \
         --target "$EX_TARGET" --target-dir "$EX_TARGET_DIR" \
         --no-default-features --features "$EX_FEATURES" \
         --example "$example" -p "$EX_PKG"
@@ -62,5 +68,5 @@ else
     printf 'Building %s for %s (MCU=%s)...\n' "$example" "$EX_TARGET" "$EX_MCU"
     MCU="$EX_MCU" "${cargo_bin[@]}" build --release \
         --target "$EX_TARGET" --target-dir "$EX_TARGET_DIR" \
-        "${feat_args[@]}" --example "$example" -p "$EX_PKG"
+        ${feat_args[@]+"${feat_args[@]}"} --example "$example" -p "$EX_PKG"
 fi

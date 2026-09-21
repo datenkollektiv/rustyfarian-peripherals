@@ -442,7 +442,7 @@ impl<'d> Encoder<'d> {
         let pin_b = PinDriver::input(pin_b, Pull::Up)?;
         let button = PinDriver::input(button, Pull::Up)?;
 
-        // `PinDriver::pin()` returns `PinId` (`u8`) in esp-idf-hal 0.46;
+        // `PinDriver::pin()` returns `PinId` (`u8`) in esp-idf-hal 0.46 and 0.47;
         // widen to `i32` for both the `IsrContext` field and the raw
         // ESP-IDF FFI calls below, which expect `gpio_num_t`.
         let num_a = i32::from(pin_a.pin());

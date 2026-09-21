@@ -52,10 +52,10 @@ check:
 build:
     cargo build {{ host_flags }}
 
-# check the esp-hal crate for ESP32-C3 (RISC-V); needs nightly for -Zbuild-std, no espup
+# check the esp-hal crate for ESP32-C3 (RISC-V) on stable with the rustup target; no nightly, no espup
 check-hal:
     rustup target add {{ hal_target }}
-    cargo +nightly check -Zbuild-std=core,alloc --target {{ hal_target }} \
+    cargo check --target {{ hal_target }} \
         --target-dir {{ hal_dir }} --no-default-features --features esp32c3,unstable \
         -p rustyfarian-esp-hal-peripherals
 
@@ -141,6 +141,14 @@ clean:
     cargo clean --target-dir {{ hal_dir }}
     cargo clean --target-dir {{ idf_dir }}
     rm -rf tmp
+
+# clean only the bare-metal (esp-hal) tier's target dir; keeps the ESP-IDF cache
+clean-hal:
+    cargo clean --target-dir {{ hal_dir }}
+
+# clean only the ESP-IDF tier's target dir (forces the esp-idf-sys rebuild); keeps the hal artifacts
+clean-idf:
+    cargo clean --target-dir {{ idf_dir }}
 
 # report development tooling status and the resolved build target dirs
 doctor:

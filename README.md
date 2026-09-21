@@ -6,7 +6,7 @@
 
 [![CI](https://github.com/datenkollektiv/rustyfarian-peripherals/actions/workflows/rust.yml/badge.svg)](https://github.com/datenkollektiv/rustyfarian-peripherals/actions/workflows/rust.yml)
 [![License](https://img.shields.io/badge/license-MIT%2FApache--2.0-blue.svg)](#license)
-[![Rust](https://img.shields.io/badge/rust-1.88%2B-orange.svg)](https://www.rust-lang.org)
+[![Rust](https://img.shields.io/badge/rust-1.88%2B%20tamer%20%7C%201.95%2B%20esp%20tiers-orange.svg)](https://www.rust-lang.org)
 [![cargo fmt](https://github.com/datenkollektiv/rustyfarian-peripherals/actions/workflows/fmt.yml/badge.svg)](https://github.com/datenkollektiv/rustyfarian-peripherals/actions/workflows/fmt.yml)
 [![cargo clippy](https://github.com/datenkollektiv/rustyfarian-peripherals/actions/workflows/clippy.yml/badge.svg)](https://github.com/datenkollektiv/rustyfarian-peripherals/actions/workflows/clippy.yml)
 [![cargo audit](https://github.com/datenkollektiv/rustyfarian-peripherals/actions/workflows/audit.yml/badge.svg)](https://github.com/datenkollektiv/rustyfarian-peripherals/actions/workflows/audit.yml)
@@ -130,8 +130,15 @@ just doctor    # report tooling status
 
 Building the hardware crates for a device needs the Espressif toolchain
 (`just setup-toolchain`) and the device target config
-(`just setup-cargo-config`). Those recipes, and the `flash` / `run` /
-`build-example` family, arrive with the first downstream-driven driver.
+(`just setup-cargo-config`); `just build-example` / `flash` / `run` then build,
+flash, and monitor a named example.
+
+**MSRV:** `tamer` requires Rust **1.88+**, and the host gates above run on it.
+The two hardware tiers require Rust **1.95+** — the floor declared by
+`esp-hal 1.2` and its companion crates. Cargo checks `rust-version` against the
+active toolchain, so a device build on an older stable (or an older nightly,
+whose `-nightly` suffix Cargo ignores) fails with "not supported by the
+following package".
 
 ## License
 
