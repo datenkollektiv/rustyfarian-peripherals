@@ -2,8 +2,8 @@
 
 Release process for the `rustyfarian-peripherals` workspace.
 
-> **Status:** Not yet exercised — first release `v0.1.0` in preparation (2026-09-26).
-> Mirrors the proven staged flow of `rustyfarian-ws2812`; update this note after each release.
+> **Status:** Active process — last exercised for `v0.1.0` (published to crates.io 2026-09-26, all three crates).
+> The staged publication flow below is proven; update this note after each release.
 
 ## Versioning
 
@@ -92,6 +92,8 @@ just release-publish-idf
 ```
 
 - `release-*-hal` uses `riscv32imc-unknown-none-elf` on stable with the crate's default `esp32c3,unstable` features.
+- `release-*-hal` prints esp-hal's "use --release" banner during the verify build — harmless, the upload is source.
+- `release-dry-run` accepts extra flags; pass `--allow-dirty` when checking before the release commit.
 - `release-*-idf` uses `cargo +esp` with `riscv32imc-esp-espidf` and `MCU=esp32c3` (requires `espup`).
 - docs.rs builds `rustyfarian-esp-hal-peripherals` from its `[package.metadata.docs.rs]` target.
 - docs.rs builds of `rustyfarian-esp-idf-peripherals` are expected to fail; its README is the primary documentation.
