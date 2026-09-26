@@ -27,12 +27,14 @@ timeline
 
     Near term : MPU6050 hardware example twin — repo's first I2C example (hal/idf c3, burst read → tilt)
               : Docs-sync — align README / AGENTS framing with VISION input+output scope
+              : Hall linear examples — hardware-verify hal/idf c3 hall_linear once a 49E sensor is on hand
 
     Mid term  : IRAM-safe encoder ISR — run from SRAM for OTA / flash-cache-off safety
               : esp-hal rotary encoder twin — settle sync vs. async shape, then extract the shared trait (ADR-006)
 
     Long term : Display UI logic — touch hit-testing + framebuffer dirty-rect diffing (reuse embedded-graphics; ADR-008)
               : Touch adoption — knob (CST816S) re-validation + CYD (XPT2046) validation of the touch tracker on hardware (downstream)
+              : Hall v2 — hysteresis, latch sensors, interrupt-driven ADC, shared calibration helper (on demand)
               : Decide — fold ws2812 in vs. keep sibling (at next real LED use)
               : Ecosystem currency — new chips / HAL waves
 ```
