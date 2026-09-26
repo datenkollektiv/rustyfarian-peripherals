@@ -28,7 +28,7 @@
 //!   ([`hall`], [`mpu6050`], [`touch`]) have no trait to mock — the raw-sample
 //!   feed itself is the test seam.
 //! - **The `hal` feature is the only hardware seam.** Enabling it adds thin
-//!   adapters over [`embedded_hal::digital::InputPin`] that feed the pure logic;
+//!   adapters over `embedded_hal::digital::InputPin` that feed the pure logic;
 //!   the default build pulls in nothing hardware-related.
 //!
 //! The thin, chip-specific glue lives in the companion hardware crates
@@ -83,9 +83,8 @@
 /// Debounced digital input — [`Debouncer`](debounce::Debouncer),
 /// [`Edge`](debounce::Edge), and [`EdgeDetector`](debounce::EdgeDetector).
 ///
-/// Enable the `hal` feature to get the
-/// [`DebouncedInput`](debounce::DebouncedInput) adapter that reads an
-/// `embedded-hal` `InputPin` directly.
+/// Enable the `hal` feature to get the `DebouncedInput` adapter that reads
+/// an `embedded-hal` `InputPin` directly.
 pub mod debounce;
 pub use debounce::{Debouncer, Edge, EdgeDetector};
 
@@ -134,9 +133,8 @@ pub use smoothing::{EmaFilter, SlidingAverage};
 /// [`PresenceSession`](presence::PresenceSession), a warm-up-gated session
 /// layer that counts sessions and measures dwell above a `Presence` stream.
 ///
-/// Enable the `hal` feature to get the
-/// [`DigitalPresenceInput`](presence::DigitalPresenceInput) adapter that reads
-/// an `embedded-hal` `InputPin` directly.
+/// Enable the `hal` feature to get the `DigitalPresenceInput` adapter that
+/// reads an `embedded-hal` `InputPin` directly.
 pub mod presence;
 pub use presence::{
     DigitalPresence, Polarity, Presence, PresenceSession, SessionEvent, SessionPhase, TriggerMode,
@@ -157,9 +155,8 @@ pub use range_map::RangeMap;
 /// Quadrature rotary encoder decoder — [`QuadratureDecoder`](rotary::QuadratureDecoder)
 /// and [`EncoderDirection`](rotary::EncoderDirection).
 ///
-/// Enable the `hal` feature to get the
-/// [`QuadratureInput`](rotary::QuadratureInput) adapter that reads two
-/// `embedded-hal` `InputPin`s directly.
+/// Enable the `hal` feature to get the `QuadratureInput` adapter that reads
+/// two `embedded-hal` `InputPin`s directly.
 pub mod rotary;
 pub use rotary::{EncoderDirection, QuadratureDecoder};
 
@@ -171,9 +168,8 @@ pub use rotary::QuadratureInput;
 /// the [`debounce`] edge detector) and emits press, release, click,
 /// double-click, and long-press events.
 ///
-/// Enable the `hal` feature to get the [`ButtonInput`](button::ButtonInput)
-/// adapter that reads an `embedded-hal` `InputPin` (active-low or active-high)
-/// directly.
+/// Enable the `hal` feature to get the `ButtonInput` adapter that reads an
+/// `embedded-hal` `InputPin` (active-low or active-high) directly.
 pub mod button;
 pub use button::{ButtonDecoder, ButtonEvent};
 

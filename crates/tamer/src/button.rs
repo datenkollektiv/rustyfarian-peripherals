@@ -104,7 +104,7 @@ pub enum ButtonEvent {
 /// emits [`ButtonEvent`]s. It has no hardware dependency — the clock and the
 /// `pressed` boolean are supplied by the caller — so it is fully host-testable.
 ///
-/// Enable the `hal` feature for the [`ButtonInput`] adapter that reads an
+/// Enable the `hal` feature for the `ButtonInput` adapter that reads an
 /// `embedded-hal` `InputPin` directly.
 ///
 /// # Example
