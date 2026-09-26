@@ -12,10 +12,10 @@ repository = "https://github.com/datenkollektiv/rustyfarian-peripherals"
 
 [workspace.dependencies]
 # Workspace-internal crates.
-# Path-only (no version) while the workspace is pre-publication; add `version`
-# fields here when the first crates.io release wave is cut, mirroring the
-# coordinated-wave approach in rustyfarian-ws2812 / rustyfarian-network.
-tamer = { path = "crates/tamer", default-features = false }
+# `version` must track `[workspace.package] version` — `cargo publish` rejects
+# path-only dependencies, and the tiers ship in lockstep with `tamer` (see
+# `release-plan.md`).
+tamer = { path = "crates/tamer", version = "0.1.0", default-features = false }
 
 # External — pure, host-buildable.
 # `embedded-hal` is the trait boundary every hardware tier shares: the pure

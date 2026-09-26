@@ -9,6 +9,8 @@ This project follows [Semantic Versioning](https://semver.org/) (pre-1.0: minor 
 
 ## [Unreleased]
 
+## [0.1.0] - 2026-09-26
+
 Pre-1.0 groundwork: the workspace skeleton, the pure `tamer` core, the two esp tiers, and the first hardware driver.
 Per-module detail lives in the module docs, the ADRs, and the linked feature docs.
 

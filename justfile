@@ -158,6 +158,44 @@ doctor:
 ramdisk action:
     @scripts/ramdisk.sh "{{ action }}"
 
+# --- Release --------------------------------------------------------------
+#
+# Staged per `release-plan.md`: publish `tamer` first; the tiers can only be
+# packaged once `tamer` of the same version is live on crates.io.
+
+# dry-run packaging of tamer (runs verify first); pass --allow-dirty before committing
+release-dry-run *flags: verify
+    cargo publish --dry-run -p tamer --target {{ host_target }} {{ flags }}
+
+# dry-run packaging of the esp-hal tier (needs tamer of this version on crates.io)
+release-dry-run-hal:
+    rustup target add {{ hal_target }}
+    cargo publish --dry-run -p rustyfarian-esp-hal-peripherals --target {{ hal_target }} \
+        --target-dir {{ hal_dir }}
+
+# dry-run packaging of the esp-idf tier (needs tamer on crates.io and the ESP toolchain)
+release-dry-run-idf:
+    MCU=esp32c3 cargo +esp publish --dry-run -p rustyfarian-esp-idf-peripherals --target {{ idf_target }} \
+        --target-dir {{ idf_dir }}
+
+# publish tamer to crates.io
+[confirm]
+release-publish-tamer:
+    cargo publish -p tamer --target {{ host_target }}
+
+# publish the esp-hal tier to crates.io
+[confirm]
+release-publish-hal:
+    rustup target add {{ hal_target }}
+    cargo publish -p rustyfarian-esp-hal-peripherals --target {{ hal_target }} \
+        --target-dir {{ hal_dir }}
+
+# publish the esp-idf tier to crates.io (requires the ESP toolchain)
+[confirm]
+release-publish-idf:
+    MCU=esp32c3 cargo +esp publish -p rustyfarian-esp-idf-peripherals --target {{ idf_target }} \
+        --target-dir {{ idf_dir }}
+
 # --- Composite ------------------------------------------------------------
 
 # full pre-commit verification: format, check, lint, test (modifies files — local use only)
