@@ -32,6 +32,7 @@ timeline
               : esp-hal rotary encoder twin — settle sync vs. async shape, then extract the shared trait (ADR-006)
 
     Long term : Display UI logic — touch hit-testing + framebuffer dirty-rect diffing (reuse embedded-graphics; ADR-008)
+              : Touch adoption — knob (CST816S) re-validation + CYD (XPT2046) validation of the touch tracker on hardware (downstream)
               : Decide — fold ws2812 in vs. keep sibling (at next real LED use)
               : Ecosystem currency — new chips / HAL waves
 ```
