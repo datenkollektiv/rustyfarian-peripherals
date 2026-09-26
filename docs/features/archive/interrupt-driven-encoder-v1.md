@@ -1,3 +1,8 @@
+---
+gate: none
+desk-work: available
+---
+
 # Feature: Interrupt-Driven Rotary Encoder v1
 
 A production, interrupt-driven rotary encoder with a debounced push button for ESP-IDF — the esp-idf tier's first library driver beyond the `tamer` re-export.
@@ -91,7 +96,7 @@ The mapping the implementation and its tests must satisfy.
 ## Deferred (explicitly decided — not open)
 
 - **Trait definition** → extracted when the esp-hal twin lands and its shape (async vs sync) is verified.
-- **IRAM-safe ISR** (v1 limitation) → roadmapped separately (see `docs/features/iram-safe-isr-v1.md`).
+- **IRAM-safe ISR** (v1 limitation) → roadmapped separately (see [Feature: IRAM-Safe ISR v1](../iram-safe-isr-v1.md)).
 - **ESP32-C3 variant** → S3 example first (target of the donation); C3 added if a second consumer needs it.
 
 ## Resolved
@@ -108,7 +113,7 @@ The mapping the implementation and its tests must satisfy.
 - [x] Public API surface (EncoderConfig, Encoder<'d>, EncoderError)
 - [x] Constructor validation (steps_per_detent == 0 rejection before panic)
 - [x] Robust ISR teardown on constructor failure (idempotent disarm on partial arm)
-- [x] Dependencies promoted and pinned (esp-idf-hal = "=0.46.2", esp-idf-svc = "=0.52.1", esp-idf-sys = "=0.37.2", embuild = "=0.33.1", critical-section = "=1.2.0")
+- [x] Dependencies promoted and pinned (esp-idf-hal = "=0.47.0", esp-idf-svc = "=0.53.0", esp-idf-sys = "=0.38.1", embuild = "=0.33.5", critical-section = "=1.2.0"; landed on the esp-idf-hal 0.46.2 wave, moved in b6226c7 with critical-section unchanged)
 - [x] Decode/timing logic host-tested upstream in `tamer` (`QuadratureDecoder`, `ButtonDecoder`); the driver itself is device-only and cannot be host-compiled (raw ESP-IDF FFI), so it carries no host tests of its own
 - [x] Landed in rust crate with full `# Errors`, `# Safety`, `# Panics` rustdoc
 - [x] Device-target compile verified: `just check-idf` (C3 lib) and the `idf_s3_rotary` example (xtensa-esp32s3-espidf) both build clean, 0 warnings — confirms the bindgen FFI symbols and esp-idf-hal 0.46 API resolve against real ESP-IDF headers
@@ -121,8 +126,8 @@ The mapping the implementation and its tests must satisfy.
 - [x] ROADMAP updated (move to Done, add IRAM follow-up)
 - [x] project-lore.md findings recorded
 - [x] lib.rs reframing (interrupt patterns documented)
-- [ ] esp-hal twin landing (async shape decision, trait extraction — future session)
-- [ ] IRAM-safe ISR v2 (follow-up feature)
+- [x] ~~esp-hal twin landing (async shape decision, trait extraction — future session)~~ Follow-up: Mid-term band of [ROADMAP](../../ROADMAP.md).
+- [x] ~~IRAM-safe ISR v2 (follow-up feature)~~ Follow-up: [Feature: IRAM-Safe ISR v1](../iram-safe-isr-v1.md).
 
 ## Session Log
 

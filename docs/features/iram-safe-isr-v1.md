@@ -1,6 +1,6 @@
 # Feature: IRAM-Safe Interrupt Handler v1 (Skeleton)
 
-**Status:** Skeleton only — deferred follow-up to interrupt-driven-encoder-v1.
+**Status:** Skeleton only — deferred follow-up to [interrupt-driven-encoder-v1](archive/interrupt-driven-encoder-v1.md).
 
 ## Problem
 

@@ -1,6 +1,6 @@
 # Roadmap
 
-*Last updated: September 25, 2026*
+*Last updated: September 26, 2026*
 
 This repo is the single home for **all** hardware peripherals, input *and* output, so a new device never means a new repo.
 The pure `tamer` core plus thin esp-hal / esp-idf tiers is the non-negotiable spine.
@@ -29,6 +29,7 @@ timeline
               : Docs-sync — align README / AGENTS framing with VISION input+output scope
 
     Mid term  : IRAM-safe encoder ISR — run from SRAM for OTA / flash-cache-off safety
+              : esp-hal rotary encoder twin — settle sync vs. async shape, then extract the shared trait (ADR-006)
 
     Long term : Display UI logic — touch hit-testing + framebuffer dirty-rect diffing (reuse embedded-graphics; ADR-008)
               : Decide — fold ws2812 in vs. keep sibling (at next real LED use)
