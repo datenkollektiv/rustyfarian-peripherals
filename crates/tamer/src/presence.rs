@@ -380,6 +380,114 @@ pub enum SessionEvent {
     },
 }
 
+/// A plain-data image of a [`PresenceSession`], for resuming it after the
+/// tick base restarts (for example across deep sleep).
+///
+/// Produced by [`PresenceSession::snapshot`] and consumed by
+/// [`PresenceSession::restore`].
+/// The consumer owns persistence: copy the fields into whatever retained
+/// record the platform offers (RTC memory, NVS, ...) and rebuild the struct
+/// on wake.
+///
+/// # Relative ticks
+///
+/// A deep-sleep reset restarts the caller's tick counter at zero, so absolute
+/// timestamps would be stale on wake.
+/// The image therefore stores durations instead:
+/// `warmup_remaining` is the time left until the warm-up deadline and
+/// `last_onset_age` is the time since the last
+/// [`Started`](SessionEvent::Started).
+/// Use [`aged_by`](SessionState::aged_by) to account for the time spent
+/// asleep before restoring.
+///
+/// # When to snapshot
+///
+/// Snapshot only while the session is idle: [`Armed`](SessionPhase::Armed)
+/// with [`level`](PresenceSession::level) [`Absent`](Presence::Absent).
+/// An open window does not carry its true onset across a restore, so a later
+/// dwell can come out short.
+///
+/// # Semver
+///
+/// The struct is exhaustive and has no [`Default`]: adding a field later is
+/// a breaking (0.x minor) change.
+/// Consumers that persist the image should version their retained record.
+///
+/// # Example
+///
+/// ```
+/// use tamer::presence::{Presence, PresenceSession, SessionEvent, TriggerMode};
+///
+/// // An armed, idle session that has already counted one session.
+/// let mut session = PresenceSession::new(Presence::Absent, 0, TriggerMode::Repeatable, 0);
+/// session.update(Presence::Absent, 0);
+/// session.update(Presence::Present, 10);
+/// session.update(Presence::Absent, 14);
+/// let n = session.event_count();
+///
+/// // Before deep sleep: capture the relative image.
+/// let image = session.snapshot(20);
+///
+/// // After wake the tick base restarts at zero.
+/// let slept = 5_000;
+/// let mut resumed = PresenceSession::restore(image.aged_by(slept), 0);
+///
+/// // The GPIO wake is a `Present` sample; the encounter is counted.
+/// assert_eq!(
+///     resumed.update(Presence::Present, 0),
+///     Some(SessionEvent::Started { session: n + 1 })
+/// );
+/// ```
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct SessionState {
+    /// The caller-declared trigger mode, carried verbatim.
+    pub trigger_mode: TriggerMode,
+    /// The lifecycle phase, carried verbatim.
+    pub phase: SessionPhase,
+    /// The last presence level fed to the session, carried verbatim.
+    pub level: Presence,
+    /// Ticks left until the warm-up deadline, saturating at `0`.
+    ///
+    /// Has no behavioral effect outside
+    /// [`WarmingUp`](SessionPhase::WarmingUp), although
+    /// [`PresenceSession::warmup_end`] still reports the rebased value.
+    pub warmup_remaining: u64,
+    /// The session count, carried verbatim.
+    pub events: u32,
+    /// The warm-up pulse count, carried verbatim.
+    pub spurious: u32,
+    /// Ticks since the last [`Started`](SessionEvent::Started), or `None` if
+    /// no session has started.
+    pub last_onset_age: Option<u64>,
+    /// The dwell of the most recently completed session, carried verbatim.
+    pub last_dwell: Option<u64>,
+    /// The longest completed dwell, carried verbatim.
+    pub max_dwell: Option<u64>,
+}
+
+impl SessionState {
+    /// Returns the image advanced by `elapsed` ticks, for time spent asleep.
+    ///
+    /// `warmup_remaining` is reduced by `elapsed` (saturating at `0`) and
+    /// `last_onset_age`, if any, is increased by `elapsed` (saturating at
+    /// `u64::MAX`).
+    /// The phase never changes here: a session whose remaining warm-up
+    /// reaches `0` stays [`WarmingUp`](SessionPhase::WarmingUp) until the
+    /// next [`update`](PresenceSession::update) performs the transition.
+    #[must_use]
+    pub const fn aged_by(self, elapsed: u64) -> Self {
+        let last_onset_age = match self.last_onset_age {
+            Some(age) => Some(age.saturating_add(elapsed)),
+            None => None,
+        };
+        Self {
+            warmup_remaining: self.warmup_remaining.saturating_sub(elapsed),
+            last_onset_age,
+            ..self
+        }
+    }
+}
+
 /// A warm-up-gated session state machine over a debounced [`Presence`]
 /// stream.
 ///
@@ -666,6 +774,101 @@ impl PresenceSession {
         }
 
         None
+    }
+
+    /// Captures a relative [`SessionState`] image at tick `now`.
+    ///
+    /// `warmup_remaining` is `warmup_end.saturating_sub(now)` and
+    /// `last_onset_age` is `now.saturating_sub(onset)`; every other field is
+    /// copied verbatim.
+    ///
+    /// Snapshot only while the session is idle ([`Armed`](SessionPhase::Armed)
+    /// and [`Absent`](Presence::Absent)).
+    /// An open window does not carry its true onset across a restore, so a
+    /// later dwell can come out short.
+    #[must_use]
+    pub const fn snapshot(&self, now: u64) -> SessionState {
+        let last_onset_age = match self.last_onset {
+            Some(onset) => Some(now.saturating_sub(onset)),
+            None => None,
+        };
+        SessionState {
+            trigger_mode: self.trigger_mode,
+            phase: self.phase,
+            level: self.level,
+            warmup_remaining: self.warmup_end.saturating_sub(now),
+            events: self.events,
+            spurious: self.spurious,
+            last_onset_age,
+            last_dwell: self.last_dwell,
+            max_dwell: self.max_dwell,
+        }
+    }
+
+    /// Rebuilds a session from a [`SessionState`] image at tick `now`.
+    ///
+    /// `now` is on the new tick base.
+    /// The warm-up deadline becomes `now.saturating_add(warmup_remaining)`
+    /// and the last onset becomes `now.saturating_sub(last_onset_age)`,
+    /// which clamps to `0` when `now` is smaller than the age.
+    /// Outside [`WarmingUp`](SessionPhase::WarmingUp) the rebased deadline
+    /// has no behavioral effect, although
+    /// [`warmup_end`](PresenceSession::warmup_end) still reports it.
+    ///
+    /// Exactly two cases are normalised, so a hand-built or stale image can
+    /// not wedge the state machine:
+    ///
+    /// - [`Armed`](SessionPhase::Armed) with
+    ///   [`Present`](Presence::Present) and no onset age gets
+    ///   `last_onset = Some(now)`; otherwise the next falling edge would be
+    ///   swallowed.
+    ///   A wake encounter's dwell is therefore measured from the restore and
+    ///   is short by the boot latency.
+    /// - `max_dwell` is raised to at least `last_dwell`.
+    ///
+    /// Every other field combination is carried verbatim.
+    /// This never panics.
+    /// To count the encounter that woke the device, feed one
+    /// [`Present`](Presence::Present) sample to
+    /// [`update`](PresenceSession::update) after restoring.
+    #[must_use]
+    pub const fn restore(state: SessionState, now: u64) -> Self {
+        let last_onset = match state.last_onset_age {
+            Some(age) => Some(now.saturating_sub(age)),
+            None => {
+                if matches!(state.phase, SessionPhase::Armed) && state.level.is_present() {
+                    Some(now)
+                } else {
+                    None
+                }
+            }
+        };
+        let max_dwell = match (state.max_dwell, state.last_dwell) {
+            (Some(max), Some(last)) => Some(if last > max { last } else { max }),
+            (None, Some(last)) => Some(last),
+            (max, None) => max,
+        };
+        Self {
+            trigger_mode: state.trigger_mode,
+            warmup_end: now.saturating_add(state.warmup_remaining),
+            phase: state.phase,
+            level: state.level,
+            events: state.events,
+            spurious: state.spurious,
+            last_onset,
+            last_dwell: state.last_dwell,
+            max_dwell,
+        }
+    }
+
+    /// Returns the absolute warm-up deadline tick.
+    ///
+    /// Computed at construction as `now.saturating_add(warmup)`, or at
+    /// [`restore`](PresenceSession::restore) as
+    /// `now.saturating_add(warmup_remaining)`.
+    #[must_use]
+    pub const fn warmup_end(&self) -> u64 {
+        self.warmup_end
     }
 
     /// Returns the current lifecycle phase.
@@ -1313,5 +1516,320 @@ mod tests {
                 dwell: 49
             })
         );
+    }
+
+    // --- SessionState snapshot / restore ---
+
+    /// Builds an idle, armed session that has completed `n` sessions.
+    fn idle_armed(n: u32) -> PresenceSession {
+        let mut session = PresenceSession::new(Presence::Absent, 0, TriggerMode::Repeatable, 0);
+        assert_eq!(session.update(Presence::Absent, 0), None);
+        for i in 0..n {
+            let t = u64::from(i) * 10 + 1;
+            session.update(Presence::Present, t);
+            session.update(Presence::Absent, t + 4);
+        }
+        session
+    }
+
+    /// A normalised baseline state to tweak field by field.
+    fn base_state() -> SessionState {
+        SessionState {
+            trigger_mode: TriggerMode::Repeatable,
+            phase: SessionPhase::Armed,
+            level: Presence::Absent,
+            warmup_remaining: 0,
+            events: 0,
+            spurious: 0,
+            last_onset_age: None,
+            last_dwell: None,
+            max_dwell: None,
+        }
+    }
+
+    #[test]
+    fn snapshot_round_trip_at_same_now_preserves_getters() {
+        let mut session = PresenceSession::new(Presence::Absent, 50, TriggerMode::NonRepeatable, 7);
+        session.update(Presence::Present, 10);
+        session.update(Presence::Absent, 20);
+        session.update(Presence::Absent, 57);
+        session.update(Presence::Present, 60);
+        session.update(Presence::Absent, 90);
+
+        let restored = PresenceSession::restore(session.snapshot(100), 100);
+
+        assert_eq!(restored.phase(), session.phase());
+        assert_eq!(restored.level(), session.level());
+        assert_eq!(restored.event_count(), session.event_count());
+        assert_eq!(restored.spurious_count(), session.spurious_count());
+        assert_eq!(restored.last_onset(), session.last_onset());
+        assert_eq!(restored.last_dwell(), session.last_dwell());
+        assert_eq!(restored.max_dwell(), session.max_dwell());
+        assert_eq!(restored.trigger_mode(), session.trigger_mode());
+    }
+
+    #[test]
+    fn snapshot_round_trip_preserves_pending_warmup_end() {
+        let mut session = PresenceSession::new(Presence::Absent, 50, TriggerMode::Repeatable, 7);
+        session.update(Presence::Present, 10);
+
+        let restored = PresenceSession::restore(session.snapshot(20), 20);
+
+        assert_eq!(restored.warmup_end(), 57);
+        assert_eq!(restored.warmup_end(), session.warmup_end());
+        assert_eq!(restored.spurious_count(), 1);
+    }
+
+    #[test]
+    fn restore_then_snapshot_is_identity_for_normalised_state() {
+        let state = SessionState {
+            trigger_mode: TriggerMode::NonRepeatable,
+            phase: SessionPhase::Armed,
+            level: Presence::Absent,
+            warmup_remaining: 0,
+            events: 4,
+            spurious: 2,
+            last_onset_age: Some(30),
+            last_dwell: Some(5),
+            max_dwell: Some(9),
+        };
+
+        assert_eq!(PresenceSession::restore(state, 100).snapshot(100), state);
+    }
+
+    #[test]
+    fn idle_restore_at_zero_starts_then_ends() {
+        let mut session = PresenceSession::restore(idle_armed(2).snapshot(500), 0);
+
+        assert_eq!(
+            session.update(Presence::Present, 0),
+            Some(SessionEvent::Started { session: 3 })
+        );
+        assert_eq!(
+            session.update(Presence::Absent, 3),
+            Some(SessionEvent::Ended {
+                session: 3,
+                dwell: 3
+            })
+        );
+    }
+
+    #[test]
+    fn warmup_remaining_rebases_onto_restore_now() {
+        let state = SessionState {
+            phase: SessionPhase::WarmingUp,
+            warmup_remaining: 10,
+            ..base_state()
+        };
+        let mut session = PresenceSession::restore(state, 5);
+
+        assert_eq!(session.warmup_end(), 15);
+        assert_eq!(session.update(Presence::Absent, 14), None);
+        assert_eq!(session.phase(), SessionPhase::WarmingUp);
+        assert_eq!(session.update(Presence::Absent, 15), None);
+        assert_eq!(session.phase(), SessionPhase::Armed);
+    }
+
+    #[test]
+    fn restore_into_warming_up_counts_pulses_like_fresh_session() {
+        let state = SessionState {
+            phase: SessionPhase::WarmingUp,
+            warmup_remaining: 10,
+            spurious: 1,
+            ..base_state()
+        };
+        let mut session = PresenceSession::restore(state, 0);
+
+        assert_eq!(
+            session.update(Presence::Present, 3),
+            Some(SessionEvent::WarmupPulse)
+        );
+        assert_eq!(session.spurious_count(), 2);
+    }
+
+    #[test]
+    fn restore_into_settling_waits_for_absent() {
+        let state = SessionState {
+            phase: SessionPhase::Settling,
+            level: Presence::Present,
+            ..base_state()
+        };
+        let mut session = PresenceSession::restore(state, 0);
+
+        assert_eq!(session.update(Presence::Present, 1), None);
+        assert_eq!(session.phase(), SessionPhase::Settling);
+        assert_eq!(session.update(Presence::Absent, 2), None);
+        assert_eq!(session.phase(), SessionPhase::Armed);
+    }
+
+    #[test]
+    fn onset_age_is_relative_and_clamps_to_zero() {
+        let mut session = PresenceSession::new(Presence::Absent, 0, TriggerMode::Repeatable, 0);
+        session.update(Presence::Absent, 0);
+        session.update(Presence::Present, 40);
+        session.update(Presence::Absent, 45);
+
+        let state = session.snapshot(100);
+        assert_eq!(state.last_onset_age, Some(60));
+        assert_eq!(PresenceSession::restore(state, 100).last_onset(), Some(40));
+        assert_eq!(PresenceSession::restore(state, 0).last_onset(), Some(0));
+    }
+
+    #[test]
+    fn armed_present_without_onset_is_normalised_to_now() {
+        let state = SessionState {
+            level: Presence::Present,
+            ..base_state()
+        };
+        let mut session = PresenceSession::restore(state, 20);
+
+        assert_eq!(session.last_onset(), Some(20));
+        assert_eq!(
+            session.update(Presence::Absent, 26),
+            Some(SessionEvent::Ended {
+                session: 0,
+                dwell: 6
+            })
+        );
+    }
+
+    #[test]
+    fn max_dwell_is_raised_to_last_dwell() {
+        let lower = SessionState {
+            last_dwell: Some(9),
+            max_dwell: Some(4),
+            ..base_state()
+        };
+        let missing = SessionState {
+            last_dwell: Some(9),
+            max_dwell: None,
+            ..base_state()
+        };
+        let fine = SessionState {
+            last_dwell: Some(4),
+            max_dwell: Some(9),
+            ..base_state()
+        };
+
+        assert_eq!(PresenceSession::restore(lower, 0).max_dwell(), Some(9));
+        assert_eq!(PresenceSession::restore(missing, 0).max_dwell(), Some(9));
+        assert_eq!(PresenceSession::restore(fine, 0).max_dwell(), Some(9));
+        assert_eq!(PresenceSession::restore(base_state(), 0).max_dwell(), None);
+    }
+
+    #[test]
+    fn aged_by_zero_is_identity() {
+        let state = SessionState {
+            phase: SessionPhase::WarmingUp,
+            warmup_remaining: 8,
+            last_onset_age: Some(3),
+            ..base_state()
+        };
+
+        assert_eq!(state.aged_by(0), state);
+    }
+
+    #[test]
+    fn aged_by_saturates_both_fields_and_keeps_phase() {
+        let state = SessionState {
+            phase: SessionPhase::WarmingUp,
+            warmup_remaining: 8,
+            last_onset_age: Some(u64::MAX - 1),
+            ..base_state()
+        };
+        let aged = state.aged_by(100);
+
+        assert_eq!(aged.warmup_remaining, 0);
+        assert_eq!(aged.last_onset_age, Some(u64::MAX));
+        assert_eq!(aged.phase, SessionPhase::WarmingUp);
+        assert_eq!(base_state().aged_by(5).last_onset_age, None);
+    }
+
+    #[test]
+    fn aged_warmup_reaching_zero_arms_on_next_absent() {
+        let state = SessionState {
+            phase: SessionPhase::WarmingUp,
+            warmup_remaining: 8,
+            level: Presence::Present,
+            ..base_state()
+        };
+        let mut session = PresenceSession::restore(state.aged_by(8), 0);
+
+        assert_eq!(session.phase(), SessionPhase::WarmingUp);
+        assert_eq!(session.update(Presence::Absent, 0), None);
+        assert_eq!(session.phase(), SessionPhase::Armed);
+    }
+
+    #[test]
+    fn dwell_stats_survive_restore_and_longer_window_raises_max() {
+        let mut session = idle_armed(3);
+        assert_eq!(session.last_dwell(), Some(4));
+        assert_eq!(session.max_dwell(), Some(4));
+
+        session = PresenceSession::restore(session.snapshot(1000), 0);
+        assert_eq!(session.last_dwell(), Some(4));
+        assert_eq!(session.max_dwell(), Some(4));
+
+        session.update(Presence::Present, 0);
+        session.update(Presence::Absent, 12);
+        assert_eq!(session.last_dwell(), Some(12));
+        assert_eq!(session.max_dwell(), Some(12));
+    }
+
+    #[test]
+    fn non_repeatable_survives_round_trip() {
+        let session = PresenceSession::new(Presence::Absent, 0, TriggerMode::NonRepeatable, 0);
+        let restored = PresenceSession::restore(session.snapshot(0), 0);
+
+        assert_eq!(restored.trigger_mode(), TriggerMode::NonRepeatable);
+    }
+
+    #[test]
+    fn fifty_resume_cycles_keep_event_count_gap_free() {
+        let mut session = idle_armed(0);
+
+        for expected in 1..=50_u32 {
+            session = PresenceSession::restore(session.snapshot(123).aged_by(1000), 0);
+            assert_eq!(
+                session.update(Presence::Present, 0),
+                Some(SessionEvent::Started { session: expected })
+            );
+            assert_eq!(
+                session.update(Presence::Absent, 2),
+                Some(SessionEvent::Ended {
+                    session: expected,
+                    dwell: 2
+                })
+            );
+            assert_eq!(session.event_count(), expected);
+        }
+    }
+
+    #[test]
+    fn u64_max_inputs_never_panic() {
+        let state = SessionState {
+            phase: SessionPhase::WarmingUp,
+            warmup_remaining: u64::MAX,
+            last_onset_age: Some(u64::MAX),
+            last_dwell: Some(u64::MAX),
+            max_dwell: Some(0),
+            ..base_state()
+        };
+
+        let mut session = PresenceSession::restore(state, u64::MAX);
+        assert_eq!(session.warmup_end(), u64::MAX);
+        assert_eq!(session.last_onset(), Some(0));
+        assert_eq!(session.max_dwell(), Some(u64::MAX));
+        let _ = session.snapshot(0);
+        let _ = session.snapshot(u64::MAX);
+        let _ = state.aged_by(u64::MAX);
+        let _ = session.update(Presence::Absent, u64::MAX);
+    }
+
+    #[test]
+    fn warmup_end_reports_deadline() {
+        let session = PresenceSession::new(Presence::Absent, 30, TriggerMode::Repeatable, 12);
+
+        assert_eq!(session.warmup_end(), 42);
     }
 }

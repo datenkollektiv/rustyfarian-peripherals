@@ -27,7 +27,7 @@ Snapshot and restore for `tamer::presence::PresenceSession`, so a battery device
 - `snapshot`: `warmup_remaining = warmup_end.saturating_sub(now)`, `last_onset_age = now.saturating_sub(onset)`; everything else is copied verbatim.
 - `restore`: `warmup_end = now.saturating_add(warmup_remaining)`, `last_onset = now.saturating_sub(age)`, clamped to `0` when `now < age`.
 - `restore` never panics and normalises exactly two cases: Armed + Present with no onset gets onset `now`, and `max_dwell` is raised to at least `last_dwell`.
-- Every other field combination is carried verbatim; `warmup_remaining` is ignored outside `WarmingUp`.
+- Every other field combination is carried verbatim; outside `WarmingUp` the rebased deadline has no behavioral effect.
 - `aged_by`: `warmup_remaining` saturating `-elapsed`, `last_onset_age` saturating `+elapsed`; the phase never changes, and the next `update` performs any transition.
 - Snapshot only while idle (Armed + `Absent`); an open window does not carry its true onset across a restore, so a later dwell can come out short.
 - A wake encounter's dwell is measured from the restore, so it is short by the boot latency.
@@ -39,7 +39,7 @@ Snapshot and restore for `tamer::presence::PresenceSession`, so a battery device
 - Re-export `SessionState` from the crate root and `prelude`; add a `lib.rs` Status bullet and a CHANGELOG `[Unreleased]` / Added entry.
 
 ## Required tests
-- Round trip at the same `now` preserves every getter, `warmup_end()` included, and `restore(s, n).snapshot(n) == s` for a normalised `s`.
+- Round trip at the same `now` preserves every getter, and `warmup_end()` while the deadline is pending (a passed one rebases to `now`); `restore(s, n).snapshot(n) == s` for a normalised `s`.
 - Idle Armed state restored at `0`: `Present` gives `Started { session: events + 1 }`, then `Absent` at `3` gives `Ended { dwell: 3 }`.
 - Warm-up rebasing: remaining `10` restored at `5` arms on `Absent` at `15` and not before; restore into `WarmingUp` and into `Settling` behaves like a fresh session at that phase.
 - Onset age: onset `40` snapshotted at `100` gives age `60`, restored at `100` gives `Some(40)`, and restored at `0` gives `Some(0)`.
@@ -53,9 +53,10 @@ Snapshot and restore for `tamer::presence::PresenceSession`, so a battery device
 
 ## State
 - [x] Design approved (2026-10-12: invariant, ageing and exhaustiveness decided by maintainer; rust-engineer review folded in)
-- [ ] Core implementation
-- [ ] Tests passing (`just verify`, `just test-hal`)
-- [ ] Documentation updated
+- [x] Core implementation (2026-10-12: `SessionState`, `snapshot` / `restore` / `warmup_end` / `aged_by` in `presence.rs`, root and `prelude` re-exports)
+- [x] Tests passing (2026-10-12: 18 new `presence::tests` plus a `SessionState` doctest; gates below)
+- [x] Documentation updated (2026-10-12: rustdoc, `lib.rs` Status bullet, CHANGELOG `[Unreleased]` / Added)
 
 ## Session Log
 - 2026-10-12 — Feature doc created via `/feature` from a downstream resume request; rust-engineer review added `aged_by` and the `max_dwell` clamp.
+- 2026-10-12 — Implemented via rust-engineer, code-reviewer gate PASS-WITH-NITS (round-trip test bullet and `warmup_remaining` docs corrected); uncommitted.

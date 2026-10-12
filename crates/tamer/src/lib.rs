@@ -50,7 +50,8 @@
 //! - [`presence`] — polarity-aware debounced present / absent detection for
 //!   digital sensors, plus [`PresenceSession`]:
 //!   warm-up-gated session counting with dwell tracking for latched sensors
-//!   such as PIR modules.
+//!   such as PIR modules, with `snapshot` / `restore` of the session across a
+//!   tick-base reset (e.g. deep sleep).
 //! - [`range_map`] — clamped linear remap from a `u16` analog reading to a
 //!   `u8` output (e.g. ADC counts to LEDC PWM duty).
 //! - [`rotary`] — quadrature / Gray-code decoding with detent handling.
@@ -137,7 +138,8 @@ pub use smoothing::{EmaFilter, SlidingAverage};
 /// reads an `embedded-hal` `InputPin` directly.
 pub mod presence;
 pub use presence::{
-    DigitalPresence, Polarity, Presence, PresenceSession, SessionEvent, SessionPhase, TriggerMode,
+    DigitalPresence, Polarity, Presence, PresenceSession, SessionEvent, SessionPhase, SessionState,
+    TriggerMode,
 };
 
 #[cfg(feature = "hal")]
@@ -260,7 +262,7 @@ pub mod prelude {
     pub use crate::mpu6050::{AccelCalibration, RawReading};
     pub use crate::presence::{
         DigitalPresence, Polarity, Presence, PresenceSession, SessionEvent, SessionPhase,
-        TriggerMode,
+        SessionState, TriggerMode,
     };
     pub use crate::range_map::RangeMap;
     pub use crate::rotary::{EncoderDirection, QuadratureDecoder};
