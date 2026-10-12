@@ -21,11 +21,15 @@ Snapshot and restore for `tamer::presence::PresenceSession`, so a battery device
 ## API surface
 - `SessionState { trigger_mode, phase, level, warmup_remaining, events, spurious, last_onset_age, last_dwell, max_dwell }`, deriving `Debug, Clone, Copy, PartialEq, Eq`.
 - `PresenceSession::snapshot(&self, now) -> SessionState`, `PresenceSession::restore(state, now) -> Self`, `PresenceSession::warmup_end(&self) -> u64`, `SessionState::aged_by(self, elapsed) -> Self`.
-- All four are `#[must_use] pub const fn`; `Option` handling uses `match`, max uses `if`, since `Option::map` and `Ord::max` are not const on 1.88.
+- `PresenceSession::is_idle(&self) -> bool`: Armed and `Absent`, the snapshot rule, for sleep-entry code.
+- All five are `#[must_use] pub const fn`; `Option` handling uses `match`, max uses `if`, since `Option::map` and `Ord::max` are not const on 1.88.
 
 ## Behavioral contract
-- `snapshot`: `warmup_remaining = warmup_end.saturating_sub(now)`, `last_onset_age = now.saturating_sub(onset)`; everything else is copied verbatim.
-- `restore`: `warmup_end = now.saturating_add(warmup_remaining)`, `last_onset = now.saturating_sub(age)`, clamped to `0` when `now < age`.
+- `snapshot`: `warmup_remaining = warmup_end.saturating_sub(now)`, `last_onset_age = now.saturating_sub(onset)` plus the private onset deficit (saturating); everything else is copied verbatim.
+- `restore`: `warmup_end = now.saturating_add(warmup_remaining)`, `last_onset = now.saturating_sub(age)`, clamped to `0` when `now < age`; the excess `age.saturating_sub(now)` is kept in a private `onset_deficit`, so `snapshot(now)` reports the exact age `age + (now - restore_tick)`, saturating.
+- `last_onset()` returns the clamped tick; a rising edge in `update` resets the deficit to `0`.
+- The `Ended` dwell of a window open across a restore is measured from the clamped onset and stays approximate.
+- If the restored `level` is `Present`, the follow-up `Present` sample produces no `Started`.
 - `restore` never panics and normalises exactly two cases: Armed + Present with no onset gets onset `now`, and `max_dwell` is raised to at least `last_dwell`.
 - Every other field combination is carried verbatim; outside `WarmingUp` the rebased deadline has no behavioral effect.
 - `aged_by`: `warmup_remaining` saturating `-elapsed`, `last_onset_age` saturating `+elapsed`; the phase never changes, and the next `update` performs any transition.
@@ -49,6 +53,7 @@ Snapshot and restore for `tamer::presence::PresenceSession`, so a battery device
 - One doctest showing the idle-only sleep and resume flow.
 
 ## Deferred (v2+)
+- `SessionState::to_le_bytes` / `from_le_bytes` fixed byte codec: the consumer has a local codec and will promote it after field proof.
 - Hardware example pair (`hal_c3_pir` / `idf_c3_pir`), minimum-dwell or cooldown filtering, and a generic `tamer::session` module.
 
 ## State
@@ -56,7 +61,9 @@ Snapshot and restore for `tamer::presence::PresenceSession`, so a battery device
 - [x] Core implementation (2026-10-12: `SessionState`, `snapshot` / `restore` / `warmup_end` / `aged_by` in `presence.rs`, root and `prelude` re-exports)
 - [x] Tests passing (2026-10-12: 18 new `presence::tests` plus a `SessionState` doctest; gates below)
 - [x] Documentation updated (2026-10-12: rustdoc, `lib.rs` Status bullet, CHANGELOG `[Unreleased]` / Added)
+- [x] Review follow-up (2026-10-12: `is_idle`, restore-`Present` note and tests, exact onset age across restore, doc nits, 7 new `presence::tests`; byte codec deferred)
 
 ## Session Log
 - 2026-10-12 — Feature doc created via `/feature` from a downstream resume request; rust-engineer review added `aged_by` and the `max_dwell` clamp.
 - 2026-10-12 — Implemented via rust-engineer, code-reviewer gate PASS-WITH-NITS (round-trip test bullet and `warmup_remaining` docs corrected); uncommitted.
+- 2026-10-12 — Review follow-up: added `is_idle`, documented and tested the restored-`Present` case, fixed `last_onset_age` collapse across restore with a private `onset_deficit`; the byte codec is deferred.

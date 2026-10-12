@@ -407,6 +407,8 @@ pub enum SessionEvent {
 /// An open window does not carry its true onset across a restore, so a later
 /// dwell can come out short.
 ///
+/// Fields not described otherwise are copied verbatim.
+///
 /// # Semver
 ///
 /// The struct is exhaustive and has no [`Default`]: adding a field later is
@@ -424,6 +426,7 @@ pub enum SessionEvent {
 /// session.update(Presence::Present, 10);
 /// session.update(Presence::Absent, 14);
 /// let n = session.event_count();
+/// assert_eq!(n, 1);
 ///
 /// // Before deep sleep: capture the relative image.
 /// let image = session.snapshot(20);
@@ -440,11 +443,11 @@ pub enum SessionEvent {
 /// ```
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct SessionState {
-    /// The caller-declared trigger mode, carried verbatim.
+    /// The caller-declared trigger mode.
     pub trigger_mode: TriggerMode,
-    /// The lifecycle phase, carried verbatim.
+    /// The lifecycle phase.
     pub phase: SessionPhase,
-    /// The last presence level fed to the session, carried verbatim.
+    /// The last presence level fed to the session.
     pub level: Presence,
     /// Ticks left until the warm-up deadline, saturating at `0`.
     ///
@@ -452,16 +455,19 @@ pub struct SessionState {
     /// [`WarmingUp`](SessionPhase::WarmingUp), although
     /// [`PresenceSession::warmup_end`] still reports the rebased value.
     pub warmup_remaining: u64,
-    /// The session count, carried verbatim.
+    /// The session count.
     pub events: u32,
-    /// The warm-up pulse count, carried verbatim.
+    /// The warm-up pulse count.
     pub spurious: u32,
     /// Ticks since the last [`Started`](SessionEvent::Started), or `None` if
     /// no session has started.
+    ///
+    /// Exact across restores: it keeps counting even when it exceeds the
+    /// restore tick.
     pub last_onset_age: Option<u64>,
-    /// The dwell of the most recently completed session, carried verbatim.
+    /// The dwell of the most recently completed session.
     pub last_dwell: Option<u64>,
-    /// The longest completed dwell, carried verbatim.
+    /// The longest completed dwell.
     pub max_dwell: Option<u64>,
 }
 
@@ -641,6 +647,9 @@ pub struct PresenceSession {
     events: u32,
     spurious: u32,
     last_onset: Option<u64>,
+    /// Ticks by which the true onset lies before tick `0`, set by `restore`
+    /// when the restored age exceeds `now`; `0` otherwise.
+    onset_deficit: u64,
     last_dwell: Option<u64>,
     max_dwell: Option<u64>,
 }
@@ -670,6 +679,7 @@ impl PresenceSession {
             events: 0,
             spurious: 0,
             last_onset: None,
+            onset_deficit: 0,
             last_dwell: None,
             max_dwell: None,
         }
@@ -756,6 +766,7 @@ impl PresenceSession {
         if rising {
             self.events = self.events.saturating_add(1);
             self.last_onset = Some(now);
+            self.onset_deficit = 0;
             return Some(SessionEvent::Started {
                 session: self.events,
             });
@@ -779,8 +790,10 @@ impl PresenceSession {
     /// Captures a relative [`SessionState`] image at tick `now`.
     ///
     /// `warmup_remaining` is `warmup_end.saturating_sub(now)` and
-    /// `last_onset_age` is `now.saturating_sub(onset)`; every other field is
-    /// copied verbatim.
+    /// `last_onset_age` is the exact time since the last
+    /// [`Started`](SessionEvent::Started), including any age carried across an
+    /// earlier [`restore`](PresenceSession::restore) that predates tick `0`
+    /// (saturating at `u64::MAX`); every other field is copied verbatim.
     ///
     /// Snapshot only while the session is idle ([`Armed`](SessionPhase::Armed)
     /// and [`Absent`](Presence::Absent)).
@@ -789,7 +802,7 @@ impl PresenceSession {
     #[must_use]
     pub const fn snapshot(&self, now: u64) -> SessionState {
         let last_onset_age = match self.last_onset {
-            Some(onset) => Some(now.saturating_sub(onset)),
+            Some(onset) => Some(now.saturating_sub(onset).saturating_add(self.onset_deficit)),
             None => None,
         };
         SessionState {
@@ -809,8 +822,13 @@ impl PresenceSession {
     ///
     /// `now` is on the new tick base.
     /// The warm-up deadline becomes `now.saturating_add(warmup_remaining)`
-    /// and the last onset becomes `now.saturating_sub(last_onset_age)`,
-    /// which clamps to `0` when `now` is smaller than the age.
+    /// and the last onset becomes `now.saturating_sub(last_onset_age)`.
+    /// When `now` is smaller than the age, [`last_onset`](PresenceSession::last_onset)
+    /// clamps to `0`, but the session remembers the excess, so a later
+    /// [`snapshot`](PresenceSession::snapshot) still reports the exact age
+    /// (`last_onset_age` plus the ticks since the restore, saturating).
+    /// The `Ended` dwell of a window opened before the restore is measured
+    /// from the clamped onset and is approximate; snapshot only while idle.
     /// Outside [`WarmingUp`](SessionPhase::WarmingUp) the rebased deadline
     /// has no behavioral effect, although
     /// [`warmup_end`](PresenceSession::warmup_end) still reports it.
@@ -828,19 +846,24 @@ impl PresenceSession {
     ///
     /// Every other field combination is carried verbatim.
     /// This never panics.
-    /// To count the encounter that woke the device, feed one
+    /// If the image's `level` is `Present`, the follow-up `Present` sample
+    /// produces no `Started`.
+    /// To count the encounter that woke the device, restore an idle
+    /// ([`Absent`](Presence::Absent)) image and feed one
     /// [`Present`](Presence::Present) sample to
-    /// [`update`](PresenceSession::update) after restoring.
+    /// [`update`](PresenceSession::update) afterwards.
     #[must_use]
     pub const fn restore(state: SessionState, now: u64) -> Self {
-        let last_onset = match state.last_onset_age {
-            Some(age) => Some(now.saturating_sub(age)),
+        let (last_onset, onset_deficit) = match state.last_onset_age {
+            Some(age) => (Some(now.saturating_sub(age)), age.saturating_sub(now)),
             None => {
-                if matches!(state.phase, SessionPhase::Armed) && state.level.is_present() {
-                    Some(now)
-                } else {
-                    None
-                }
+                let onset =
+                    if matches!(state.phase, SessionPhase::Armed) && state.level.is_present() {
+                        Some(now)
+                    } else {
+                        None
+                    };
+                (onset, 0)
             }
         };
         let max_dwell = match (state.max_dwell, state.last_dwell) {
@@ -856,6 +879,7 @@ impl PresenceSession {
             events: state.events,
             spurious: state.spurious,
             last_onset,
+            onset_deficit,
             last_dwell: state.last_dwell,
             max_dwell,
         }
@@ -898,6 +922,16 @@ impl PresenceSession {
         matches!(self.phase, SessionPhase::Armed) && self.level.is_present()
     }
 
+    /// Returns `true` if the session is idle: [`Armed`](SessionPhase::Armed)
+    /// with [`level`](Self::level) [`Absent`](Presence::Absent).
+    ///
+    /// This is the check for sleep entry: it is exactly the state in which
+    /// [`snapshot`](PresenceSession::snapshot) is meant to be taken.
+    #[must_use]
+    pub const fn is_idle(&self) -> bool {
+        matches!(self.phase, SessionPhase::Armed) && self.level.is_absent()
+    }
+
     /// Returns the number of sessions started while
     /// [`Armed`](SessionPhase::Armed), saturating at `u32::MAX`.
     #[must_use]
@@ -915,6 +949,10 @@ impl PresenceSession {
     /// Returns the timestamp of the most recent
     /// [`Started`](SessionEvent::Started) event, or `None` if no session has
     /// started yet.
+    ///
+    /// After a [`restore`](PresenceSession::restore) whose age exceeded the
+    /// restore tick, the value saturates at `0`; use
+    /// [`snapshot`](PresenceSession::snapshot) for the exact age.
     #[must_use]
     pub const fn last_onset(&self) -> Option<u64> {
         self.last_onset
@@ -1612,6 +1650,111 @@ mod tests {
                 dwell: 3
             })
         );
+    }
+
+    #[test]
+    fn restored_idle_session_fed_absent_returns_none_and_stays_armed() {
+        let mut session = PresenceSession::restore(idle_armed(2).snapshot(500), 0);
+        assert!(session.is_idle());
+
+        assert_eq!(session.update(Presence::Absent, 0), None);
+        assert_eq!(session.phase(), SessionPhase::Armed);
+        assert!(session.is_idle());
+        assert_eq!(session.event_count(), 2);
+    }
+
+    #[test]
+    fn restored_present_image_follow_up_present_produces_no_started() {
+        let state = SessionState {
+            level: Presence::Present,
+            events: 3,
+            ..base_state()
+        };
+        let mut session = PresenceSession::restore(state, 0);
+
+        assert_eq!(session.update(Presence::Present, 0), None);
+        assert_eq!(session.event_count(), 3);
+    }
+
+    #[test]
+    fn is_idle_follows_phase_and_level() {
+        let mut session = PresenceSession::new(Presence::Absent, 10, TriggerMode::Repeatable, 0);
+        assert!(!session.is_idle());
+
+        session.update(Presence::Absent, 10);
+        assert_eq!(session.phase(), SessionPhase::Armed);
+        assert!(session.is_idle());
+
+        session.update(Presence::Present, 11);
+        assert!(session.is_active());
+        assert!(!session.is_idle());
+
+        session.update(Presence::Absent, 12);
+        assert!(session.is_idle());
+
+        let settling = SessionState {
+            phase: SessionPhase::Settling,
+            ..base_state()
+        };
+        assert!(!PresenceSession::restore(settling, 0).is_idle());
+    }
+
+    #[test]
+    fn restored_onset_age_beyond_now_stays_exact() {
+        let state = SessionState {
+            last_onset_age: Some(10_000),
+            ..base_state()
+        };
+        let session = PresenceSession::restore(state, 5);
+
+        assert_eq!(session.last_onset(), Some(0));
+        assert_eq!(session.snapshot(5).last_onset_age, Some(10_000));
+        assert_eq!(session.snapshot(8).last_onset_age, Some(10_003));
+    }
+
+    #[test]
+    fn onset_age_stays_exact_across_two_restore_cycles() {
+        let state = SessionState {
+            last_onset_age: Some(10_000),
+            ..base_state()
+        };
+        let first = PresenceSession::restore(state, 5);
+        let image = first.snapshot(20);
+        assert_eq!(image.last_onset_age, Some(10_015));
+
+        let aged = image.aged_by(1_000);
+        assert_eq!(aged.last_onset_age, Some(11_015));
+        let second = PresenceSession::restore(aged, 3);
+        assert_eq!(second.snapshot(7).last_onset_age, Some(11_019));
+    }
+
+    #[test]
+    fn rising_edge_after_restore_resets_onset_age() {
+        let state = SessionState {
+            last_onset_age: Some(10_000),
+            ..base_state()
+        };
+        let mut session = PresenceSession::restore(state, 5);
+
+        assert_eq!(
+            session.update(Presence::Present, 9),
+            Some(SessionEvent::Started { session: 1 })
+        );
+        assert_eq!(session.snapshot(12).last_onset_age, Some(3));
+        assert_eq!(session.last_onset(), Some(9));
+    }
+
+    #[test]
+    fn restored_max_onset_age_saturates_without_panic() {
+        let state = SessionState {
+            last_onset_age: Some(u64::MAX),
+            ..base_state()
+        };
+        let session = PresenceSession::restore(state, 5);
+
+        assert_eq!(session.snapshot(5).last_onset_age, Some(u64::MAX));
+        assert_eq!(session.snapshot(100).last_onset_age, Some(u64::MAX));
+        assert_eq!(session.snapshot(u64::MAX).last_onset_age, Some(u64::MAX));
     }
 
     #[test]

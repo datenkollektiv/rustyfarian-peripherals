@@ -10,9 +10,13 @@ This project follows [Semantic Versioning](https://semver.org/) (pre-1.0: minor 
 ## [Unreleased]
 
 ### Added
-- `tamer::presence`: `SessionState` with `PresenceSession::snapshot` / `restore`, `SessionState::aged_by`, and `PresenceSession::warmup_end` for resuming a session across a deep-sleep tick reset.
+- `tamer::presence`: `SessionState` with `PresenceSession::snapshot` / `restore`, `SessionState::aged_by`, and `PresenceSession::warmup_end` for resuming a session across a deep-sleep tick reset, and `PresenceSession::is_idle` (Armed and `Absent`) as the sleep-entry check.
 - `hal_c6_passive_buzzer_arpeggio`: ESP32-C6 variant of the esp-hal passive-piezo arpeggio example.
 - `just ramdisk prune [days]`: removes idle per-repo target trees from the shared RAM disk.
+
+### Changed
+- `tamer::presence`: `PresenceSession::restore` / `snapshot` keep `last_onset_age` exact when the restored age exceeds the restore tick, instead of collapsing it to `now`.
+  `last_onset()` still saturates at `0` in that case.
 
 ## [0.1.0] - 2026-09-26
 
