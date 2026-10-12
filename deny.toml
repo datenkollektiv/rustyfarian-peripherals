@@ -9,7 +9,15 @@ no-default-features = false
 # in this graph; remove this ignore when a coordinated esp stack wave drops
 # `paste`. Re-checked 2026-09-25: `esp-hal 1.2.2` still declares
 # `paste = "1.0.15"` as a direct dependency. Review by 2026-12-31.
-ignore = ["RUSTSEC-2024-0436"]
+#
+# RUSTSEC-2024-0449 (`unsafe-libyaml` unmaintained) is a build-time-only
+# dependency: `esp-hal 1.2.2` / `esp-bootloader-esp-idf 0.6.0` -> `esp-config
+# 0.8.0` [build-dependencies] -> `serde_yaml` -> `unsafe-libyaml`. `esp-config`
+# parses its own crate-shipped YAML config in a build script; nothing reaches
+# the firmware. `esp-config 0.8.0` is the latest release and still needs
+# `serde_yaml`, so there is no safe upgrade. Mirrors `rustyfarian-power`.
+# Review by 2026-12-31 or at the next esp-hal wave.
+ignore = ["RUSTSEC-2024-0436", "RUSTSEC-2024-0449"]
 
 [licenses]
 # Allow-list shared with the sibling rustyfarian repos. The pure skeleton graph
