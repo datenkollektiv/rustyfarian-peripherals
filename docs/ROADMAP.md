@@ -1,6 +1,6 @@
 # Roadmap
 
-*Last updated: September 26, 2026*
+*Last updated: October 2026*
 
 This repo is the single home for **all** hardware peripherals, input *and* output, so a new device never means a new repo.
 The pure `tamer` core plus thin esp-hal / esp-idf tiers is the non-negotiable spine.
@@ -25,8 +25,10 @@ Shipped work is recorded in [`CHANGELOG.md`](../CHANGELOG.md); this roadmap trac
 timeline
     title rustyfarian-peripherals Roadmap
 
-    Near term : MPU6050 hardware example twin — repo's first I2C example (hal/idf c3, burst read → tilt)
-              : Docs-sync — align README / AGENTS framing with VISION input+output scope
+    Ready     : MPU6050 hardware example twin — repo's first I2C example (hal/idf c3, burst read → tilt) (feature-doc)
+              : Presence session resume — PresenceSession snapshot / restore across deep sleep (feature-doc)
+
+    Near term : Docs-sync — align README / AGENTS framing with VISION input+output scope
               : Hall linear examples — hardware-verify hal/idf c3 hall_linear once a 49E sensor is on hand
 
     Mid term  : IRAM-safe encoder ISR — run from SRAM for OTA / flash-cache-off safety
@@ -52,10 +54,16 @@ timeline
 
 ---
 
-## Near term — MPU6050 example twin
+## Ready — MPU6050 example twin
 
 **Goal:** the repo's first I2C example on both tiers, feeding `tamer::mpu6050` burst reads into `tilt`.
 See [Feature: MPU6050 v1](features/mpu6050-imu-v1.md).
+
+## Ready — Presence session resume
+
+**Goal:** a battery device resumes a `PresenceSession` after deep sleep and counts the encounter that woke it.
+Additive `SessionState` with `snapshot` / `restore` relative-tick rebasing, `aged_by`, and a `warmup_end()` getter; no sleep awareness in `tamer`.
+See [Feature: Presence Session Resume v1](features/presence-session-resume-v1.md).
 
 ## Mid term — IRAM-safe interrupt handler
 
