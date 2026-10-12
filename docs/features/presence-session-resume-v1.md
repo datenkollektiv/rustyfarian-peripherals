@@ -33,7 +33,8 @@ Snapshot and restore for `tamer::presence::PresenceSession`, so a battery device
 - `restore` never panics and normalises exactly two cases: Armed + Present with no onset gets onset `now`, and `max_dwell` is raised to at least `last_dwell`.
 - Every other field combination is carried verbatim; outside `WarmingUp` the rebased deadline has no behavioral effect.
 - `aged_by`: `warmup_remaining` saturating `-elapsed`, `last_onset_age` saturating `+elapsed`; the phase never changes, and the next `update` performs any transition.
-- Snapshot only while idle (Armed + `Absent`); an open window does not carry its true onset across a restore, so a later dwell can come out short.
+- Snapshot only while idle (Armed + `Absent`); a window left open across a restore keeps its onset age, but its dwell is measured from the clamped onset tick and can come out short.
+- The onset age is exact only with monotonic ticks since the restore and `aged_by` time in the same unit; saturation tolerates a tick regression but loses the elapsed time.
 - A wake encounter's dwell is measured from the restore, so it is short by the boot latency.
 - `new` and `update` behaviour is unchanged.
 
