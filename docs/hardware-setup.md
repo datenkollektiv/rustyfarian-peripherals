@@ -59,7 +59,8 @@ The driver delegates all decode logic to `tamer::rotary::QuadratureDecoder` and
 Passive piezo driven by PWM frequency modulation to play melodies via `tamer::tone::ToneSequencer`.
 Examples: `hal_c3_passive_buzzer_arpeggio` / `idf_c3_passive_buzzer_arpeggio` / `hal_c6_passive_buzzer_arpeggio`.
 The same GPIO 6 wiring applies on both chips; on the C6 it is likewise clear of strapping, USB, UART-console and flash pins.
-The C6 example is compile-verified only: esp-hal 1.2.2 derives the C6 LEDC divisor from a 40 MHz APB figure while selecting the 80 MHz `PLL_F80M` source, so expect notes one octave high until confirmed on a board (see the example's Caveats).
+The C6 example has not been run on a board yet; it is compile-verified only.
+A source reading of esp-hal 1.2.2 suggests its notes may sound one octave high on the C6 (see the example's Caveats).
 
 | Signal     | GPIO   | Notes                                     |
 |:-----------|:-------|:------------------------------------------|
