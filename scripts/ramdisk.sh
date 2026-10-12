@@ -1,12 +1,16 @@
 #!/usr/bin/env bash
 set -euo pipefail
 # ramdisk.sh — manage the shared build RAM disk at /Volumes/RustBuilds.
-# Usage: scripts/ramdisk.sh attach|detach
+# Usage: scripts/ramdisk.sh attach|detach|prune [days]
 #
 # The RAM disk is shared across all rustyfarian repos that build for ESP targets
 # (ws2812, network, peripherals, …); each repo namespaces its artifacts under
 # targets/{hal,idf}/<repo-name>. Attaching is optional — without it, builds fall
 # back to target/hal and target/idf on disk.
+#
+# `prune [days]` removes every targets/{hal,idf}/<repo> tree that holds no file
+# newer than <days> days (default 7, minimum 1), so idle trees from other repos
+# stop filling the shared disk. To wipe the whole disk, detach and re-attach.
 
 if [ "$(uname)" != "Darwin" ]; then
     printf 'error: ramdisk.sh requires macOS (hdiutil/diskutil not available)\n' >&2
@@ -57,8 +61,38 @@ case "${1:-}" in
             echo "RAM disk not attached."
         fi
         ;;
+    prune)
+        DAYS="${2:-7}"
+        if ! [[ "$DAYS" =~ ^[1-9][0-9]*$ ]]; then
+            printf 'error: prune expects a number of days >= 1 (got: "%s")\n' "$DAYS" >&2
+            printf 'to wipe the whole RAM disk use: just ramdisk detach && just ramdisk attach\n' >&2
+            exit 1
+        fi
+        if ! is_ramdisk_mounted "$RAMDISK_PATH"; then
+            echo "RAM disk not attached."
+            exit 0
+        fi
+        PRUNED=0
+        for tree in "$RAMDISK_PATH"/targets/hal/* "$RAMDISK_PATH"/targets/idf/*; do
+            [ -d "$tree" ] && [ ! -L "$tree" ] || continue
+            # A failed scan must not read as "stale": skip the tree instead.
+            if ! recent=$(find "$tree" -type f -mtime "-${DAYS}" -print -quit); then
+                printf 'skipped %s (scan failed)\n' "${tree#"$RAMDISK_PATH"/}" >&2
+                continue
+            fi
+            [ -z "$recent" ] || continue
+            size=$(du -sh "$tree" 2>/dev/null | awk '{ print $1 }') || size='?'
+            rm -rf "$tree"
+            echo "pruned ${tree#"$RAMDISK_PATH"/} ($size, no file newer than ${DAYS} days)"
+            PRUNED=$((PRUNED + 1))
+        done
+        if [ "$PRUNED" -eq 0 ]; then
+            echo "nothing to prune: every target tree has files newer than ${DAYS} days"
+        fi
+        df -h "$RAMDISK_PATH" | tail -1 | awk '{ printf "RAM disk %s used of %s, %s free\n", $3, $2, $4 }'
+        ;;
     *)
-        printf 'Usage: scripts/ramdisk.sh attach|detach\n' >&2
+        printf 'Usage: scripts/ramdisk.sh attach|detach|prune [days]\n' >&2
         exit 1
         ;;
 esac

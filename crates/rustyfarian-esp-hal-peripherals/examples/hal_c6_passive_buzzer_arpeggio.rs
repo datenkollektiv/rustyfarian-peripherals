@@ -11,8 +11,8 @@
 //! to 0 without touching the timer's frequency.
 //!
 //! This is the ESP32-C6 variant of `hal_c3_passive_buzzer_arpeggio.rs`; the
-//! LEDC driving code is identical, only the chip feature, wiring notes and
-//! clock figures differ.
+//! LEDC driving code is identical, only the chip feature and wiring notes
+//! differ.
 //!
 //! ## Components
 //!
@@ -53,39 +53,16 @@
 //!
 //! ## Caveats
 //!
-//! - Duty cycle here is a coarse "volume" proxy, not a true digital amplitude
-//!   control: scaling duty away from ~50% reduces the delivered squarewave
-//!   energy, which perceptibly (if crudely) affects loudness on most passive
-//!   piezo buzzers — it is not calibrated, linear volume.
-//! - Every note rebuilds the LEDC [`Channel`](esp_hal::ledc::channel::Channel)
-//!   from a fresh [`reborrow`](esp_hal::gpio::AnyPin::reborrow) of the same
-//!   pin, rather than reusing one `Channel` across notes as
-//!   `hal_c3_poti_led.rs` does. This is not a copy-paste bug: esp-hal's
-//!   `Channel<'a, S>` *retains* the `&'a Timer` reference passed to
-//!   `configure()` for the channel's whole lifetime, which makes retuning the
-//!   *same* timer while a *long-lived* channel still holds it a compile error.
-//!   Declaring the channel fresh inside each note's branch means its borrow of
-//!   `timer` ends before the *next* note's `timer.configure()` call. See the
-//!   C3 variant's doc comment for the full derivation against the pinned
-//!   esp-hal sources.
-//! - The LEDC timer uses [`Duty::Duty10Bit`](esp_hal::ledc::timer::config::Duty::Duty10Bit)
-//!   (1024 duty levels) to stay identical to the C3 variant. esp-hal's
-//!   `LowSpeed` LEDC timer on the ESP32-C6 has no RC_FAST/ref-tick fallback;
-//!   the divisor is computed from `apb_clk_frequency()`, which with
-//!   `Config::default()` is 40 MHz on the C6 (PLL 480 MHz → HP_ROOT 160 MHz →
-//!   AHB/APB 40 MHz) versus 80 MHz on the C3. At 10-bit resolution that
-//!   divisor model covers roughly 38 Hz-39 kHz, comfortably spanning this
-//!   melody.
-//! - **Unverified on hardware — expect the pitch to come out one octave high.**
-//!   The pinned esp-hal 1.2.2 computes the C6 divisor from the 40 MHz APB
-//!   figure above, but `LSGlobalClkSource::APBClk` on the C6 actually writes
-//!   `PCR.LEDC_SCLK_CONF.ledc_sclk_sel = 1`, which the C6 PAC documents as the
-//!   fixed 80 MHz `PLL_F80M` branch (and the esp-hal clock tree configures
-//!   `ledc_sclk: PllF80m`). The hardware divides 80 MHz where the software
-//!   assumed 40 MHz, so every requested frequency should sound doubled (C5
-//!   as C6, etc.). This was established from source only; if a scope or tuner
-//!   confirms it on a board, halve the note frequencies here (or report the
-//!   mismatch upstream) and drop this caveat.
+//! - **Compile-verified only; pitch may be one octave high.** A source reading
+//!   of esp-hal 1.2.2 suggests the C6 LEDC divisor is computed from a 40 MHz
+//!   APB figure while the timer is clocked from the 80 MHz `PLL_F80M` source.
+//!   If that holds on hardware, every note sounds at twice its requested
+//!   frequency. Not yet confirmed with a scope or tuner.
+//! - Duty cycle is a coarse "volume" proxy, not calibrated linear volume.
+//! - The LEDC channel is rebuilt for every note on purpose. esp-hal's
+//!   `Channel` keeps a borrow of the timer, so one long-lived channel cannot
+//!   coexist with retuning that timer. `hal_c3_passive_buzzer_arpeggio.rs`
+//!   explains this and the `Duty10Bit` choice in full.
 
 #![no_std]
 #![no_main]
@@ -118,7 +95,8 @@ const MELODY: [Note; 5] = [
 ];
 // SequenceMode::Loop so the jingle repeats forever — a clear, audible on-device test.
 
-// Duty10Bit => 1024 duty levels; see the "Caveats" doc section above.
+// Duty10Bit => 1024 duty levels; hal_c3_passive_buzzer_arpeggio.rs explains
+// why 8-bit resolution cannot reach this melody's low notes.
 const MAX_DUTY: u32 = 1024;
 
 const POLL_INTERVAL_MS: u32 = 5;
@@ -165,7 +143,9 @@ fn main() -> ! {
         if last != Some(out) {
             if out.frequency_hz == 0 {
                 // Rest: rebuild the channel at duty 0, skipping the timer
-                // retune entirely — there is no frequency to apply.
+                // retune entirely — there is no frequency to apply. Scoped to
+                // this branch so its borrow of `timer` ends before the next
+                // note retunes it.
                 let mut channel =
                     ledc.channel::<LowSpeed>(channel::Number::Channel0, pin.reborrow());
                 match channel.configure(channel::config::Config {
@@ -198,9 +178,9 @@ fn main() -> ! {
                 // just-reconfigured timer. Declaring it here (inside the loop
                 // body) means its borrow of `timer` ends when this
                 // iteration's `channel` goes out of scope — before the
-                // *next* note's `timer.configure()` call above. See the
-                // "Caveats" doc section for why this differs from
-                // hal_c3_poti_led.rs.
+                // *next* note's `timer.configure()` call above. See
+                // hal_c3_passive_buzzer_arpeggio.rs for why this differs from
+                // the single long-lived channel in hal_c3_poti_led.rs.
                 let mut channel =
                     ledc.channel::<LowSpeed>(channel::Number::Channel0, pin.reborrow());
                 match channel.configure(channel::config::Config {
