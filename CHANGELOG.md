@@ -9,6 +9,9 @@ This project follows [Semantic Versioning](https://semver.org/) (pre-1.0: minor 
 
 ## [Unreleased]
 
+### Added
+- `hal_c6_passive_buzzer_arpeggio`: ESP32-C6 variant of the esp-hal passive-piezo arpeggio example.
+
 ## [0.1.0] - 2026-09-26
 
 First release: the pure `no_std` `tamer` core plus thin esp-hal and ESP-IDF hardware tiers.
