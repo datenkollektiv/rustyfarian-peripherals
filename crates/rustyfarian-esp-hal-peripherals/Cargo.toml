@@ -146,6 +146,10 @@ name = "hal_c6_b3f"
 required-features = ["esp32c6", "rt", "unstable"]
 
 [[example]]
+name = "hal_c6_passive_buzzer_arpeggio"
+required-features = ["esp32c6", "rt", "unstable"]
+
+[[example]]
 name = "hal_esp_b3f"
 required-features = ["esp32", "rt", "unstable"]
 

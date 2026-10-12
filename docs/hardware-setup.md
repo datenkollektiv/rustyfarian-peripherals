@@ -15,6 +15,7 @@ Specific dev boards are listed here as examples target them.
 |:----------------------|:---------|:-----------------|:---------------------------------------------------------------------------------------------------------------------------------------------------------|
 | CrowPanel 1.28" HMI   | ESP32-S3 | esp-idf          | rotary encoder (idf_s3_rotary)                                                                                                                           |
 | ESP32-C3 SuperMini    | ESP32-C3 | esp-hal, esp-idf | passive arpeggio (hal_c3_passive_buzzer_arpeggio, idf_c3_passive_buzzer_arpeggio); active Morse (hal_c3_active_buzzer_morse, idf_c3_active_buzzer_morse) |
+| ESP32-C6-DevKitC-1    | ESP32-C6 | esp-hal          | button (hal_c6_b3f); passive arpeggio (hal_c6_passive_buzzer_arpeggio)                                                                                   |
 
 ---
 
@@ -53,10 +54,12 @@ The driver delegates all decode logic to `tamer::rotary::QuadratureDecoder` and
 
 ---
 
-## Wiring — passive-piezo arpeggio (ESP32-C3 SuperMini)
+## Wiring — passive-piezo arpeggio (ESP32-C3 SuperMini, ESP32-C6-DevKitC-1)
 
 Passive piezo driven by PWM frequency modulation to play melodies via `tamer::tone::ToneSequencer`.
-Examples: `hal_c3_passive_buzzer_arpeggio` / `idf_c3_passive_buzzer_arpeggio`.
+Examples: `hal_c3_passive_buzzer_arpeggio` / `idf_c3_passive_buzzer_arpeggio` / `hal_c6_passive_buzzer_arpeggio`.
+The same GPIO 6 wiring applies on both chips; on the C6 it is likewise clear of strapping, USB, UART-console and flash pins.
+The C6 example is compile-verified only: esp-hal 1.2.2 derives the C6 LEDC divisor from a 40 MHz APB figure while selecting the 80 MHz `PLL_F80M` source, so expect notes one octave high until confirmed on a board (see the example's Caveats).
 
 | Signal     | GPIO   | Notes                                     |
 |:-----------|:-------|:------------------------------------------|
