@@ -404,8 +404,9 @@ pub enum SessionEvent {
 ///
 /// Snapshot only while the session is idle: [`Armed`](SessionPhase::Armed)
 /// with [`level`](PresenceSession::level) [`Absent`](Presence::Absent).
-/// An open window does not carry its true onset across a restore, so a later
-/// dwell can come out short.
+/// A window left open across a restore keeps its onset age, but its
+/// [`Ended`](SessionEvent::Ended) dwell is measured from the clamped
+/// [`last_onset`](PresenceSession::last_onset) tick, so it can come out short.
 ///
 /// Fields not described otherwise are copied verbatim.
 ///
@@ -790,15 +791,21 @@ impl PresenceSession {
     /// Captures a relative [`SessionState`] image at tick `now`.
     ///
     /// `warmup_remaining` is `warmup_end.saturating_sub(now)` and
-    /// `last_onset_age` is the exact time since the last
+    /// `last_onset_age` is the time since the last
     /// [`Started`](SessionEvent::Started), including any age carried across an
     /// earlier [`restore`](PresenceSession::restore) that predates tick `0`
     /// (saturating at `u64::MAX`); every other field is copied verbatim.
+    /// The age is exact only if ticks since the restore are monotonic and
+    /// any [`aged_by`](SessionState::aged_by) time uses the same unit;
+    /// saturating arithmetic tolerates a tick regression but cannot recover
+    /// the elapsed time lost to it.
     ///
     /// Snapshot only while the session is idle ([`Armed`](SessionPhase::Armed)
     /// and [`Absent`](Presence::Absent)).
-    /// An open window does not carry its true onset across a restore, so a
-    /// later dwell can come out short.
+    /// A window left open across a restore keeps its onset age, but its
+    /// [`Ended`](SessionEvent::Ended) dwell is measured from the clamped
+    /// [`last_onset`](PresenceSession::last_onset) tick without the carried
+    /// excess, so that dwell can come out short.
     #[must_use]
     pub const fn snapshot(&self, now: u64) -> SessionState {
         let last_onset_age = match self.last_onset {
@@ -1697,6 +1704,21 @@ mod tests {
             ..base_state()
         };
         assert!(!PresenceSession::restore(settling, 0).is_idle());
+    }
+
+    #[test]
+    fn restored_onset_age_around_restore_tick_stays_exact() {
+        for age in [99, 100, 101] {
+            let state = SessionState {
+                last_onset_age: Some(age),
+                ..base_state()
+            };
+            let session = PresenceSession::restore(state, 100);
+
+            assert_eq!(session.last_onset(), Some(100u64.saturating_sub(age)));
+            assert_eq!(session.snapshot(100).last_onset_age, Some(age));
+            assert_eq!(session.snapshot(104).last_onset_age, Some(age + 4));
+        }
     }
 
     #[test]
