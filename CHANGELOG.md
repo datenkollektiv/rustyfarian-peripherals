@@ -11,6 +11,7 @@ This project follows [Semantic Versioning](https://semver.org/) (pre-1.0: minor 
 
 ### Added
 - `hal_c6_passive_buzzer_arpeggio`: ESP32-C6 variant of the esp-hal passive-piezo arpeggio example.
+- `just ramdisk prune [days]`: removes idle per-repo target trees from the shared RAM disk.
 
 ## [0.1.0] - 2026-09-26
 

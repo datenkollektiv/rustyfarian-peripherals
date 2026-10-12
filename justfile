@@ -154,9 +154,9 @@ clean-idf:
 doctor:
     @scripts/doctor.sh "{{ ramdisk }}" "{{ hal_dir }}" "{{ idf_dir }}"
 
-# manage the shared build RAM disk: just ramdisk attach | detach
-ramdisk action:
-    @scripts/ramdisk.sh "{{ action }}"
+# manage the shared build RAM disk: just ramdisk attach | detach | prune [days]
+ramdisk action *args:
+    @scripts/ramdisk.sh "{{ action }}" {{ args }}
 
 # --- Release --------------------------------------------------------------
 #
