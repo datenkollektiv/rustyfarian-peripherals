@@ -29,7 +29,7 @@ is usually a stale `tamer` rlib in `target/ide` (see `docs/project-lore.md`
 
 ### Device-target compile checks
 The hardware tiers do not build for the host. After any esp-* bump:
-- `just check-hal` — esp-hal tier, ESP32-C3 (`riscv32imc-unknown-none-elf`, stable + rustup target).
+- `just check-hal` — esp-hal tier, ESP32-C3 (`riscv32imc-unknown-none-elf`, stable) and ESP32-S3 (`xtensa-esp32s3-none-elf`, Xtensa via `cargo +esp -Zbuild-std=core,alloc`).
 - `just check-idf` — ESP-IDF tier, ESP32-C3 (`riscv32imc-esp-espidf`, `cargo +esp`).
 - `just build-example <name>` — examples are where HAL API breakage surfaces; the
   library crates barely touch the HALs. Spot-check one example per peripheral
@@ -39,6 +39,7 @@ The hardware tiers do not build for the host. After any esp-* bump:
   - LEDC retune (long-lived timer borrow): `hal_c3_passive_buzzer_arpeggio`
   - I2C: `hal_c3_i2c_scan`, `idf_c3_i2c_scan`
   - Xtensa bare-metal: `hal_esp_b3f`, `hal_s3_b3f`
+  - Xtensa bare-metal async (esp-rtos / embassy): `hal_s3_rotary`
   - Xtensa ESP-IDF + `critical-section` link path: `idf_s3_rotary`
 
 Device builds need `just setup-cargo-config` (linker scripts / targets) and, for
@@ -53,9 +54,9 @@ reports both plus the resolved (RAM-disk) target dirs.
 - Stable for a 60-second run and reproducible across a re-flash.
 
 Minimum after an esp stack bump, boards permitting: `hal_c3_blink` and
-`idf_c3_blink` (both tiers boot on the new stack), plus `idf_s3_rotary` when an
-S3 is present (the ISR + `critical-section` path that `cargo check` cannot prove).
-Record "compile-verified only" honestly when no board is attached.
+`idf_c3_blink` (both tiers boot on the new stack), plus `hal_s3_rotary` when an
+S3 is present (async edge futures in task context), and `idf_s3_rotary` (ISR + `critical-section` path
+that `cargo check` cannot prove). Record "compile-verified only" honestly when no board is attached.
 
 ## Dependency Updates
 
@@ -95,6 +96,9 @@ reflect the actual semantics.
 - Pre-1.0 companions signal breaking changes with minor bumps; `esp-hal` minors
   (1.1 → 1.2) do too — read the `CHANGELOG.md` at the new tag for the ADC, LEDC,
   I2C, GPIO, `delay` and `time` entries, the peripherals this tier's examples use.
+- `esp-rtos`, `embassy-executor`, `embassy-time`, `embassy-futures` are exact-pinned
+  (library drivers do not depend on them; only the `embassy`-feature examples do).
+  They move with the esp-hal wave and stay in sync with the sibling repos' release cycle.
 - `esp-hal` may raise its `rust-version`; the hardware tiers follow it, `tamer`
   does not (see MSRV policy below).
 
