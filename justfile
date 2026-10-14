@@ -52,11 +52,21 @@ check:
 build:
     cargo build {{ host_flags }}
 
-# check the esp-hal crate for ESP32-C3 (RISC-V) on stable with the rustup target; no nightly, no espup
+# check the esp-hal crate for ESP32-C3 (stable) and ESP32-S3 (Xtensa; requires the ESP toolchain)
 check-hal:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    echo "==> check-hal: ESP32-C3 ({{ hal_target }}, stable)"
     rustup target add {{ hal_target }}
     cargo check --target {{ hal_target }} \
-        --target-dir {{ hal_dir }} --no-default-features --features esp32c3,unstable \
+        --target-dir "{{ hal_dir }}" --no-default-features --features esp32c3,unstable \
+        -p rustyfarian-esp-hal-peripherals
+    echo "==> check-hal: ESP32-S3 (xtensa-esp32s3-none-elf, esp toolchain)"
+    # shellcheck source=./scripts/xtensa-toolchain.sh
+    . "{{ justfile_directory() }}/scripts/xtensa-toolchain.sh"
+    setup_xtensa_toolchain
+    cargo +esp check -Zbuild-std=core,alloc --target xtensa-esp32s3-none-elf \
+        --target-dir "{{ hal_dir }}" --no-default-features --features esp32s3,unstable \
         -p rustyfarian-esp-hal-peripherals
 
 # check the ESP-IDF (std) crate for the ESP32-C3 device target (requires the ESP toolchain)

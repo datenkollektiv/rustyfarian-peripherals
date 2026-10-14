@@ -64,3 +64,23 @@ Steps 1–2 are best-effort: failures are logged (`log::warn!`), never propagate
 |       Trait-first, extract now (guess the esp-hal shape) | Satisfies AGENTS.md; gives a unified API surface immediately  | Speculative without esp-hal twin; preempts its design; the async-vs-sync question is open                                  | esp-hal's deadline is soon, not now; guessing inverts the demand-driven principle                                        |
 |   Async trait from day one (async `wait_for_any_edge()`) | If esp-hal also chooses async, the trait is correct from v1   | This tier is `std` and can do async, but the esp-hal tier can *also* do async in `std` mode; guessing is still speculative | Same: defer until the esp-hal twin lands and its choice (async or sync) is verified on hardware                          |
 |      Per-instance static `[Option<IsrContext>; N]` array | Avoids heap allocation (no `Box`)                             | Requires a compile-time encoder count; uses stack space for unused slots; still needs a lifetime-safe pointer scheme       | Rigid and less flexible than heap allocation; does not simplify the ISR context pointer handoff                          |
+
+## Amendment (2026-10-14) — esp-hal twin shape
+
+The esp-hal twin settles the open sync-vs-async risk from Decision 2.
+
+**Async rotation, sync button, no blocking variant.**
+`rustyfarian_esp_hal_peripherals::rotary::Encoder` awaits detents with `async fn wait_for_step(&mut self) -> EncoderDirection`, built on esp-hal's one-shot `Input::wait_for_any_edge`.
+Decoding runs in task context: no ISR, no statics, no heap, no `unsafe`, and the position lives in the `QuadratureDecoder`.
+Each wait reads A/B, arms both edge futures, then re-reads the levels, because arming clears any edge that landed after the first read.
+The button stays a synchronous `update(now_ms) -> Option<ButtonEvent>`, as in the ESP-IDF tier.
+No blocking variant ships; firmware without an executor uses `tamer::rotary::QuadratureInput` plus `tamer::button::ButtonDecoder` directly.
+The driver is executor-agnostic and always compiled; the `embassy` feature only pulls in the example runtime (`esp-rtos`).
+
+**Consequence for the shared trait.**
+The trait, when extracted, is the synchronous core: `update`, `position`, `set_position`, `reset`, `is_button_pressed`.
+Rotation delivery stays tier-specific (ISR-updated position on ESP-IDF, awaited step on esp-hal), so no async trait and no dual-API shape is needed.
+
+**Status.**
+The esp-hal twin passed hardware validation on the CrowPanel 1.28" ESP32-S3 on 2026-10-14: slow and fast spins both ways decoded one step per detent, and click, double click and long press decoded with the default tuning, also while turning.
+Trait extraction is now unblocked and lands on demand, per the demand-driven rule.
