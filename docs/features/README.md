@@ -29,5 +29,3 @@ what has landed.
 |:--------------------------------------------------------------------------------------------------|:-------------------------------------------------|
 | [MPU6050 accelerometer / IMU](mpu6050-imu-v1.md) — sans-IO parse, calibration, feature-gated tilt | Design approved (Ready)                          |
 | [IRAM-safe ISR](iram-safe-isr-v1.md) — run the encoder ISR from SRAM for flash-cache-off safety   | Scoped (skeleton)                                |
-| [Presence session resume](presence-session-resume-v1.md) — snapshot / restore across deep sleep   | Design approved (Ready)                          |
-| [esp-hal Rotary Encoder Twin](esp-hal-rotary-twin-v1.md) — async edge futures, tamer core         | Hardware-validated (Ready)                       |

@@ -5,7 +5,7 @@ desk-work: available
 
 # Feature: esp-hal Rotary Encoder Twin v1
 
-Async esp-hal twin of the ESP-IDF interrupt-driven `rotary::Encoder` ([ADR-006](../adr/006-interrupt-encoder-instance-and-api-shape.md)).
+Async esp-hal twin of the ESP-IDF interrupt-driven `rotary::Encoder` ([ADR-006](../../adr/006-interrupt-encoder-instance-and-api-shape.md)).
 First consumer: an embassy firmware on `esp-rtos` driving the CrowPanel 1.28" ESP32-S3 rotary knob.
 
 ## Decisions

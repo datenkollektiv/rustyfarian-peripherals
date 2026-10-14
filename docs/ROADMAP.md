@@ -26,16 +26,17 @@ timeline
     title rustyfarian-peripherals Roadmap
 
     Ready     : MPU6050 hardware example twin — repo's first I2C example (hal/idf c3, burst read → tilt) (feature-doc)
-              : Presence session resume — PresenceSession snapshot / restore across deep sleep (feature-doc)
-              : esp-hal rotary encoder twin — async shape settled and CrowPanel-validated; shared-trait extraction next (feature-doc)
 
     Near term : Docs-sync — align README / AGENTS framing with VISION input+output scope
               : Hall linear examples — hardware-verify hal/idf c3 hall_linear once a 49E sensor is on hand
+              : Shared rotary encoder trait — extract from the IDF and esp-hal twins (ADR-006)
 
     Mid term  : IRAM-safe encoder ISR — run from SRAM for OTA / flash-cache-off safety
 
     Long term : Display UI logic — touch hit-testing + framebuffer dirty-rect diffing (reuse embedded-graphics; ADR-008)
               : Touch adoption — knob (CST816S) re-validation + CYD (XPT2046) validation of the touch tracker on hardware (downstream)
+              : CST816S chip driver — knob is the first consumer; ADR-007 chip seam (on demand)
+              : Presence SessionState byte codec — promote the consumer's local codec after field proof (on demand)
               : Hall v2 — hysteresis, latch sensors, interrupt-driven ADC, shared calibration helper (on demand)
               : Decide — fold ws2812 in vs. keep sibling (at next real LED use)
               : Ecosystem currency — new chips / HAL waves
@@ -59,19 +60,11 @@ timeline
 **Goal:** the repo's first I2C example on both tiers, feeding `tamer::mpu6050` burst reads into `tilt`.
 See [Feature: MPU6050 v1](features/mpu6050-imu-v1.md).
 
-## Ready — Presence session resume
+## Near term — Shared rotary encoder trait
 
-**Goal:** a battery device resumes a `PresenceSession` after deep sleep and counts the encounter that woke it.
-Additive `SessionState` with `snapshot` / `restore` relative-tick rebasing, `aged_by`, and a `warmup_end()` getter; no sleep awareness in `tamer`.
-See [Feature: Presence Session Resume v1](features/presence-session-resume-v1.md).
-
-## Ready — esp-hal rotary encoder twin
-
-**Goal:** async quadrature decoder on esp-hal for devices running embassy, with the same pure `tamer` core as the interrupt-driven ESP-IDF tier.
-Async `wait_for_step() -> EncoderDirection` via edge futures; sync button `update(now_ms) -> Option<ButtonEvent>`; CrowPanel S3 validation hardware available.
-Design is complete and shape is settled (async-only; sync users use `tamer::rotary::QuadratureInput` + `tamer::button::ButtonDecoder` directly).
-Extraction of the future shared trait (`update`, `position`, `set_position`, `reset`, `is_button_pressed`) is unblocked: the twin passed CrowPanel hardware validation on 2026-10-14.
-See [Feature: esp-hal Rotary Encoder Twin v1](features/esp-hal-rotary-twin-v1.md) and [ADR-006 Amendment](adr/006-interrupt-encoder-instance-and-api-shape.md).
+**Goal:** one encoder trait (`update`, `position`, `set_position`, `reset`, `is_button_pressed`) over the IDF interrupt driver and the async esp-hal twin.
+Unblocked by the twin's CrowPanel validation on 2026-10-14.
+See [ADR-006 Amendment](adr/006-interrupt-encoder-instance-and-api-shape.md) and the archived [esp-hal Rotary Encoder Twin v1](features/archive/esp-hal-rotary-twin-v1.md).
 
 ## Mid term — IRAM-safe interrupt handler
 
