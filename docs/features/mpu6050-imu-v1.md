@@ -104,7 +104,7 @@ The mapping the implementation and its tests must satisfy.
   `embedded-hal` (`hal` feature). `micromath` enters only via the opt-in `tilt`
   feature (`dep:micromath`, `default-features = false`, pinned in
   `[workspace.dependencies]`).
-- `#[package.metadata.docs.rs] all-features = true` already builds every feature, so
+- `[package.metadata.docs.rs] all-features = true` already builds every feature, so
   `tilt` renders on docs.rs with no extra config; gated items get rustdoc's automatic
   "available on feature" banner from their `#[cfg]`.
 - Value types follow crate idiom: `#[derive(Debug, Clone, Copy, PartialEq, ...)]`,

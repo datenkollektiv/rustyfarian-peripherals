@@ -81,7 +81,7 @@ impl Debouncer {
 
     /// Feeds a raw reading at the given timestamp.
     ///
-    /// Returns `Some(new_state)` when a stable transition is confirmed.
+    /// Returns `Some(new_state)` when a stable transition is confirmed,
     /// i.e. the input has been at a different value than the current stable
     /// state for the full debouncing duration.
     ///

@@ -6,7 +6,7 @@
 //! encoders, and button events on top of `esp-hal`'s pin and interrupt APIs.
 //!
 //! Everything public in [`tamer`] is re-exported here, so firmware needs a
-//! single import once drivers exist.
+//! single import.
 //!
 //! # Status — first driver
 //!

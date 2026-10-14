@@ -13,7 +13,7 @@ Specific dev boards are listed here as examples target them.
 
 | Board                 | Chip     | Tier(s)          | Status                                                                                                                                                   |
 |:----------------------|:---------|:-----------------|:---------------------------------------------------------------------------------------------------------------------------------------------------------|
-| CrowPanel 1.28" HMI   | ESP32-S3 | esp-idf          | rotary encoder (idf_s3_rotary)                                                                                                                           |
+| CrowPanel 1.28" HMI   | ESP32-S3 | esp-hal, esp-idf | rotary encoder (hal_s3_rotary, idf_s3_rotary)                                                                                                            |
 | ESP32-C3 SuperMini    | ESP32-C3 | esp-hal, esp-idf | passive arpeggio (hal_c3_passive_buzzer_arpeggio, idf_c3_passive_buzzer_arpeggio); active Morse (hal_c3_active_buzzer_morse, idf_c3_active_buzzer_morse) |
 | ESP32-C6-DevKitC-1    | ESP32-C6 | esp-hal          | button (hal_c6_b3f); passive arpeggio (hal_c6_passive_buzzer_arpeggio)                                                                                   |
 

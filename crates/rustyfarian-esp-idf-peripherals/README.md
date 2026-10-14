@@ -12,8 +12,8 @@ firmware needs a single import.
 Carries `esp-idf-hal` (with `embuild` re-emitting the ESP-IDF link step in
 `build.rs`) and re-exports `tamer` so firmware needs a single import. The first
 example, [`idf_c3_b3f`](examples/idf_c3_b3f.rs), debounces a B3F button on an
-ESP32-C3 using the pure `tamer::debounce::EdgeDetector`. Library drivers beyond
-the re-export are added downstream-driven. Build or flash examples with
+ESP32-C3 using the pure `tamer::debounce::EdgeDetector`. The interrupt-driven
+`rotary::Encoder` ships today; further drivers are added downstream-driven. Build or flash examples with
 `just build-example idf_c3_b3f` / `just run idf_c3_b3f` (needs the ESP toolchain).
 
 ## License

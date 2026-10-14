@@ -62,8 +62,8 @@ that `cargo check` cannot prove). Record "compile-verified only" honestly when n
 
 ### Workspace `Cargo.toml`
 All shared dependency versions live in the root `[workspace.dependencies]`; each
-entry carries a comment explaining the constraint. Internal crates are path-only
-(no `version`) while pre-publication.
+entry carries a comment explaining the constraint. The internal `tamer`
+entry carries `path` plus `version`, bumped with `[workspace.package]` every release.
 
 Cargo treats `"1.0"` as `^1.0` and `"=1.0.0"` as exact pinning — comments must
 reflect the actual semantics.

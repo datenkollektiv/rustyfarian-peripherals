@@ -12,7 +12,7 @@ sequencing). The design is **sans-io**: pure decoding/timing/rendering logic
 lives in a `no_std` crate with no hardware dependency, and two thin hardware
 tiers (esp-hal, ESP-IDF) provide the GPIO glue. Target hardware: ESP32 (RISC-V
 C3/C6 and Xtensa ESP32/S3). MSRV is `1.88` for `tamer`; the two hardware tiers
-declare `1.95`, required by `esp-hal 1.2`. It is the peripheral layer of the
+declare `1.95` (required by `esp-hal 1.2`; the ESP-IDF tier matches by policy). It is the peripheral layer of the
 rustyfarian family; LED output lives in the separate `rustyfarian-ws2812` repo,
 which this repo never depends on.
 
@@ -22,8 +22,8 @@ Three workspace members under `crates/`:
 
 | Crate | Role | Target |
 |:------|:-----|:-------|
-| `tamer` | Pure logic behind traits with `Noop*` mocks: `debounce`, `presence`, `rotary`, `button`, `analog`, `range_map`, `smoothing`, `hall`, `tilt`, `mpu6050`, `tone` | `no_std` |
-| `rustyfarian-esp-hal-peripherals` | Bare-metal esp-hal GPIO drivers + device examples; re-exports `tamer` | `no_std` |
+| `tamer` | Pure logic behind traits with `Noop*` mocks: `debounce`, `presence`, `rotary`, `button`, `analog`, `range_map`, `smoothing`, `hall`, `tilt`, `mpu6050`, `tone`, `morse`, `touch` | `no_std` |
+| `rustyfarian-esp-hal-peripherals` | Bare-metal esp-hal drivers — ships async `rotary::Encoder` (edge futures; `embassy` feature for examples) + device examples; re-exports `tamer` | `no_std` |
 | `rustyfarian-esp-idf-peripherals` | ESP-IDF (std) drivers — ships `rotary::Encoder` (interrupt-driven, persistent raw-FFI); re-exports `tamer` | `std` (ESP-IDF) |
 
 The pure logic in `tamer` is the contract; the hardware crates are thin wrappers
@@ -43,9 +43,9 @@ behaviour cannot drift. Host work needs only `rustc`, `cargo`, and `just`.
 | `just clippy` | Clippy, warnings denied |
 | `just verify` | Non-modifying gate: fmt-check + check + clippy + test |
 | `just pre-commit` | Same, but auto-formats (modifies files) |
-| `just ci` | CI-equivalent: fmt-check + deny + check + clippy + test |
+| `just ci` | CI-equivalent: fmt-check + deny + check + clippy + test (the workflows call these recipes individually, plus `audit`) |
 | `just test-all-features` / `just clippy-all-features` | Exercise the `hal` + `tilt` features |
-| `just check-hal` / `just check-idf` | Build a hardware tier for a device target |
+| `just check-hal` / `just check-idf` | Check a hardware tier on device targets (`check-hal`: C3 + S3; `check-idf`: C3) |
 | `just examples` / `just build-example <name>` / `just run <name>` | List / build / flash+monitor device examples |
 | `just deny` / `just audit` / `just doctor` | License-advisory checks / RUSTSEC audit / tooling report |
 

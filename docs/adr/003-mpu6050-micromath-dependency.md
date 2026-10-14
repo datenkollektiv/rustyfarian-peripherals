@@ -58,7 +58,7 @@ dependency list, and gate it behind a new, opt-in `tilt` feature.
   `f32` equality).
 - Consumers on platforms without an FPU or with FPU cost concerns simply do not
   enable `tilt`, keeping their binary lean.
-- `docs.rs` renders all features by default (`#[package.metadata.docs.rs]
+- `docs.rs` renders all features by default (`[package.metadata.docs.rs]
   all-features = true` in `tamer/Cargo.toml`), so the published docs show
   `tilt_degrees` and its siblings with the Cargo feature banner.
 

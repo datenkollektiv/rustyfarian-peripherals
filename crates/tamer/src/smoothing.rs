@@ -43,7 +43,7 @@
 /// # Overflow
 ///
 /// The running sum is `u32`.
-/// With `u16` samples, overflow requires `N > u32::MAX / u16::MAX ≈ 65 538`,
+/// With `u16` samples, overflow requires `N > u32::MAX / u16::MAX = 65 537`,
 /// well beyond any realistic embedded buffer size.
 #[derive(Debug, Clone)]
 pub struct SlidingAverage<const N: usize> {
