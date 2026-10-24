@@ -19,6 +19,7 @@ This project follows [Semantic Versioning](https://semver.org/) (pre-1.0: minor 
 ### Changed
 - `tamer::presence`: `PresenceSession::restore` / `snapshot` keep `last_onset_age` exact when the restored age exceeds the restore tick, instead of collapsing it to `now`.
   `last_onset()` still saturates at `0` in that case.
+- Docs: the ESP-IDF `rotary::Encoder` IRAM caveat (README, rustdoc, ROADMAP) now states the verified behaviour — edges during a flash write are deferred and coalesced (a dropped detent), and the device crashes only if the GPIO ISR service is installed with `ESP_INTR_FLAG_IRAM` elsewhere. No code change.
 
 ## [0.1.0] - 2026-09-26
 

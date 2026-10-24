@@ -69,8 +69,8 @@ See [ADR-006 Amendment](adr/006-interrupt-encoder-instance-and-api-shape.md) and
 ## Mid term — IRAM-safe interrupt handler
 
 **Goal:** run the encoder ISR from SRAM so edges survive flash-cache-off windows (NVS / OTA writes).
-Today the encoder is not IRAM-safe and can crash if an edge arrives during a flash write.
-Pending decisions: compile-time opt-in vs. always-on, and where `QUAD_TABLE` lives.
+Today edges during a flash write are deferred and coalesced (a dropped detent, not a crash); it crashes only if the app installs the GPIO ISR service with `ESP_INTR_FLAG_IRAM` elsewhere.
+Design settled 2026-10-24 (opt-in, arithmetic decode, direct register read, no `critical_section` in the ISR); promote to Near term when the knob adopts OTA or the clock / beekeeper adopt the encoder.
 See [Feature: IRAM-Safe ISR v1](features/iram-safe-isr-v1.md).
 
 ## Long term — Display UI logic

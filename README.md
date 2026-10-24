@@ -111,10 +111,13 @@ tiers use the technical `rustyfarian-<hal>-<repo>` convention.
 > with interrupt-driven rotary encoder (ISR-sampled), and `rustyfarian-esp-hal-peripherals` with
 > async rotary encoder (edge-future-driven). See [ROADMAP.md](./docs/ROADMAP.md).
 
-> **⚠️ The ESP-IDF interrupt-driven rotary encoder is not IRAM-safe in v1** — an
-> edge during a flash-cache-disabled window (NVS/OTA) can crash the device. This
+> **⚠️ The ESP-IDF interrupt-driven rotary encoder is not IRAM-safe in v1.**
+> Edges during a flash-cache-disabled window (NVS/OTA write) are deferred and
+> coalesced, so a detent may be dropped mid-write. It crashes only if another
+> part of the application installs the GPIO ISR service with
+> `ESP_INTR_FLAG_IRAM` — do not enable that flag alongside this encoder. This
 > affects only `rustyfarian_esp_idf_peripherals::rotary::Encoder`, not the pure
-> `tamer` core or the rest of the workspace. Roadmapped fix:
+> `tamer` core or the rest of the workspace. Roadmapped opt-in fix:
 > [IRAM-safe ISR v1](./docs/features/iram-safe-isr-v1.md).
 
 ## Common Tasks

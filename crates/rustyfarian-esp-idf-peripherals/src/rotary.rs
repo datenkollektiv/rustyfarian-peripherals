@@ -33,12 +33,20 @@
 //!
 //! # IRAM caveat (known v1 limitation)
 //!
-//! [`encoder_isr_trampoline`] is *not* IRAM-resident. An edge that arrives
-//! while the flash cache is disabled (for example, during an NVS or OTA
-//! write) cannot be serviced and can crash the device. Placing the ISR in
-//! IRAM is roadmapped as a follow-up; until then, avoid flash-cache-disabling
-//! operations while relying on encoder interrupts, or accept the risk on
-//! hardware that never performs them.
+//! [`encoder_isr_trampoline`] is *not* IRAM-resident, and this driver installs
+//! the GPIO ISR service *without* `ESP_INTR_FLAG_IRAM`. ESP-IDF masks every
+//! non-IRAM interrupt while the flash cache is disabled (an NVS or OTA write),
+//! so edges arriving in that window are **deferred, not executed from flash**:
+//! the GPIO status bit latches and the handler runs once the cache is back.
+//! Several edges in one window coalesce into a single sample, so the decoder
+//! may drop or misread a detent during a flash write — a glitch, not a crash.
+//!
+//! It *does* crash if the shared GPIO ISR service was installed with
+//! `ESP_INTR_FLAG_IRAM` by other code before this driver ran (the flag is
+//! process-global and first-caller-wins): the flash-resident handler then
+//! executes with the cache off. `esp-idf-hal` defaults that flag to `0`; do
+//! not enable it elsewhere in an application that also uses this encoder.
+//! An IRAM-safe variant is roadmapped as an opt-in follow-up.
 
 use core::cell::RefCell;
 use core::ffi::c_void;
@@ -425,9 +433,11 @@ impl<'d> Encoder<'d> {
     ///   is not counted. The decoder is seeded from the live A/B level at the
     ///   end of construction, so steady-state decoding stays correct — only
     ///   in-construction motion is dropped.
-    /// - **Not IRAM-safe (v1).** An edge during a flash-cache-disabled window
-    ///   (an NVS or OTA write) can crash the device — see the [`rotary` module
-    ///   docs](crate::rotary) for the full caveat.
+    /// - **Not IRAM-safe (v1).** Edges during a flash-cache-disabled window
+    ///   (an NVS or OTA write) are deferred and coalesced, so a detent may be
+    ///   dropped; the device only crashes if the GPIO ISR service was
+    ///   installed with `ESP_INTR_FLAG_IRAM` elsewhere — see the [`rotary`
+    ///   module docs](crate::rotary) for the full caveat.
     pub fn new_with_config(
         pin_a: impl InputPin + OutputPin + 'd,
         pin_b: impl InputPin + OutputPin + 'd,
