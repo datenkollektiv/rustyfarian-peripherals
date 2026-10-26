@@ -26,7 +26,7 @@ timeline
     title rustyfarian-peripherals Roadmap
 
     Ready     : MPU6050 hardware example twin — repo's first I2C example (hal/idf c3, burst read → tilt) (feature-doc)
-              : Hot-plug attach/detach — tamer::hotplug state machine over probe outcomes (feature-doc)
+              : Hot-plug attach/detach — tamer::hotplug state machine over probe outcomes (done, unreleased)
               : esp-hal encoder under blocking work — phase 1 budget docs + lost-step counter, phase 2 isolation spike (feature-doc)
 
     Near term : Docs-sync — align README / AGENTS framing with VISION input+output scope

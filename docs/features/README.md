@@ -29,5 +29,5 @@ what has landed.
 |:---------------------------------------------------------------------------------------------------|:------------------------|
 | [MPU6050 accelerometer / IMU](mpu6050-imu-v1.md) — sans-IO parse, calibration, feature-gated tilt  | Design approved (Ready) |
 | [IRAM-safe ISR](iram-safe-isr-v1.md) — run the encoder ISR from SRAM for flash-cache-off safety    | Scoped (skeleton)       |
-| [Hot-plug attach/detach](hotplug-v1.md) — pure attach/detach machine over probe outcomes           | Design approved (Ready) |
+| [Hot-plug attach/detach](hotplug-v1.md) — pure attach/detach machine over probe outcomes           | Implemented             |
 | [esp-hal encoder under blocking work](encoder-blocking-work-v1.md) — lost-step counter + isolation | Design approved (Ready) |

@@ -25,7 +25,7 @@
 //!   consumers program against the trait, not a concrete pin type.
 //! - **A `Noop*` mock ships with every trait.** Downstream test suites use the
 //!   crate's own mocks rather than inventing their own. Seam-free pure modules
-//!   ([`hall`], [`mpu6050`], [`touch`]) have no trait to mock — the raw-sample
+//!   ([`hall`], [`hotplug`], [`mpu6050`], [`touch`]) have no trait to mock — the raw-sample
 //!   feed itself is the test seam.
 //! - **The `hal` feature is the only hardware seam.** Enabling it adds thin
 //!   adapters over `embedded_hal::digital::InputPin` that feed the pure logic;
@@ -72,6 +72,9 @@
 //!   plus derived `Tap`/`LongPress`/`Swipe` gestures from per-frame
 //!   `Option<TouchPoint>` samples; chip-agnostic, works on controllers
 //!   without a hardware gesture engine.
+//! - [`hotplug`] — attach/detach decisions for a removable device from
+//!   per-probe `ok` outcomes: an attach debounce window plus a consecutive
+//!   failure count for detach.
 //!
 //! Still pending (arrive on demand, driven by real downstream needs):
 //!
@@ -246,6 +249,15 @@ pub use morse::{KeyState, MorseEvent, MorseKeyer, MorseMode};
 pub mod touch;
 pub use touch::{SwipeDirection, TouchEvent, TouchPoint, TouchTracker};
 
+/// Hot-plug attach/detach decisions — [`Hotplug`](hotplug::Hotplug) and
+/// [`Transition`](hotplug::Transition).
+///
+/// This module is HAL-agnostic and imports nothing outside `tamer` — the
+/// caller probes the bus and feeds each outcome as an `ok: bool`. Attach reuses
+/// the [`presence`] debounce window; detach counts consecutive failures.
+pub mod hotplug;
+pub use hotplug::{Hotplug, Transition};
+
 /// Curated re-exports of the most-used types, for `use tamer::prelude::*;`.
 ///
 /// Covers the pure types unconditionally and the `hal` adapters when the
@@ -258,6 +270,7 @@ pub mod prelude {
     pub use crate::button::{ButtonDecoder, ButtonEvent};
     pub use crate::debounce::{Debouncer, Edge, EdgeDetector};
     pub use crate::hall::{HallCalibrationError, HallSensor};
+    pub use crate::hotplug::{Hotplug, Transition};
     pub use crate::morse::{MorseKeyer, MorseMode};
     pub use crate::mpu6050::{AccelCalibration, RawReading};
     pub use crate::presence::{
