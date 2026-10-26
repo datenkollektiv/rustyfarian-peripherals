@@ -10,6 +10,7 @@ This project follows [Semantic Versioning](https://semver.org/) (pre-1.0: minor 
 ## [Unreleased]
 
 ### Added
+- `tamer::hotplug`: `Hotplug` / `Transition` pure attach/detach state machine for a removable device (e.g. an OLED on a pogo connector), fed per-probe `ok: bool`; attach after a continuous debounce window, detach after N consecutive failures, `reset()` and `is_attached()`.
 - `rustyfarian-esp-hal-peripherals::rotary::Encoder`: async quadrature decoder for esp-hal with `wait_for_step()` edge futures (embassy-agnostic core, `embassy` feature for example runtime), fed by `tamer`'s decoders; CrowPanel S3 example `hal_s3_rotary`, hardware-verified on ESP32-S3.
 - `tamer::presence`: `SessionState` with `PresenceSession::snapshot` / `restore`, `SessionState::aged_by`, and `PresenceSession::warmup_end` for resuming a session across a deep-sleep tick reset, and `PresenceSession::is_idle` (Armed and `Absent`) as the sleep-entry check.
 - `hal_c6_passive_buzzer_arpeggio`: ESP32-C6 variant of the esp-hal passive-piezo arpeggio example.

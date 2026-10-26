@@ -37,14 +37,16 @@ pub enum Transition { Attached, Detached }
 - Chip-tier probe and bus-recovery glue (SCL clock-out, driver rebuild) are out of scope.
 
 ## Open Questions
-- [ ] Should `Hotplug` expose `is_attached()` for callers that skip the transition?
+- [x] Should `Hotplug` expose `is_attached()` for callers that skip the transition? — yes
 
 ## State
 - [x] Design approved
-- [ ] Core implementation
-- [ ] Tests: continuous-window attach; bounce restarts window; one failure tolerated
-- [ ] Tests: `detach_errors` failures detach; `detach_errors = 1` detaches on first; `reset()` silent
-- [ ] Rustdoc with doctest, CHANGELOG, `lib.rs` re-export
+- [x] Core implementation
+- [x] Tests: continuous-window attach; bounce restarts window; one failure tolerated
+- [x] Tests: `detach_errors` failures detach; `detach_errors = 1` detaches on first; `reset()` silent
+- [x] Rustdoc with doctest, CHANGELOG, `lib.rs` re-export
 
 ## Session Log
 - 2026-10-26 — Feature doc created via /feature dialog; two-consumer rule waived by the maintainer.
+- 2026-10-26 — Implemented `tamer::hotplug` with unit tests, doctests, CHANGELOG entry, and `lib.rs` re-exports.
+- 2026-10-26 — Review follow-up: documented probe cadence and observation policy; added reattach and sparse-probe tests.
