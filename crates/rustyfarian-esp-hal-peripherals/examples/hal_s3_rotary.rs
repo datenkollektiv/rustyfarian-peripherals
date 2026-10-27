@@ -101,10 +101,11 @@ async fn main(_spawner: Spawner) -> ! {
                 EncoderDirection::CounterClockwise => "CCW",
             };
             println!(
-                "rotated {} position {} (edges {})",
+                "rotated {} position {} (edges {}, skipped {})",
                 label,
                 encoder.position(),
-                encoder.edge_count()
+                encoder.edge_count(),
+                encoder.skipped_count()
             );
         }
 

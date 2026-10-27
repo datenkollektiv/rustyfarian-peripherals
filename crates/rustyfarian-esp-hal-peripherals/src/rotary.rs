@@ -44,9 +44,21 @@
 //! the pins and feeds the decoder any change it missed. Edges that arrive
 //! while no future is armed are not individually counted, but the level
 //! difference is picked up by the next read.
-//! Keep the work between two `wait_for_step` calls short (a blocking
-//! `println!` included): an edge pair that lands entirely in that gap skips a
-//! Gray state, which the decoder drops as bounce, and can cost a detent.
+//!
+//! # Blocking-work budget
+//!
+//! Decoding runs only while `wait_for_step` is being polled.
+//! An edge pair that lands entirely in the gap between two calls skips a Gray
+//! state, which the decoder drops as bounce, and can cost a detent.
+//! Keep the work between two `wait_for_step` calls under **~10 ms per step**
+//! (a blocking `println!` or SPI transfer included).
+//! Measured on an ESP32-S3 with a 30-detent encoder: lossless up to ~13 ms of
+//! work per step; a ~90 ms blocking display redraw lost about 50–63 % of
+//! detents. The ~10 ms budget keeps a margin below the measured limit.
+//! Moving rotation into its own task on the same cooperative executor does
+//! not help — blocking work stalls that task too.
+//! [`Encoder::skipped_count`] counts samples that skipped a Gray state, so a
+//! consumer can detect that it is likely over budget.
 //!
 //! # Recommended loop
 //!
@@ -363,6 +375,18 @@ impl<'d> Encoder<'d> {
     #[must_use]
     pub fn edge_count(&self) -> u32 {
         self.edge_count
+    }
+
+    /// Number of samples that skipped a Gray-code state since construction.
+    ///
+    /// **Diagnostic only** — a growing count suggests the work between two
+    /// [`wait_for_step`](Encoder::wait_for_step) calls exceeds the budget in
+    /// the module docs and detents may be lost; contact bounce can also add
+    /// to it. It wraps (`u32`); take deltas with `wrapping_sub`. See
+    /// [`QuadratureDecoder::skipped_count`].
+    #[must_use]
+    pub fn skipped_count(&self) -> u32 {
+        self.decoder.skipped_count()
     }
 
     /// Current level of the A pin (diagnostics).
