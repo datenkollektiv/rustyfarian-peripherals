@@ -10,6 +10,11 @@ This project follows [Semantic Versioning](https://semver.org/) (pre-1.0: minor 
 ## [Unreleased]
 
 ### Added
+- `rustyfarian-esp-hal-peripherals::rotary::InterruptEncoder`: sync, ISR-decoded quadrature encoder with the ESP-IDF `Encoder` method surface, so `position()` keeps up under blocking work; CrowPanel S3 example `hal_s3_rotary_isr`.
+- `rustyfarian-esp-hal-peripherals::rotary::on_gpio_interrupt()`: GPIO interrupt hook that the app calls from its single esp-hal GPIO handler; a no-op when no `InterruptEncoder` is alive.
+- `rustyfarian-esp-hal-peripherals::rotary::EncoderError::AlreadyInUse`: returned when a second `InterruptEncoder` is constructed while one is alive.
+- `just capture <seconds> <logfile> [port]`: non-interactive serial capture for timed hardware runs.
+- `just clippy-hal` / `just doc-hal`: lint (C3 + S3, lib and examples) and rustdoc (C3) gates for the esp-hal crate, denying warnings.
 - `tamer::hotplug`: `Hotplug` / `Transition` pure attach/detach state machine for a removable device (e.g. an OLED on a pogo connector), fed per-probe `ok: bool`; attach after a continuous debounce window, detach after N consecutive failures, `reset()` and `is_attached()`.
 - `rustyfarian-esp-hal-peripherals::rotary::Encoder`: async quadrature decoder for esp-hal with `wait_for_step()` edge futures (embassy-agnostic core, `embassy` feature for example runtime), fed by `tamer`'s decoders; CrowPanel S3 example `hal_s3_rotary`, hardware-verified on ESP32-S3.
 - `tamer::presence`: `SessionState` with `PresenceSession::snapshot` / `restore`, `SessionState::aged_by`, and `PresenceSession::warmup_end` for resuming a session across a deep-sleep tick reset, and `PresenceSession::is_idle` (Armed and `Absent`) as the sleep-entry check.

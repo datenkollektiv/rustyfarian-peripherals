@@ -69,6 +69,30 @@ check-hal:
         --target-dir "{{ hal_dir }}" --no-default-features --features esp32s3,unstable \
         -p rustyfarian-esp-hal-peripherals
 
+# lint the esp-hal crate (lib + examples) for ESP32-C3 and ESP32-S3, denying warnings
+clippy-hal:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    echo "==> clippy-hal: ESP32-C3 ({{ hal_target }}, stable)"
+    rustup target add {{ hal_target }}
+    cargo clippy --target {{ hal_target }} \
+        --target-dir "{{ hal_dir }}" --no-default-features --features esp32c3,unstable \
+        -p rustyfarian-esp-hal-peripherals -- -D warnings
+    echo "==> clippy-hal: ESP32-S3 (xtensa-esp32s3-none-elf, esp toolchain)"
+    # shellcheck source=./scripts/xtensa-toolchain.sh
+    . "{{ justfile_directory() }}/scripts/xtensa-toolchain.sh"
+    setup_xtensa_toolchain
+    cargo +esp clippy -Zbuild-std=core,alloc --target xtensa-esp32s3-none-elf \
+        --target-dir "{{ hal_dir }}" --no-default-features --features esp32s3,unstable,rt,embassy \
+        -p rustyfarian-esp-hal-peripherals --lib --examples -- -D warnings
+
+# build the esp-hal crate's rustdoc for ESP32-C3 (the docs.rs target), denying warnings
+doc-hal:
+    rustup target add {{ hal_target }}
+    RUSTDOCFLAGS="-D warnings" cargo doc --no-deps --target {{ hal_target }} \
+        --target-dir "{{ hal_dir }}" --no-default-features --features esp32c3,unstable \
+        -p rustyfarian-esp-hal-peripherals
+
 # check the ESP-IDF (std) crate for the ESP32-C3 device target (requires the ESP toolchain)
 check-idf:
     MCU=esp32c3 cargo +esp check -p rustyfarian-esp-idf-peripherals --target {{ idf_target }} \
@@ -254,6 +278,10 @@ run example:
 # open the serial monitor for an already-flashed device
 monitor:
     espflash monitor
+
+# reset the board and record its serial output to a file (non-interactive)
+capture seconds logfile port="":
+    scripts/capture.sh "{{ seconds }}" "{{ logfile }}" "{{ port }}"
 
 # --- Setup ----------------------------------------------------------------
 
