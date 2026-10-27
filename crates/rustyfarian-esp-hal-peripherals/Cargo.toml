@@ -94,6 +94,8 @@ tamer = { workspace = true }
 embedded-hal = { workspace = true }
 esp-hal = { workspace = true, features = ["unstable"] }
 esp-bootloader-esp-idf = { workspace = true }
+# Guards the `rotary::InterruptEncoder` decoder slot shared with the GPIO ISR.
+critical-section = { workspace = true }
 
 # Runtime for the async examples only; the `rotary::Encoder` itself needs only
 # esp-hal and is always compiled.
@@ -177,6 +179,10 @@ required-features = ["esp32", "rt", "unstable"]
 [[example]]
 name = "hal_s3_b3f"
 required-features = ["esp32s3", "rt", "unstable"]
+
+[[example]]
+name = "hal_s3_rotary_isr"
+required-features = ["esp32s3", "rt", "unstable", "embassy"]
 
 [[example]]
 name = "hal_s3_rotary"

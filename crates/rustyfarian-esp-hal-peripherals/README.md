@@ -18,12 +18,25 @@ demonstrates the CrowPanel 1.28" ESP32-S3 knob; build it with
 `just build-example hal_s3_rotary` (requires the `embassy` feature, which the
 example's `required-features` select).
 
-Contract: rotation is awaited asynchronously, button gestures are polled
-synchronously, and all decoding lives in `tamer`.
+It also ships `rustyfarian_esp_hal_peripherals::rotary::InterruptEncoder`, a
+synchronous quadrature decoder that runs in a GPIO interrupt and keeps
+`position()` current while the application does blocking work (for example a
+~90 ms display redraw).
+Its method surface matches the ESP-IDF tier's `Encoder`, so a consumer switches
+tiers by changing the import and constructor.
+The application installs the single esp-hal GPIO handler and calls
+`rotary::on_gpio_interrupt()` from it; the [`hal_s3_rotary_isr`](examples/hal_s3_rotary_isr.rs)
+example shows the wiring, and the `rotary` module docs state the handler
+requirements.
+Build it with `just build-example hal_s3_rotary_isr`.
+
+Contract: `Encoder` awaits rotation asynchronously, `InterruptEncoder` decodes
+rotation in the GPIO interrupt, button gestures are polled synchronously, and
+all decoding lives in `tamer`.
 The `Encoder` itself is executor-agnostic and depends only on `esp-hal`; the
 `embassy` feature (`esp-rtos` + Embassy) exists only for the example runtime.
-Firmware without an async executor should use `tamer`'s polled adapters
-(`tamer::rotary::QuadratureInput`, `tamer::button::ButtonDecoder`) instead.
+Firmware without an async executor can use `InterruptEncoder`, or `tamer`'s
+polled adapters (`tamer::rotary::QuadratureInput`, `tamer::button::ButtonDecoder`).
  Earlier examples like [`hal_c3_b3f`](examples/hal_c3_b3f.rs)
 still debounce a B3F button on ESP32-C3 using `tamer::debounce::EdgeDetector`.
 Check it all with `just check-hal`; hardware examples run with `just run`.

@@ -57,6 +57,8 @@
 //! detents. The ~10 ms budget keeps a margin below the measured limit.
 //! Moving rotation into its own task on the same cooperative executor does
 //! not help — blocking work stalls that task too.
+//! Firmware with heavier blocking work should use [`InterruptEncoder`], which
+//! decodes in the GPIO interrupt and has no such budget.
 //! [`Encoder::skipped_count`] counts samples that skipped a Gray state, so a
 //! consumer can detect that it is likely over budget.
 //!
@@ -90,12 +92,14 @@
 //!
 //! # Synchronous users
 //!
-//! Firmware without an async executor should skip this driver and use the
+//! Firmware without an async executor should use [`InterruptEncoder`], which
+//! needs no executor and decodes in the GPIO interrupt.
+//! Firmware that cannot install a GPIO interrupt handler can fall back to the
 //! polled adapters in `tamer` directly: `tamer::rotary::QuadratureInput`
 //! (behind `tamer`'s `hal` feature) for A/B and
 //! [`tamer::button::ButtonDecoder`] for the button, both fed from esp-hal
 //! `Input` pins. A slow poll cadence can miss quadrature edges, which is the
-//! reason this async driver exists.
+//! reason the async and interrupt drivers exist.
 //!
 //! # Runtime
 //!
@@ -112,6 +116,10 @@ use core::task::Poll;
 use esp_hal::gpio::interconnect::InputSignal;
 use esp_hal::gpio::{Input, InputConfig, InputPin, Pull};
 
+pub mod interrupt;
+
+pub use interrupt::{on_gpio_interrupt, InterruptEncoder};
+
 use tamer::button::ButtonDecoder;
 pub use tamer::button::ButtonEvent;
 // This module shadows the crate-root glob re-export of `tamer::rotary`; the
@@ -119,13 +127,19 @@ pub use tamer::button::ButtonEvent;
 // friends reachable, as they were in 0.1.0.
 pub use tamer::rotary::*;
 
-/// Errors returned by [`Encoder::new`] / [`Encoder::new_with_config`].
+/// Errors returned by [`Encoder::new`] / [`Encoder::new_with_config`] and the
+/// [`InterruptEncoder`] constructors.
 #[non_exhaustive]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum EncoderError {
     /// `steps_per_detent` was `0`. [`tamer::rotary::QuadratureDecoder::new`]
     /// panics on this value, so it is rejected here before construction.
     InvalidConfig,
+    /// Another [`InterruptEncoder`] is already alive.
+    ///
+    /// The interrupt-driven encoder keeps its decoder in a single static
+    /// slot, so only one instance may exist at a time.
+    AlreadyInUse,
 }
 
 impl fmt::Display for EncoderError {
@@ -135,6 +149,7 @@ impl fmt::Display for EncoderError {
                 f,
                 "invalid encoder configuration: steps_per_detent must be greater than zero"
             ),
+            Self::AlreadyInUse => write!(f, "an interrupt encoder is already in use"),
         }
     }
 }

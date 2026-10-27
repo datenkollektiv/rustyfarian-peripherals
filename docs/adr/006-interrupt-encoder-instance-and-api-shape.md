@@ -84,3 +84,46 @@ Rotation delivery stays tier-specific (ISR-updated position on ESP-IDF, awaited 
 **Status.**
 The esp-hal twin passed hardware validation on the CrowPanel 1.28" ESP32-S3 on 2026-10-14: slow and fast spins both ways decoded one step per detent, and click, double click and long press decoded with the default tuning, also while turning.
 Trait extraction is now unblocked and lands on demand, per the demand-driven rule.
+
+## Amendment (2026-10-27) — decoding under blocking work
+
+**Problem.**
+The async esp-hal `rotary::Encoder` decodes in task context.
+A ~90 ms blocking redraw between two `wait_for_step` calls loses about half the detents on the CrowPanel 1.28" ESP32-S3.
+A rotation-only task on the same cooperative executor is still stalled, so the async shape cannot fix this by itself.
+
+**Spikes.**
+Both candidates ran on the same board: 30 detents per revolution, a 90 ms busy-wait per position change, and round trips to a marked position.
+A pass is at least 30 counts per trip in each direction with zero net drift and zero skips.
+
+| Candidate                       | Normal ×2 | Fast ×2 | Reversals | Net drift | Skipped |
+|:--------------------------------|:----------|:--------|:----------|:----------|--------:|
+| Baseline (cooperative executor) | 16/15     | 12/16   | 17/17     | −3        |      30 |
+| A: `InterruptExecutor` prio 3   | 60/60     | 60/60   | 37/37     | 0         |       0 |
+| B: decode in GPIO ISR           | 60/60     | 61/61   | 27/27     | 0         |       0 |
+
+**Decision: B, an ISR-decoded `rotary::InterruptEncoder`.**
+B decodes in the GPIO interrupt, so `position()` stays current whatever the task is doing.
+B was chosen for tier parity with the ESP-IDF `Encoder`: the ISR keeps `position()` current on both tiers, so a consumer switches tiers by changing the import and constructor.
+
+**Rejected: A, interrupt-priority executor plus `split()`.**
+A was also lossless, but it forces embassy onto consumers, needs cross-executor channels and `Send` halves, and diverges from the ESP-IDF shape.
+
+**Shape of B.**
+- The app installs the single esp-hal GPIO handler and calls `rotary::on_gpio_interrupt()` from it.
+  The library does not own that handler, because esp-hal dispatches one GPIO handler for the whole chip.
+- The hook works on raw GPIO registers and clears its own status bits on every call, so it never returns with them set and cannot storm.
+- The hook never nests `critical_section` outside the ISR.
+  Thread-side code never calls `listen`, `unlisten`, or `clear_interrupt` inside a `critical_section`, which avoids a `GPIO_LOCK` and `critical_section` lock inversion on dual-core S3.
+- One instance per app: a second `InterruptEncoder` returns `EncoderError::AlreadyInUse`.
+- The async `Encoder` stays unchanged.
+
+**Consequence for the shared trait.**
+The trait is the synchronous core: `update`, `position`, `set_position`, `reset`, and `is_button_pressed`.
+Rotation now maps to `position()` on both tiers, which refines the 2026-10-14 amendment's "tier-specific rotation delivery".
+`wait_for_step` stays an esp-hal extra outside the trait.
+
+**Status.**
+Spike-validated on hardware.
+The library type `InterruptEncoder` passed hardware validation on the CrowPanel 1.28" ESP32-S3 on 2026-10-27 with `hal_s3_rotary_isr`: round trips at normal and fast speed and fast reversals netted to zero with no skipped Gray states under a 90 ms blocking redraw, and click, double click and long press decoded.
+A downstream knob firmware confirmed it on 2026-10-28 with the real ~90 ms GC9A01 full redraw: up to three detents per blocked interval all reached `position()`, with no skipped Gray states at 24 detents/s.

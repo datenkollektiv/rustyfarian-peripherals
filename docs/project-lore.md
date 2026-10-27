@@ -63,6 +63,12 @@ The `jtag-serial` transport routes output to the chip's internal USB Serial/JTAG
 Fix: select `esp-println/uart` for the chip so output goes to UART0 and lands on the same `usbserial` bridge used to flash — or connect the board's native USB port and monitor the `/dev/cu.usbmodem*` device it enumerates. The C3/C6 hal examples here use `uart`; `rustyfarian-network`'s hal tier uses `jtag-serial` (it assumes the native-USB port).
 Confirmed on ESP32-C3 with `hal_c3_b3f`: after switching to `uart`, output appears on `/dev/cu.usbserial-210`.
 
+**`espflash monitor --non-interactive` without a TTY captures nothing from a native USB Serial/JTAG board — it stops after `Using flash stub` and the app never prints.**
+Run from a script or agent, the monitor connects through the bootloader and leaves the chip in the flash stub instead of resetting into the app.
+Fix: use `just capture <seconds> <logfile>`, which hard-resets with `espflash reset` and copies the raw port with `cat`.
+The port re-enumerates on reset, so the capture waits briefly for it to return, and the boot banner is still lost; print measurements periodically, not only at boot.
+Confirmed on the CrowPanel 1.28" ESP32-S3 (`/dev/cu.usbmodem2101`), espflash 4.6.0.
+
 ## ESP-IDF — interrupt subscriptions vs. persistent interrupts
 
 **`PinDriver::subscribe` + `enable_interrupt` (HAL pattern) is one-shot and unsuitable for edge-dense inputs like rotary encoders.**
