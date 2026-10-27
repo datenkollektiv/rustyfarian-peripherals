@@ -21,6 +21,14 @@
 //! Spurious transitions in the opposite direction subtract from the
 //! accumulator, naturally cancelling noise without time-based logic.
 //!
+//! # Skipped samples
+//!
+//! A sample where A and B both changed at once (a 2-bit jump) carries no
+//! direction, so [`QuadratureDecoder::update`] drops it.
+//! The decoder still counts it in
+//! [`skipped_count`](QuadratureDecoder::skipped_count), so a consumer whose
+//! sampling is starved can detect that intermediate states were missed.
+//!
 //! # Example
 //!
 //! ```
@@ -95,6 +103,7 @@ pub struct QuadratureDecoder {
     accumulator: i32,
     steps_per_detent: i32,
     position: i32,
+    skipped: u32,
 }
 
 impl QuadratureDecoder {
@@ -120,6 +129,7 @@ impl QuadratureDecoder {
             accumulator: 0,
             steps_per_detent: i32::from(steps_per_detent),
             position: 0,
+            skipped: 0,
         }
     }
 
@@ -129,8 +139,13 @@ impl QuadratureDecoder {
     /// `Some(EncoderDirection::CounterClockwise)` when the accumulator
     /// reaches a full detent.
     /// Returns `None` for partial steps, bounce, or invalid transitions.
+    /// An invalid transition (both pins changed) is also counted in
+    /// [`skipped_count`](QuadratureDecoder::skipped_count).
     pub fn update(&mut self, a: bool, b: bool) -> Option<EncoderDirection> {
         let state = (a as u8) << 1 | b as u8;
+        self.skipped = self
+            .skipped
+            .wrapping_add(u32::from((self.last_state ^ state) == 0b11));
         let step = QUAD_TABLE[(self.last_state << 2 | state) as usize];
         self.last_state = state;
         self.accumulator += i32::from(step);
@@ -154,13 +169,52 @@ impl QuadratureDecoder {
         self.position
     }
 
+    /// Returns how many samples skipped a Gray-code state since construction.
+    ///
+    /// A skipped sample is one where A and B changed at once (`00↔11` or
+    /// `01↔10`): at least one intermediate state was missed, or the contacts
+    /// bounced.
+    /// [`update`](QuadratureDecoder::update) drops such a sample, so a
+    /// growing count signals that sampling is too slow and detents may be
+    /// lost — it does not prove a detent was lost.
+    /// A zero count does not prove nothing was lost either: missing exactly
+    /// two states lands on a valid neighbour, and a missed full cycle looks
+    /// like no change.
+    ///
+    /// The count is monotonic, wraps at `u32::MAX`, and is not cleared by
+    /// [`set_position`](QuadratureDecoder::set_position) or
+    /// [`reset`](QuadratureDecoder::reset).
+    /// Measure a window by taking deltas with `wrapping_sub`.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use tamer::rotary::QuadratureDecoder;
+    ///
+    /// let mut dec = QuadratureDecoder::new(true, true, 4);
+    /// let before = dec.skipped_count();
+    ///
+    /// // CW 11 → 01, then the 00 sample is missed: 01 → 10 is a 2-bit jump.
+    /// dec.update(false, true);
+    /// assert_eq!(dec.update(true, false), None);
+    /// assert_eq!(dec.skipped_count().wrapping_sub(before), 1);
+    /// ```
+    #[must_use]
+    pub fn skipped_count(&self) -> u32 {
+        self.skipped
+    }
+
     /// Overwrites the absolute position and clears the accumulator.
+    ///
+    /// The [`skipped_count`](QuadratureDecoder::skipped_count) is preserved.
     pub fn set_position(&mut self, position: i32) {
         self.position = position;
         self.accumulator = 0;
     }
 
     /// Resets the position to zero and clears the accumulator.
+    ///
+    /// The [`skipped_count`](QuadratureDecoder::skipped_count) is preserved.
     pub fn reset(&mut self) {
         self.position = 0;
         self.accumulator = 0;
@@ -272,6 +326,14 @@ where
     #[must_use]
     pub fn position(&self) -> i32 {
         self.decoder.position()
+    }
+
+    /// Returns the skipped-sample count from the underlying decoder.
+    ///
+    /// See [`QuadratureDecoder::skipped_count`].
+    #[must_use]
+    pub fn skipped_count(&self) -> u32 {
+        self.decoder.skipped_count()
     }
 
     /// Overwrites the position and clears the accumulator.
@@ -482,6 +544,89 @@ mod tests {
         }
     }
 
+    // --- skipped_count ---
+
+    #[test]
+    fn clean_cw_cycles_do_not_count_skips() {
+        let mut dec = decoder();
+        for _ in 0..3 {
+            one_cw(&mut dec);
+        }
+        assert_eq!(dec.skipped_count(), 0);
+    }
+
+    #[test]
+    fn clean_ccw_cycles_do_not_count_skips() {
+        let mut dec = decoder();
+        for _ in 0..3 {
+            one_ccw(&mut dec);
+        }
+        assert_eq!(dec.skipped_count(), 0);
+    }
+
+    #[test]
+    fn cw_cycle_with_missed_sample_counts_one_skip() {
+        let mut dec = decoder();
+        assert_eq!(dec.update(false, true), None); // 11→01
+        assert_eq!(dec.update(true, false), None); // 01→10: 00 missed
+        assert_eq!(dec.update(true, true), None); // 10→11: detent not reached
+        assert_eq!(dec.skipped_count(), 1);
+        assert_eq!(dec.position(), 0);
+    }
+
+    #[test]
+    fn ccw_cycle_with_missed_sample_counts_one_skip() {
+        let mut dec = decoder();
+        assert_eq!(dec.update(true, false), None); // 11→10
+        assert_eq!(dec.update(false, true), None); // 10→01: 00 missed
+        assert_eq!(dec.update(true, true), None); // 01→11: detent not reached
+        assert_eq!(dec.skipped_count(), 1);
+        assert_eq!(dec.position(), 0);
+    }
+
+    #[test]
+    fn every_two_bit_jump_counts_once() {
+        // 00→11, 11→00, 01→10, 10→01
+        let jumps = [
+            ((false, false), (true, true)),
+            ((true, true), (false, false)),
+            ((false, true), (true, false)),
+            ((true, false), (false, true)),
+        ];
+        for ((a0, b0), (a1, b1)) in jumps {
+            let mut dec = QuadratureDecoder::new(a0, b0, 4);
+            assert_eq!(dec.update(a1, b1), None);
+            assert_eq!(dec.skipped_count(), 1);
+        }
+    }
+
+    #[test]
+    fn repeated_same_state_does_not_count_skips() {
+        let mut dec = decoder();
+        for _ in 0..10 {
+            dec.update(true, true);
+        }
+        assert_eq!(dec.skipped_count(), 0);
+    }
+
+    #[test]
+    fn reset_and_set_position_preserve_skipped_count() {
+        let mut dec = decoder();
+        dec.update(false, false); // 11→00: skip
+        dec.reset();
+        assert_eq!(dec.skipped_count(), 1);
+        dec.set_position(7);
+        assert_eq!(dec.skipped_count(), 1);
+    }
+
+    #[test]
+    fn skipped_count_wraps_without_panicking() {
+        let mut dec = decoder();
+        dec.skipped = u32::MAX;
+        dec.update(false, false); // 11→00: skip
+        assert_eq!(dec.skipped_count(), 0);
+    }
+
     // --- QuadratureInput (hal adapter) ---
 
     #[cfg(feature = "hal")]
@@ -578,6 +723,16 @@ mod tests {
                     .unwrap();
             assert_eq!(drive_cw(&mut enc), Some(EncoderDirection::Clockwise));
             assert_eq!(enc.position(), 1);
+        }
+
+        #[test]
+        fn hal_skipped_count_passes_through() {
+            let mut enc = enc();
+            // Both pins drop at once: 11→00 is a 2-bit jump.
+            enc.pin_a_mut().set_low();
+            enc.pin_b_mut().set_low();
+            assert_eq!(enc.update().unwrap(), None);
+            assert_eq!(enc.skipped_count(), 1);
         }
 
         #[test]

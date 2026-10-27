@@ -16,6 +16,8 @@ This project follows [Semantic Versioning](https://semver.org/) (pre-1.0: minor 
 - `hal_c6_passive_buzzer_arpeggio`: ESP32-C6 variant of the esp-hal passive-piezo arpeggio example.
 - `just check-hal`: added ESP32-S3 line with `cargo +esp -Zbuild-std=core,alloc` check for Xtensa bare-metal drivers.
 - `just ramdisk prune [days]`: removes idle per-repo target trees from the shared RAM disk.
+- `tamer::rotary`: `QuadratureDecoder::skipped_count()` (and `QuadratureInput::skipped_count()`) — monotonic, wrapping count of 2-bit Gray-code jumps, so a starved consumer can detect missed samples; `update` results are unchanged.
+- `rustyfarian-esp-hal-peripherals::rotary::Encoder::skipped_count()` pass-through; the module docs now state the measured blocking-work budget (~10 ms per step) between `wait_for_step` calls.
 
 ### Changed
 - `tamer::presence`: `PresenceSession::restore` / `snapshot` keep `last_onset_age` exact when the restored age exceeds the restore tick, instead of collapsing it to `now`.

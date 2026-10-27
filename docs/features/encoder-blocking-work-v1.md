@@ -31,14 +31,14 @@ A rotation-only task on the same cooperative executor is still stalled, so `spli
 
 ## Open Questions
 - [ ] Candidate A or B — which one gets 30/30 detents under the ~90 ms redraw?
-- [ ] Counter API shape: monotonic `skipped_count()` vs. take-and-clear?
+- [x] Counter API shape: monotonic `skipped_count()` vs. take-and-clear? — monotonic, wrapping `u32`, untouched by `reset`/`set_position`; matches `edge_count`/`isr_count`, safe for multiple readers.
 - [ ] Does a 2-bit jump from contact bounce inflate the counter enough to make it noisy at speed?
 - [ ] Land phase 2 before, with, or after the shared encoder trait extraction?
 
 ## State
 - [x] Design approved
-- [ ] Phase 1: rustdoc states the measured ~10 ms per-step budget
-- [ ] Phase 1: `tamer::rotary` lost-step counter with host tests
+- [x] Phase 1: rustdoc states the measured ~10 ms per-step budget
+- [x] Phase 1: `tamer::rotary` lost-step counter with host tests
 - [ ] Phase 2: spike A and B on the CrowPanel load test
 - [ ] Phase 2: ADR-006 amendment records the choice
 - [ ] Phase 2: implementation + example; 30/30 detents with a ~90 ms redraw
@@ -46,3 +46,4 @@ A rotation-only task on the same cooperative executor is still stalled, so `spli
 
 ## Session Log
 - 2026-10-26 — Feature doc created via /feature dialog from a downstream request (knob, CrowPanel load test).
+- 2026-10-27 — Phase 1 done: `QuadratureDecoder::skipped_count()` (+ `QuadratureInput`, esp-hal `Encoder` pass-throughs), budget rustdoc in the esp-hal rotary module. IDF tier unchanged. Phase 2 waits on the CrowPanel.
