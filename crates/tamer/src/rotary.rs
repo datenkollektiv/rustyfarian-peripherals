@@ -64,13 +64,15 @@ pub enum EncoderDirection {
 ///
 /// # Contract
 ///
-/// - [`position`](Self::position) reflects every detent decoded so far, including those that occurred while the caller was busy with blocking work.
-///   Implementors therefore decode rotation outside the caller's polling loop.
-/// - [`update`](Self::update) polls only the button half.
-///   Gestures (`Click`, `DoubleClick`, `LongPress`) are measured against `now_ms` but are only detected on a call to `update`.
-///   Pass a monotonic millisecond clock, the same one on every call.
-/// - [`set_position`](Self::set_position) overwrites the position and clears any partial-detent accumulator.
+/// - [`update`](Self::update) polls only the button and returns a completed gesture, if any.
+///   Gestures are measured against `now_ms`, so pass the same monotonic millisecond clock on every call.
+/// - [`position`](Self::position) reflects the detents decoded so far, including those that arrived while the caller was blocked.
+///   Implementors decode rotation independently of the caller's polling loop (in the tiers: a GPIO interrupt).
+///   Capture is still bounded by interrupt latency and by edges the implementation cannot observe.
+/// - The position wraps on `i32` overflow and never panics, so callers can take deltas with `wrapping_sub`.
+/// - [`set_position`](Self::set_position) overwrites the position and discards any partial detent.
 /// - [`reset`](Self::reset) is `set_position(0)`.
+/// - [`is_button_pressed`](Self::is_button_pressed) returns the debounced button state.
 ///
 /// # Thread safety
 ///
@@ -123,10 +125,13 @@ pub trait RotaryEncoder {
     /// Returns the current encoder position in detents.
     ///
     /// Takes `&self` and never blocks.
+    /// Overflow wraps (`i32::MAX` + 1 detent is `i32::MIN`) and must not panic.
     #[must_use]
     fn position(&self) -> i32;
 
     /// Overwrites the position and clears the decoder's partial-detent accumulator.
+    ///
+    /// Any `i32` is valid, including the extremes; later detents wrap rather than panic.
     fn set_position(&mut self, position: i32);
 
     /// Resets the position to zero.
@@ -278,11 +283,11 @@ impl QuadratureDecoder {
         self.accumulator += i32::from(step);
 
         if self.accumulator >= self.steps_per_detent {
-            self.position += 1;
+            self.position = self.position.wrapping_add(1);
             self.accumulator = 0;
             Some(EncoderDirection::Clockwise)
         } else if self.accumulator <= -self.steps_per_detent {
-            self.position -= 1;
+            self.position = self.position.wrapping_sub(1);
             self.accumulator = 0;
             Some(EncoderDirection::CounterClockwise)
         } else {
@@ -291,6 +296,9 @@ impl QuadratureDecoder {
     }
 
     /// Returns the absolute position (increases CW, decreases CCW).
+    ///
+    /// The position wraps on `i32` overflow (`i32::MAX` + 1 CW detent is `i32::MIN`, and vice versa) and never panics.
+    /// Use `wrapping_sub` to compute deltas across the boundary.
     #[must_use]
     pub fn position(&self) -> i32 {
         self.position
@@ -596,26 +604,70 @@ mod tests {
     }
 
     #[test]
-    fn set_position_updates_and_clears_accumulator() {
+    fn set_position_mid_detent_discards_partial_cw_progress() {
         let mut dec = decoder();
-        one_cw(&mut dec);
+        dec.update(false, true); // 11→01
+        dec.update(false, false); // 01→00
+        dec.update(true, false); // 00→10 — 3 of 4 transitions
         dec.set_position(42);
         assert_eq!(dec.position(), 42);
-        // A partial step should not add a stale accumulator offset.
-        dec.update(false, true); // partial step — acc = 1, not a full detent
+        // The 4th transition alone must not complete a detent.
+        assert_eq!(dec.update(true, true), None); // 10→11
         assert_eq!(dec.position(), 42);
     }
 
     #[test]
-    fn reset_zeroes_position_and_accumulator() {
+    fn set_position_mid_detent_discards_partial_ccw_progress() {
+        let mut dec = decoder();
+        dec.update(true, false); // 11→10
+        dec.update(false, false); // 10→00
+        dec.update(false, true); // 00→01 — 3 of 4 transitions
+        dec.set_position(42);
+        assert_eq!(dec.position(), 42);
+        assert_eq!(dec.update(true, true), None); // 01→11
+        assert_eq!(dec.position(), 42);
+    }
+
+    #[test]
+    fn reset_mid_detent_discards_partial_cw_progress() {
         let mut dec = decoder();
         one_cw(&mut dec);
-        one_cw(&mut dec);
+        dec.update(false, true); // 11→01
+        dec.update(false, false); // 01→00
+        dec.update(true, false); // 00→10 — 3 of 4 transitions
         dec.reset();
         assert_eq!(dec.position(), 0);
-        // After reset a partial step should not register.
-        dec.update(false, true); // acc = 1 (not a full detent)
+        assert_eq!(dec.update(true, true), None); // 10→11
         assert_eq!(dec.position(), 0);
+    }
+
+    #[test]
+    fn reset_mid_detent_discards_partial_ccw_progress() {
+        let mut dec = decoder();
+        one_ccw(&mut dec);
+        dec.update(true, false); // 11→10
+        dec.update(false, false); // 10→00
+        dec.update(false, true); // 00→01 — 3 of 4 transitions
+        dec.reset();
+        assert_eq!(dec.position(), 0);
+        assert_eq!(dec.update(true, true), None); // 01→11
+        assert_eq!(dec.position(), 0);
+    }
+
+    #[test]
+    fn position_wraps_from_max_to_min_on_cw_detent() {
+        let mut dec = decoder();
+        dec.set_position(i32::MAX);
+        assert_eq!(one_cw(&mut dec), Some(EncoderDirection::Clockwise));
+        assert_eq!(dec.position(), i32::MIN);
+    }
+
+    #[test]
+    fn position_wraps_from_min_to_max_on_ccw_detent() {
+        let mut dec = decoder();
+        dec.set_position(i32::MIN);
+        assert_eq!(one_ccw(&mut dec), Some(EncoderDirection::CounterClockwise));
+        assert_eq!(dec.position(), i32::MAX);
     }
 
     #[test]
@@ -830,6 +882,73 @@ mod tests {
             drive_cw(&mut enc);
             enc.set_position(10);
             assert_eq!(enc.position(), 10);
+        }
+
+        /// Drives the first three CW transitions: 11 → 01 → 00 → 10.
+        fn drive_cw_partial(enc: &mut QuadratureInput<MockInputPin, MockInputPin>) {
+            enc.pin_a_mut().set_low();
+            enc.update().unwrap();
+            enc.pin_b_mut().set_low();
+            enc.update().unwrap();
+            enc.pin_a_mut().set_high();
+            enc.update().unwrap();
+        }
+
+        /// Drives the first three CCW transitions: 11 → 10 → 00 → 01.
+        fn drive_ccw_partial(enc: &mut QuadratureInput<MockInputPin, MockInputPin>) {
+            enc.pin_b_mut().set_low();
+            enc.update().unwrap();
+            enc.pin_a_mut().set_low();
+            enc.update().unwrap();
+            enc.pin_b_mut().set_high();
+            enc.update().unwrap();
+        }
+
+        #[test]
+        fn hal_set_position_mid_detent_discards_partial_progress() {
+            let mut enc = enc();
+            drive_cw_partial(&mut enc);
+            enc.set_position(10);
+            enc.pin_b_mut().set_high(); // 10→11
+            assert_eq!(enc.update().unwrap(), None);
+            assert_eq!(enc.position(), 10);
+
+            let mut enc = self::enc();
+            drive_ccw_partial(&mut enc);
+            enc.set_position(10);
+            enc.pin_a_mut().set_high(); // 01→11
+            assert_eq!(enc.update().unwrap(), None);
+            assert_eq!(enc.position(), 10);
+        }
+
+        #[test]
+        fn hal_reset_mid_detent_discards_partial_progress() {
+            let mut enc = enc();
+            drive_cw_partial(&mut enc);
+            enc.reset();
+            enc.pin_b_mut().set_high(); // 10→11
+            assert_eq!(enc.update().unwrap(), None);
+            assert_eq!(enc.position(), 0);
+
+            let mut enc = self::enc();
+            drive_ccw_partial(&mut enc);
+            enc.reset();
+            enc.pin_a_mut().set_high(); // 01→11
+            assert_eq!(enc.update().unwrap(), None);
+            assert_eq!(enc.position(), 0);
+        }
+
+        #[test]
+        fn hal_position_wraps_at_both_limits() {
+            let mut enc = enc();
+            enc.set_position(i32::MAX);
+            assert_eq!(drive_cw(&mut enc), Some(EncoderDirection::Clockwise));
+            assert_eq!(enc.position(), i32::MIN);
+            assert_eq!(
+                drive_ccw(&mut enc),
+                Some(EncoderDirection::CounterClockwise)
+            );
+            assert_eq!(enc.position(), i32::MAX);
         }
 
         #[test]

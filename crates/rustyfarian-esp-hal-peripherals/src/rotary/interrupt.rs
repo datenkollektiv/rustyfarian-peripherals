@@ -171,8 +171,9 @@ impl IsrSlot {
 //   the slot. A `new` on another core can only claim the slot after that
 //   section, so a late `drop` can never zero a successor's pins.
 // - The hook loads the pin cells before its critical section and re-checks
-//   them inside; if they changed, the slot belongs to another instance and the
-//   hook skips decoding (it has only cleared status bits of the old pins).
+//   them inside; if they changed, the slot now belongs to another instance, so
+//   the hook samples the current owner's pins (see `on_gpio_interrupt`) rather
+//   than the pins it cleared status bits for.
 // - `listen` clears pending status, so a transition between the seed read and
 //   arming is invisible to the interrupt; `new` reconciles the live levels
 //   after arming.

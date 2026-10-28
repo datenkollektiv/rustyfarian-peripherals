@@ -10,7 +10,6 @@ This project follows [Semantic Versioning](https://semver.org/) (pre-1.0: minor 
 ## [Unreleased]
 
 ### Added
-
 - `tamer::rotary::RotaryEncoder` trait (`update`, `position`, `set_position`, `reset`, `is_button_pressed`) and `NoopRotaryEncoder` mock, re-exported at the `tamer` root and `tamer::prelude`; implemented by `rustyfarian-esp-idf-peripherals::rotary::Encoder` and `rustyfarian-esp-hal-peripherals::rotary::InterruptEncoder` for tier-agnostic app code.
   The async esp-hal `rotary::Encoder` intentionally does not implement it.
 - `rustyfarian-esp-idf-peripherals::rotary` now re-exports `RotaryEncoder` and `NoopRotaryEncoder`.
@@ -28,7 +27,13 @@ This project follows [Semantic Versioning](https://semver.org/) (pre-1.0: minor 
 - `tamer::rotary`: `QuadratureDecoder::skipped_count()` (and `QuadratureInput::skipped_count()`) — monotonic, wrapping count of 2-bit Gray-code jumps, so a starved consumer can detect missed samples; `update` results are unchanged.
 - `rustyfarian-esp-hal-peripherals::rotary::Encoder::skipped_count()` pass-through; the module docs now state the measured blocking-work budget (~10 ms per step) between `wait_for_step` calls.
 
+### Fixed
+- ESP-IDF `rotary::Encoder::drop`: no use-after-free on dual-core chips (ESP32, ESP32-S3); see ADR-006.
+- ESP-IDF `rotary::Encoder::set_position` / `reset`: a concurrent edge can no longer leave the position mirror and decoder out of step.
+- ESP-IDF `rotary::Encoder::new`: a turn during construction no longer shifts the first detent.
+
 ### Changed
+- `tamer::rotary`: position wraps at the `i32` limits instead of panicking in debug builds.
 - `tamer::presence`: `PresenceSession::restore` / `snapshot` keep `last_onset_age` exact when the restored age exceeds the restore tick, instead of collapsing it to `now`.
   `last_onset()` still saturates at `0` in that case.
 - Docs: the ESP-IDF `rotary::Encoder` IRAM caveat (README, rustdoc, ROADMAP) now states the verified behaviour — edges during a flash write are deferred and coalesced (a dropped detent), and the device crashes only if the GPIO ISR service is installed with `ESP_INTR_FLAG_IRAM` elsewhere. No code change.
