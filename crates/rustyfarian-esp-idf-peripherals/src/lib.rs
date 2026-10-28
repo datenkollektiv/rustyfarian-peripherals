@@ -44,7 +44,8 @@
 //! # Status
 //!
 //! The first driver has landed: [`rotary::Encoder`], an interrupt-driven
-//! quadrature rotary encoder with a debounced push button. Further drivers
+//! quadrature rotary encoder with a debounced push button, which implements
+//! [`tamer::rotary::RotaryEncoder`] for tier-agnostic app code. Further drivers
 //! are added **downstream-driven**: when a consumer needs an input on
 //! ESP-IDF, implement a thin wrapper that delegates all decoding to `tamer`.
 //!

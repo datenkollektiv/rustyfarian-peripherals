@@ -29,7 +29,6 @@ timeline
 
     Near term : Docs-sync — align README / AGENTS framing with VISION input+output scope
               : Hall linear examples — hardware-verify hal/idf c3 hall_linear once a 49E sensor is on hand
-              : Shared rotary encoder trait — extract from the IDF and esp-hal twins (ADR-006)
 
     Mid term  : IRAM-safe encoder ISR — run from SRAM for OTA / flash-cache-off safety
 
@@ -59,12 +58,6 @@ timeline
 
 **Goal:** the repo's first I2C example on both tiers, feeding `tamer::mpu6050` burst reads into `tilt`.
 See [Feature: MPU6050 v1](features/mpu6050-imu-v1.md).
-
-## Near term — Shared rotary encoder trait
-
-**Goal:** one encoder trait (`update`, `position`, `set_position`, `reset`, `is_button_pressed`) over the IDF `Encoder` and the esp-hal `InterruptEncoder`.
-Rotation maps to `position()` on both tiers since the 2026-10-27 amendment; the async `wait_for_step` stays an esp-hal extra outside the trait.
-See [ADR-006 Amendment](adr/006-interrupt-encoder-instance-and-api-shape.md) and the archived [esp-hal Rotary Encoder Twin v1](features/archive/esp-hal-rotary-twin-v1.md).
 
 ## Mid term — IRAM-safe interrupt handler
 

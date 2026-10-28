@@ -196,6 +196,13 @@ impl Default for EncoderConfig {
 /// the button for debounce/click/long-press/double-click timing. See the
 /// [module docs](self) for the read, arm, re-read scheme and the recommended
 /// loop.
+///
+/// This type intentionally does **not** implement
+/// [`RotaryEncoder`].
+/// Its `position()` only advances while `wait_for_step` is being polled, so
+/// behind the trait it would look like a drop-in for an interrupt-decoded
+/// encoder but silently lose detents under load.
+/// Use [`InterruptEncoder`] for tier-agnostic code.
 pub struct Encoder<'d> {
     pin_a: Input<'d>,
     pin_b: Input<'d>,

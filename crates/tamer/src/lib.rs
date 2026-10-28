@@ -54,7 +54,7 @@
 //!   tick-base reset (e.g. deep sleep).
 //! - [`range_map`] — clamped linear remap from a `u16` analog reading to a
 //!   `u8` output (e.g. ADC counts to LEDC PWM duty).
-//! - [`rotary`] — quadrature / Gray-code decoding with detent handling.
+//! - [`rotary`] — quadrature / Gray-code decoding with detent handling, plus the tier-agnostic [`RotaryEncoder`] trait and its `NoopRotaryEncoder` mock.
 //! - [`button`] — press / release / click / double-click / long-press events,
 //!   built on the [`debounce`] edge detector.
 //! - [`mpu6050`] — MPU6050 IMU register map, raw-burst parsing, and
@@ -158,12 +158,12 @@ pub mod range_map;
 pub use range_map::RangeMap;
 
 /// Quadrature rotary encoder decoder — [`QuadratureDecoder`](rotary::QuadratureDecoder)
-/// and [`EncoderDirection`](rotary::EncoderDirection).
+/// and [`EncoderDirection`](rotary::EncoderDirection), plus the [`RotaryEncoder`](rotary::RotaryEncoder) trait and `NoopRotaryEncoder` mock.
 ///
 /// Enable the `hal` feature to get the `QuadratureInput` adapter that reads
 /// two `embedded-hal` `InputPin`s directly.
 pub mod rotary;
-pub use rotary::{EncoderDirection, QuadratureDecoder};
+pub use rotary::{EncoderDirection, NoopRotaryEncoder, QuadratureDecoder, RotaryEncoder};
 
 #[cfg(feature = "hal")]
 pub use rotary::QuadratureInput;
@@ -278,7 +278,9 @@ pub mod prelude {
         SessionState, TriggerMode,
     };
     pub use crate::range_map::RangeMap;
-    pub use crate::rotary::{EncoderDirection, QuadratureDecoder};
+    pub use crate::rotary::{
+        EncoderDirection, NoopRotaryEncoder, QuadratureDecoder, RotaryEncoder,
+    };
     pub use crate::smoothing::{EmaFilter, SlidingAverage};
     pub use crate::tone::{Note, SequenceMode, ToneSequencer};
     pub use crate::touch::{SwipeDirection, TouchEvent, TouchPoint, TouchTracker};
