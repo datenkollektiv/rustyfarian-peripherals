@@ -25,7 +25,7 @@ A rotation-only task on the same cooperative executor is still stalled, so `spli
 - Phase-2 candidate A: `Encoder::split()` plus the rotation half on an esp-rtos interrupt-priority executor, shown in `hal_s3_rotary_isolated`.
 - Phase-2 candidate B: decode inside a GPIO interrupt handler, mirroring the IDF tier, at the cost of statics and `critical_section`.
 - The counter must not change `QuadratureDecoder::update` results; a 2-bit jump still yields `None`.
-- The counter must stay compatible with the arithmetic decode planned in [IRAM-safe ISR v1](iram-safe-isr-v1.md).
+- The counter must stay compatible with the arithmetic decode planned in [IRAM-safe ISR v1](../iram-safe-isr-v1.md).
 - The shared encoder trait (ADR-006) stays the synchronous core; phase 2 must not force an async trait.
 - Tests cover CW and CCW symmetrically.
 

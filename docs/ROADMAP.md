@@ -26,8 +26,6 @@ timeline
     title rustyfarian-peripherals Roadmap
 
     Ready     : MPU6050 hardware example twin — repo's first I2C example (hal/idf c3, burst read → tilt) (feature-doc)
-              : Hot-plug attach/detach — tamer::hotplug state machine over probe outcomes (done, unreleased)
-              : esp-hal encoder under blocking work — phase 1 budget docs + lost-step counter, phase 2 isolation spike (feature-doc)
 
     Near term : Docs-sync — align README / AGENTS framing with VISION input+output scope
               : Hall linear examples — hardware-verify hal/idf c3 hall_linear once a 49E sensor is on hand
@@ -62,22 +60,10 @@ timeline
 **Goal:** the repo's first I2C example on both tiers, feeding `tamer::mpu6050` burst reads into `tilt`.
 See [Feature: MPU6050 v1](features/mpu6050-imu-v1.md).
 
-## Ready — Hot-plug attach/detach
-
-**Goal:** a pure `tamer::hotplug` machine that turns per-probe `ok` outcomes into `Attached` / `Detached` transitions for removable devices.
-Lands on one consumer by maintainer waiver of the demand-driven rule.
-See [Feature: Hot-Plug v1](features/hotplug-v1.md).
-
-## Ready — esp-hal encoder under blocking work
-
-**Goal:** the async esp-hal `Encoder` keeps 30/30 detents while the UI task blocks for ~90 ms.
-Phase 1 (docs + `tamer::rotary` lost-step counter) is desk work; phase 2 picks an isolation approach on the CrowPanel and amends ADR-006.
-See [Feature: esp-hal Encoder Under Blocking Work v1](features/encoder-blocking-work-v1.md).
-
 ## Near term — Shared rotary encoder trait
 
-**Goal:** one encoder trait (`update`, `position`, `set_position`, `reset`, `is_button_pressed`) over the IDF interrupt driver and the async esp-hal twin.
-Unblocked by the twin's CrowPanel validation on 2026-10-14.
+**Goal:** one encoder trait (`update`, `position`, `set_position`, `reset`, `is_button_pressed`) over the IDF `Encoder` and the esp-hal `InterruptEncoder`.
+Rotation maps to `position()` on both tiers since the 2026-10-27 amendment; the async `wait_for_step` stays an esp-hal extra outside the trait.
 See [ADR-006 Amendment](adr/006-interrupt-encoder-instance-and-api-shape.md) and the archived [esp-hal Rotary Encoder Twin v1](features/archive/esp-hal-rotary-twin-v1.md).
 
 ## Mid term — IRAM-safe interrupt handler
