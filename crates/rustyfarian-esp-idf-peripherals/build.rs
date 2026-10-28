@@ -7,14 +7,22 @@
 // The cargo:rustc-check-cfg lines register each key so Cargo's check-cfg lint
 // does not warn about unexpected_cfgs.
 //
-// For ESP-IDF targets this build script also re-emits the ESP-IDF link args via
-// `embuild::espidf::sysenv::output()` so example and test binaries link against
-// ESP-IDF — link args from a dependency's build script do not propagate to
-// dependents that build binaries. See rustyfarian-esp-idf-power/build.rs.
+// For ESP-IDF targets this build script also calls
+// `embuild::espidf::sysenv::output()`, which re-emits esp-idf-sys's link args
+// *and* its `esp_idf_*` sdkconfig cfgs for this crate — neither propagates from
+// a dependency's build script on its own. That is how
+// `cfg(esp_idf_freertos_unicore)` reaches `rotary` (verified: it appears in
+// this crate's build-script output on the C3). If it ever stopped arriving, a
+// single-core build fails to compile rather than misbehaving: the dual-core
+// branch calls `esp_ipc_call_blocking`, which unicore bindings do not contain.
+// See rustyfarian-esp-idf-power/build.rs.
 
 fn main() {
     println!("cargo:rustc-check-cfg=cfg(esp32)");
     println!("cargo:rustc-check-cfg=cfg(esp32s3)");
+    // Emitted by esp-idf-sys for single-core FreeRTOS builds (C3, C6); gates
+    // the dual-core-only IPC teardown barrier in `rotary`.
+    println!("cargo:rustc-check-cfg=cfg(esp_idf_freertos_unicore)");
 
     let target = std::env::var("TARGET").unwrap_or_default();
     match target.as_str() {

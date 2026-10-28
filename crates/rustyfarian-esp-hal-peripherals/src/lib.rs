@@ -26,5 +26,12 @@
 
 pub mod rotary;
 
+// Compile-time guard: fails to build if the concrete type stops implementing
+// the shared trait. Zero cost; generates no code.
+const _: () = {
+    const fn assert_impl<E: tamer::rotary::RotaryEncoder>() {}
+    assert_impl::<rotary::InterruptEncoder<'static>>();
+};
+
 #[doc(inline)]
 pub use tamer::*;

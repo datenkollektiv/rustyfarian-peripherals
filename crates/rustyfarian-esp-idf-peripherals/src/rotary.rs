@@ -59,6 +59,7 @@
 use core::cell::RefCell;
 use core::ffi::c_void;
 use core::fmt;
+use core::mem::ManuallyDrop;
 use core::sync::atomic::{AtomicBool, AtomicI32, AtomicU32, Ordering};
 
 use critical_section::Mutex;
@@ -135,6 +136,7 @@ fn encoder_isr(ctx: &IsrContext) {
         let a = unsafe { esp_idf_svc::sys::gpio_get_level(ctx.pin_a) } != 0;
         let b = unsafe { esp_idf_svc::sys::gpio_get_level(ctx.pin_b) } != 0;
 
+        // The mirror's `fetch_add` / `fetch_sub` wrap like the decoder's position.
         if let Some(direction) = ctx.decoder.borrow_ref_mut(cs).update(a, b) {
             match direction {
                 EncoderDirection::Clockwise => {
@@ -159,16 +161,136 @@ fn encoder_isr(ctx: &IsrContext) {
 /// `arg` must be the `*mut c_void` produced from a live `&IsrContext` — the
 /// same pointer is registered for both pins in `Encoder::new_with_config`.
 /// The referenced `IsrContext` must remain valid for every call to this
-/// function until both pins have been disarmed and the `Drop`
-/// critical-section barrier has completed; `Encoder::drop` upholds this
+/// function until both pins have been disarmed and the teardown barriers
+/// (critical section, plus IPC on dual-core) have completed;
+/// `Encoder::drop` upholds this
 /// ordering. The function body only reaches into `IsrContext` through
 /// atomics and a `critical_section`, allocates nothing, and calls no
 /// blocking or non-reentrant ESP-IDF API, so it is safe to execute in
 /// interrupt context.
+///
+/// `arg` may be NULL: ESP-IDF v5.3.3's `gpio_isr_loop` (`gpio.c` lines
+/// 465-466) tests `gpio_isr_func[n].fn != NULL` and then calls
+/// `fn(gpio_isr_func[n].args)`, loading `fn` and `args` separately with no
+/// lock, while `gpio_isr_handler_remove` (lines 542-553) nulls both under a
+/// spinlock the dispatcher never takes. A remove that lands between the two
+/// loads therefore yields a call with a NULL `arg`, which is ignored here.
+///
+/// This safety argument depends on that `gpio.c` source and must be
+/// re-verified on every ESP-IDF bump (`ESP_IDF_VERSION` in
+/// `.cargo/config.toml.dist`).
 unsafe extern "C" fn encoder_isr_trampoline(arg: *mut c_void) {
-    // SAFETY: see the function's safety contract above.
+    if arg.is_null() {
+        // A NULL arg means `gpio_isr_handler_remove` raced the dispatcher's
+        // separate `fn` / `args` loads.
+        // There is no context to decode into, so there is nothing to do.
+        return;
+    }
+    // SAFETY: `arg` is non-null and, per the contract above, points at a
+    // live `IsrContext` (kept alive by the `Drop` barriers).
     let ctx = unsafe { &*arg.cast::<IsrContext>() };
     encoder_isr(ctx);
+}
+
+/// No-op callback for the IPC teardown barrier.
+#[cfg(not(esp_idf_freertos_unicore))]
+extern "C" fn noop_ipc(_arg: *mut c_void) {}
+
+/// Waits until every GPIO ISR dispatch that was in flight on either core has
+/// returned. Returns `true` if the barrier completed on both cores.
+///
+/// Why this is needed (ESP-IDF v5.3.3, `components/esp_driver_gpio/src/gpio.c`):
+/// `gpio_isr_loop` (lines 465-466) runs
+/// `if (gpio_isr_func[n].fn != NULL) gpio_isr_func[n].fn(gpio_isr_func[n].args);`
+/// with plain, lock-free, separate loads of `fn` and `args` and no copy.
+/// `gpio_isr_handler_remove` (lines 542-553) only nulls them under
+/// `gpio_spinlock`, which the dispatcher never takes. The ISR service runs on
+/// the core of the first `gpio_install_isr_service` caller (lines 597-603),
+/// and IDF does not expose that core id. So on a dual-core chip a `Drop` on
+/// the *other* core can free the context after the ISR core has loaded `args`
+/// but before it has entered [`encoder_isr`]'s critical section, a window the
+/// critical-section barrier cannot see.
+///
+/// The IPC task of a core only runs once any ISR in flight on that core has
+/// returned, so a blocking no-op IPC call to each core proves no dispatch
+/// that loaded the old `args` is still pending. Both cores are covered because
+/// the ISR core is unknown; calling it for the current core from task context
+/// is fine.
+///
+/// This argument depends on the `gpio.c` source above and must be re-verified
+/// on every ESP-IDF bump (`ESP_IDF_VERSION` in `.cargo/config.toml.dist`).
+///
+/// Must be called from task context with the scheduler running (not from an
+/// ISR, not with the scheduler suspended).
+#[cfg(not(esp_idf_freertos_unicore))]
+fn ipc_isr_barrier() -> bool {
+    let mut ok = true;
+    for core in 0..2u32 {
+        // SAFETY: `noop_ipc` is a `'static` `extern "C"` fn that ignores its
+        // NULL argument; the call blocks until it has run on `core`.
+        let ret = unsafe {
+            esp_idf_svc::sys::esp_ipc_call_blocking(core, Some(noop_ipc), core::ptr::null_mut())
+        };
+        if ret != esp_idf_svc::sys::ESP_OK {
+            log::error!("esp_ipc_call_blocking(core {core}) failed: {ret}");
+            ok = false;
+        }
+    }
+    ok
+}
+
+/// Single-core FreeRTOS build: the GPIO ISR service and `Drop` (task context)
+/// share one core, so a task cannot run while a dispatch is mid-flight and
+/// no cross-core barrier is needed.
+#[cfg(esp_idf_freertos_unicore)]
+fn ipc_isr_barrier() -> bool {
+    true
+}
+
+/// Final step of teardown: publishes the tombstone, waits out any in-flight
+/// ISR, then frees the context, or leaks it if freeing cannot be proven safe.
+///
+/// - `disarmed`: both `gpio_intr_disable` and `gpio_isr_handler_remove`
+///   succeeded for every pin that may have had a handler registered. If not,
+///   the handler may still hold the old context pointer and the next edge
+///   would read freed memory, so the context is leaked.
+/// - `needs_ipc_barrier`: `false` only when no handler was ever registered
+///   with the context pointer (nothing can dispatch to it), which lets the
+///   constructor skip the IPC barrier.
+///
+/// Leaking one small allocation is always safe; freeing wrongly is not, so any
+/// doubt leaks (logged at error level).
+///
+/// Must be called from task context, with the scheduler running, after the
+/// pins have been disarmed. It must not be called inside a critical section,
+/// with interrupts masked on either core, from an IPC callback, or with the
+/// scheduler suspended: `esp_ipc_call_blocking` would block indefinitely.
+fn release_ctx(ctx: &mut ManuallyDrop<Box<IsrContext>>, disarmed: bool, needs_ipc_barrier: bool) {
+    // Tombstone: an ISR that still runs (or fires despite the disarm) sees
+    // `armed == false` and returns without touching the context.
+    ctx.armed.store(false, Ordering::Release);
+
+    if !disarmed {
+        log::error!("rotary teardown: GPIO disarm failed; leaking the ISR context");
+        return;
+    }
+
+    // Barrier 1 (single-core argument, defence in depth on dual-core): cannot
+    // return until any `encoder_isr` already inside its single critical
+    // section has exited.
+    critical_section::with(|_cs| {});
+
+    // Barrier 2 (dual-core): covers a dispatch that loaded `args` but has not
+    // yet entered `encoder_isr`'s critical section.
+    if !needs_ipc_barrier || ipc_isr_barrier() {
+        // SAFETY: every handler is removed, no ISR is in flight on any core,
+        // and `release_ctx` is called at most once per context.
+        unsafe { ManuallyDrop::drop(ctx) };
+    } else {
+        // `Drop` cannot return an error. Freeing without the barrier risks a
+        // use-after-free in ISR context, so leak.
+        log::error!("rotary teardown: IPC barrier failed; leaking the ISR context");
+    }
 }
 
 /// Installs the shared ESP-IDF GPIO ISR service, if not already installed.
@@ -192,6 +314,17 @@ fn install_isr_service() -> Result<(), EncoderError> {
     Ok(())
 }
 
+/// Failure from [`arm_gpio_isr`], recording whether a handler may have been
+/// registered with the context pointer before the failure.
+struct ArmFailure {
+    error: EncoderError,
+    /// `false` only if the failure happened before `gpio_isr_handler_add`
+    /// stored the handler. In ESP-IDF v5.3.3 that call fails only in its two
+    /// `GPIO_CHECK`s (`gpio.c:529-530`), before it stores the handler; like
+    /// the other `gpio.c` arguments, re-verify on every ESP-IDF bump.
+    handler_may_be_registered: bool,
+}
+
 /// Arms a persistent `AnyEdge` GPIO interrupt on `pin`, routing it to
 /// `trampoline` with `ctx_ptr` as its `void*` argument.
 ///
@@ -209,7 +342,7 @@ unsafe fn arm_gpio_isr(
     pin: i32,
     trampoline: unsafe extern "C" fn(*mut c_void),
     ctx_ptr: *mut c_void,
-) -> Result<(), EncoderError> {
+) -> Result<(), ArmFailure> {
     // SAFETY: `pin` is a valid GPIO number (captured from a live `PinDriver`
     // by the caller); this only writes hardware interrupt-configuration
     // registers for that pin.
@@ -220,10 +353,13 @@ unsafe fn arm_gpio_isr(
         )
     };
     if ret != esp_idf_svc::sys::ESP_OK {
-        return Err(EncoderError::Isr {
-            call: "gpio_set_intr_type",
-            pin,
-            code: ret,
+        return Err(ArmFailure {
+            error: EncoderError::Isr {
+                call: "gpio_set_intr_type",
+                pin,
+                code: ret,
+            },
+            handler_may_be_registered: false,
         });
     }
 
@@ -232,10 +368,13 @@ unsafe fn arm_gpio_isr(
     // guarantees (upheld by `Encoder::new_with_config` / `Encoder::drop`).
     let ret = unsafe { esp_idf_svc::sys::gpio_isr_handler_add(pin, Some(trampoline), ctx_ptr) };
     if ret != esp_idf_svc::sys::ESP_OK {
-        return Err(EncoderError::Isr {
-            call: "gpio_isr_handler_add",
-            pin,
-            code: ret,
+        return Err(ArmFailure {
+            error: EncoderError::Isr {
+                call: "gpio_isr_handler_add",
+                pin,
+                code: ret,
+            },
+            handler_may_be_registered: false,
         });
     }
 
@@ -243,10 +382,13 @@ unsafe fn arm_gpio_isr(
     // GPIO number; no aliasing or lifetime hazard.
     let ret = unsafe { esp_idf_svc::sys::gpio_intr_enable(pin) };
     if ret != esp_idf_svc::sys::ESP_OK {
-        return Err(EncoderError::Isr {
-            call: "gpio_intr_enable",
-            pin,
-            code: ret,
+        return Err(ArmFailure {
+            error: EncoderError::Isr {
+                call: "gpio_intr_enable",
+                pin,
+                code: ret,
+            },
+            handler_may_be_registered: true,
         });
     }
 
@@ -256,6 +398,9 @@ unsafe fn arm_gpio_isr(
 
 /// Best-effort teardown of a single pin's `AnyEdge` ISR — the inverse of
 /// [`arm_gpio_isr`]. Disables the interrupt, then removes the handler.
+///
+/// Returns `true` only if both ESP-IDF calls succeeded. Callers must not free
+/// the context a failed pin was armed with.
 ///
 /// Both ESP-IDF calls are idempotent, so this is safe to invoke on a pin that
 /// was only *partially* armed (or never armed at all): if `arm_gpio_isr`
@@ -268,7 +413,8 @@ unsafe fn arm_gpio_isr(
 ///
 /// `pin` must be a valid GPIO number, or one that was previously passed to
 /// [`arm_gpio_isr`].
-unsafe fn disarm_gpio_isr(pin: i32) {
+#[must_use]
+unsafe fn disarm_gpio_isr(pin: i32) -> bool {
     // SAFETY: disabling and removing an ISR handler on a pin that may or may
     // not currently have one registered is well-defined and idempotent in
     // ESP-IDF; both calls are safe to make from ordinary (non-ISR) context.
@@ -279,6 +425,7 @@ unsafe fn disarm_gpio_isr(pin: i32) {
             "Encoder teardown (GPIO {pin}): gpio_intr_disable={r1} gpio_isr_handler_remove={r2}"
         );
     }
+    r1 == esp_idf_svc::sys::ESP_OK && r2 == esp_idf_svc::sys::ESP_OK
 }
 
 /// Errors returned by [`Encoder::new`] / [`Encoder::new_with_config`].
@@ -389,8 +536,9 @@ pub struct Encoder<'d> {
     button: PinDriver<'d, Input>,
     button_sm: ButtonDecoder,
     /// Heap-allocated so its address is stable across `new_with_config`
-    /// returning `Self` by value — see [`IsrContext`].
-    ctx: Box<IsrContext>,
+    /// returning `Self` by value — see [`IsrContext`]. `ManuallyDrop` so
+    /// [`Drop`] can leak it when the teardown barrier fails.
+    ctx: ManuallyDrop<Box<IsrContext>>,
 }
 
 impl<'d> Encoder<'d> {
@@ -438,9 +586,9 @@ impl<'d> Encoder<'d> {
     ///   only after *both* are armed (see the `armed` tombstone); any edge that
     ///   occurs *during* construction is deliberately ignored. If the knob is
     ///   already turning while `new`/`new_with_config` runs, that initial motion
-    ///   is not counted. The decoder is seeded from the live A/B level at the
-    ///   end of construction, so steady-state decoding stays correct — only
-    ///   in-construction motion is dropped.
+    ///   is not counted. The decoder is reseeded from the live A/B level in the
+    ///   same critical section that publishes `armed`, so steady-state decoding
+    ///   stays correct — only in-construction motion is dropped.
     /// - **Not IRAM-safe (v1).** Edges during a flash-cache-disabled window
     ///   (an NVS or OTA write) are deferred and coalesced, so a detent may be
     ///   dropped; the device only crashes if the GPIO ISR service was
@@ -490,12 +638,16 @@ impl<'d> Encoder<'d> {
 
         install_isr_service()?;
 
+        // From here on `ctx` is only released through `release_ctx`, which
+        // waits out any in-flight ISR dispatch (or leaks) before freeing.
+        let mut ctx = ManuallyDrop::new(ctx);
+
         // The pointer registered with ESP-IDF for both pins. Taken from the
         // `Box`'s referent (not `Box::into_raw`) — the `Box` field on
         // `Encoder` keeps ownership and its heap allocation stable, so this
         // pointer stays valid for as long as `ctx` (ultimately `self.ctx`)
         // is alive.
-        let ctx_ptr = core::ptr::from_ref(ctx.as_ref()) as *mut c_void;
+        let ctx_ptr = core::ptr::from_ref::<IsrContext>(&**ctx) as *mut c_void;
 
         log::info!("Configuring encoder A (GPIO {num_a})...");
         // SAFETY: `ctx_ptr` points at `ctx`, which outlives the armed
@@ -506,8 +658,14 @@ impl<'d> Encoder<'d> {
             // SAFETY: pin A was, at most, partially armed by the failed call
             // above; `disarm_gpio_isr` is idempotent and safe to call
             // regardless of how far arming got.
-            unsafe { disarm_gpio_isr(num_a) };
-            return Err(e);
+            let disarmed = unsafe { disarm_gpio_isr(num_a) };
+            // `ArmFailure::handler_may_be_registered` is false only if arming
+            // failed before `gpio_isr_handler_add` stored the handler;
+            // otherwise keep the IPC barrier. With no handler registered nothing can dispatch to
+            // `ctx`, so a failed disarm cannot leave a dangling pointer.
+            let never_registered = !e.handler_may_be_registered;
+            release_ctx(&mut ctx, disarmed || never_registered, !never_registered);
+            return Err(e.error);
         }
 
         log::info!("Configuring encoder B (GPIO {num_b})...");
@@ -517,19 +675,35 @@ impl<'d> Encoder<'d> {
             // Pin B is disarmed defensively in case it was partially armed
             // (e.g. `gpio_isr_handler_add` succeeded but `gpio_intr_enable`
             // failed) — `disarm_gpio_isr` is idempotent either way.
-            unsafe {
-                disarm_gpio_isr(num_a);
-                disarm_gpio_isr(num_b);
-            }
-            return Err(e);
+            // Pin A's handler was registered, so the IPC barrier is required,
+            // and the context is leaked unless both pins disarmed cleanly.
+            let disarmed = unsafe { disarm_gpio_isr(num_a) & disarm_gpio_isr(num_b) };
+            release_ctx(&mut ctx, disarmed, true);
+            return Err(e.error);
         }
 
         // Publish `armed = true` only now that BOTH pins are fully armed.
         // The ISR's tombstone check (`if !armed { return }`) must never
         // observe `true` before both interrupts are ready to be serviced;
         // any edge that lands on the already-armed A pin while B is still
-        // being configured is safely dropped by that check.
-        ctx.armed.store(true, Ordering::Release);
+        // being configured is dropped by that check, so the decoder levels
+        // seeded before arming may be stale by now.
+        //
+        // Re-read the live levels and reseed the decoder in the SAME
+        // critical section that publishes `armed`, so no ISR can interleave
+        // between the reseed and the publish (the ISR's whole body is one
+        // critical section too). A fresh decoder is fine here: position and
+        // the skipped-step state are still zero, and the atomic mirror is 0.
+        critical_section::with(|cs| {
+            // SAFETY: same rationale as `encoder_isr` — `gpio_get_level`
+            // reads an input-level register and `num_a` / `num_b` are valid
+            // GPIO numbers taken from live `PinDriver`s.
+            let a = unsafe { esp_idf_svc::sys::gpio_get_level(num_a) } != 0;
+            let b = unsafe { esp_idf_svc::sys::gpio_get_level(num_b) } != 0;
+            *ctx.decoder.borrow_ref_mut(cs) = QuadratureDecoder::new(a, b, config.steps_per_detent);
+            ctx.position.store(0, Ordering::Relaxed);
+            ctx.armed.store(true, Ordering::Release);
+        });
 
         // Seed the button decoder from a live read, so a button already held
         // at construction does not register an artificial press.
@@ -570,9 +744,12 @@ impl<'d> Encoder<'d> {
 
     /// Overwrites the encoder position and clears the decoder's internal
     /// accumulator.
+    ///
+    /// The atomic mirror and the decoder are written in one critical section
+    /// so the ISR cannot interleave and leave a permanent offset between them.
     pub fn set_position(&mut self, position: i32) {
-        self.ctx.position.store(position, Ordering::Relaxed);
         critical_section::with(|cs| {
+            self.ctx.position.store(position, Ordering::Relaxed);
             self.ctx.decoder.borrow_ref_mut(cs).set_position(position);
         });
     }
@@ -639,39 +816,54 @@ impl Drop for Encoder<'_> {
     /// Tears down the armed interrupts before the `PinDriver`s and the
     /// heap-allocated [`IsrContext`] are released.
     ///
-    /// The teardown order is load-bearing and closes a use-after-free race
-    /// against an ISR that may be mid-flight on another core (dual-core
-    /// ESP32-S3): (1) `gpio_intr_disable` both pins, (2) `gpio_isr_handler_remove`
-    /// both pins, (3) store `armed = false` (`Release`) then take a
-    /// `critical_section::with(|_| {})` barrier that cannot return until any
-    /// in-flight [`encoder_isr`] (whose *entire* body runs in one critical
-    /// section) has exited, (4) the compiler then frees the `Box<IsrContext>`.
-    /// Steps 1–2 are best-effort (failures logged in [`disarm_gpio_isr`], not
-    /// propagated — `Drop` cannot return `Result`).
+    /// The order is load-bearing and closes a use-after-free race between the
+    /// free and an ISR that may be mid-flight. (1) `gpio_intr_disable` both
+    /// pins, (2) `gpio_isr_handler_remove` both pins (best-effort; failures
+    /// are logged in [`disarm_gpio_isr`], since `Drop` cannot return
+    /// `Result`), (3) store `armed = false` and take a
+    /// `critical_section::with(|_| {})` barrier, (4) on dual-core builds, a
+    /// blocking no-op IPC call to each core, (5) only then free the
+    /// `Box<IsrContext>`.
     ///
-    /// The full proof, and a residual-risk note (the barrier does not cover an
-    /// ISR dispatched but not yet inside its critical section — a few-instruction
-    /// window expected to be serialized by ESP-IDF's ISR service but not yet
-    /// device-confirmed), lives in ADR-006, not restated here.
+    /// Verified against ESP-IDF v5.3.3 (`esp_driver_gpio/src/gpio.c`):
+    /// `gpio_isr_loop` (lines 465-466) loads `fn` and `args` separately with no
+    /// lock and copies nothing, and `gpio_isr_handler_remove` (lines 542-553)
+    /// only nulls them under `gpio_spinlock`, which the dispatcher never takes.
+    /// The ISR service runs on the core of the first `gpio_install_isr_service`
+    /// caller (lines 597-603).
+    /// This argument depends on that source and must be re-verified on every
+    /// ESP-IDF bump (`ESP_IDF_VERSION` in `.cargo/config.toml.dist`).
+    /// Consequences:
+    ///
+    /// - The critical-section barrier (3) proves no [`encoder_isr`] is *inside*
+    ///   its critical section. On single-core chips (C3, C6) that is enough:
+    ///   `Drop` runs in task context on the ISR core, so no dispatch can be
+    ///   half-way between loading `args` and entering `encoder_isr`.
+    /// - On dual-core chips (ESP32, S3) a dispatch on the other core may have
+    ///   loaded `args` but not yet entered the critical section, which barrier
+    ///   (3) cannot see. The IPC barrier (4) closes this: a core's IPC task
+    ///   only runs after any ISR in flight on it has returned.
+    /// - A dispatch that loses the race the other way is called with a NULL
+    ///   `args`, which [`encoder_isr_trampoline`] ignores.
+    ///
+    /// If either pin fails to disarm (the handler may still hold the context
+    /// pointer) or the IPC barrier fails, the `IsrContext` is deliberately
+    /// leaked rather than freed, and an error is logged.
+    ///
+    /// `Drop` must run in task context with the FreeRTOS scheduler running. It
+    /// must not run inside a `critical_section`, with interrupts masked on
+    /// either core, from an IPC callback, with the scheduler suspended, or
+    /// during a panic unwind on the IPC task: `esp_ipc_call_blocking` would
+    /// block indefinitely.
     fn drop(&mut self) {
         // SAFETY: `pin_a` / `pin_b` were successfully armed together in
         // `new_with_config` — a construction failure tears itself down and
         // never produces an `Encoder` — so both are valid, previously-armed
         // GPIO numbers.
-        unsafe {
-            disarm_gpio_isr(self.ctx.pin_a);
-            disarm_gpio_isr(self.ctx.pin_b);
-        }
+        let disarmed = unsafe { disarm_gpio_isr(self.ctx.pin_a) & disarm_gpio_isr(self.ctx.pin_b) };
 
-        // Tombstone: any ISR invocation still in flight (or, defensively,
-        // one that fires despite step 1-2 above) now sees `armed == false`
-        // and returns immediately without touching `self.ctx`.
-        self.ctx.armed.store(false, Ordering::Release);
-
-        // Barrier: cannot return until any in-flight ISR on another core has
-        // exited its own `critical_section::with` call inside `encoder_isr`.
-        // After this returns, no ISR can still be reading `self.ctx`, so it
-        // is safe for the compiler to free the `Box<IsrContext>` next.
-        critical_section::with(|_cs| {});
+        // Tombstone, critical-section barrier, IPC barrier, then free (or
+        // leak on disarm/barrier failure) — see the doc comment above.
+        release_ctx(&mut self.ctx, disarmed, true);
     }
 }

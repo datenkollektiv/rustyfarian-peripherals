@@ -55,7 +55,17 @@ This ADR **records the departure** from AGENTS.md's "every hardware interaction 
 
 Steps 1–2 are best-effort: failures are logged (`log::warn!`), never propagated (`Drop` cannot return `Result`).
 
-**Residual risk (needs device confirmation):** the barrier only synchronizes with an ISR invocation that has *already entered* its critical section when `drop` makes its own `critical_section::with` call. It does not, by itself, prove that an invocation dispatched a few instructions earlier — after the hardware edge fired but before `encoder_isr` reaches its critical section — cannot race a subsequent free. That window is a handful of instructions (trampoline pointer cast + call). ESP-IDF's shared GPIO ISR service is *expected* to serialize `gpio_isr_handler_remove` against any in-flight dispatch on another core, which would make step 2 alone sufficient and the barrier pure defense-in-depth — but this has not been confirmed against ESP-IDF's internal locking. Verify by reading the IDF GPIO driver source for this wave, or by a construct/drop stress test while another core spins the encoder, before relying on this in a safety-critical context. The `rotary` module's `Drop` doc points here rather than restating this proof.
+**Residual risk — fixed in code, pending device confirmation (2026-10-28).**
+The barrier in step 3 only synchronizes with an ISR invocation that has *already entered* its critical section.
+ESP-IDF v5.3.3 does not close the earlier window: `gpio_isr_loop` loads `fn` and `args` from the handler table without a lock (`esp_driver_gpio/src/gpio.c:465-466`), and `gpio_isr_handler_remove` only nulls them under a spinlock the dispatcher never takes (`gpio.c:542-553`).
+The GPIO ISR service runs on the core of the first `gpio_install_isr_service` caller (`gpio.c:597-603`).
+On dual-core chips (ESP32, ESP32-S3), a `drop` on the other core could therefore free `Box<IsrContext>` after the ISR core loaded `args` but before `encoder_isr` entered its critical section.
+Fix: on dual-core builds, `drop` now runs a no-op `esp_ipc_call_blocking` on each core after steps 1–3 and before the free; the IPC task on a core can only run once any ISR in flight there has returned.
+Because `fn` and `args` are loaded separately, the trampoline also returns early on a null `arg`.
+If either pin fails to disarm or the IPC barrier fails, `drop` leaks the context instead of freeing it, since a still-registered handler could reach it.
+This argument rests on the ESP-IDF v5.3.3 sources cited above (`ESP_IDF_VERSION` in `.cargo/config.toml.dist`); re-verify it on every ESP-IDF bump.
+Single-core chips (ESP32-C3, ESP32-C6) were never affected: `drop` runs in task context on the ISR core, so no dispatch can be mid-flight.
+`drop` must run in task context: never from an ISR or an IPC callback, inside a critical section, with interrupts masked, or with the scheduler suspended — `esp_ipc_call_blocking` would block forever.
 
 ## Alternatives Considered
 |                                              Alternative | Pros                                                          | Cons                                                                                                                       | Why Rejected                                                                                                             |
