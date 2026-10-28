@@ -40,7 +40,7 @@ The hardware tiers do not build for the host. After any esp-* bump:
   - I2C: `hal_c3_i2c_scan`, `idf_c3_i2c_scan`
   - Xtensa bare-metal: `hal_esp_b3f`, `hal_s3_b3f`
   - Xtensa bare-metal async (esp-rtos / embassy): `hal_s3_rotary`
-  - Xtensa ESP-IDF + `critical-section` link path: `idf_s3_rotary`
+  - Xtensa ESP-IDF GPIO ISR + `IsrCriticalSection` path: `idf_s3_rotary`
 
 Device builds need `just setup-cargo-config` (linker scripts / targets) and, for
 ESP-IDF and Xtensa, `just setup-toolchain` (espup `esp` channel). `just doctor`
@@ -55,7 +55,7 @@ reports both plus the resolved (RAM-disk) target dirs.
 
 Minimum after an esp stack bump, boards permitting: `hal_c3_blink` and
 `idf_c3_blink` (both tiers boot on the new stack), plus `hal_s3_rotary` when an
-S3 is present (async edge futures in task context), and `idf_s3_rotary` (ISR + `critical-section` path
+S3 is present (async edge futures in task context), and `idf_s3_rotary` (ISR + `IsrCriticalSection` path
 that `cargo check` cannot prove). Record "compile-verified only" honestly when no board is attached.
 
 ## Dependency Updates
@@ -80,12 +80,14 @@ reflect the actual semantics.
   `esp-idf-hal` minor requires a matching `esp-idf-sys` minor and an `embuild`
   floor, and `esp-idf-svc` requires the same `esp-idf-hal` minor. Bump all four in
   one diff.
-- `critical-section = "=1.2.0"` stays pinned exactly: the rotary ISR relies on
-  esp-idf-hal supplying the FreeRTOS-backed, ISR-safe implementation via
-  `esp-idf-svc/critical-section`. On every `esp-idf-hal` bump re-read
-  `src/task.rs` (`critical_section::set_impl!`) and `src/interrupt.rs`
-  (`IsrCriticalSection` / `vPortEnterCritical`) at the new tag and record the
-  re-check date in `docs/project-lore.md`.
+- `critical-section = "=1.2.0"` stays pinned exactly for the esp-hal tier,
+  whose rotary ISR relies on esp-hal's ISR-safe impl (`esp_sync::RawMutex`).
+  The ESP-IDF tier no longer uses `critical_section` (its provider is a FreeRTOS
+  mutex, not ISR-safe; see ADR-006 "ISR-safe lock"). On every `esp-idf-hal` bump
+  re-read `src/interrupt.rs` (`IsrCriticalSection` enter/exit and its chip
+  `cfg`s) at the new tag, plus the FreeRTOS port's `xPortEnterCriticalTimeout` /
+  `vPortExitCritical` on an ESP-IDF bump, and record the re-check date in
+  `docs/project-lore.md`.
 - `ESP_IDF_VERSION` (`.cargo/config.toml.dist`) is a separate decision from the
   crate pins; moving it costs an IDF download and an `sdkconfig` re-validation.
 

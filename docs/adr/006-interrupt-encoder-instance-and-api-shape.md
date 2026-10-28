@@ -39,7 +39,7 @@ This ADR **records the departure** from AGENTS.md's "every hardware interaction 
 ## Consequences
 - Multiple `Encoder` instances are now possible and safe (no silent corruption).
 - The heap allocation (`Box<IsrContext>`) is stable and long-lived; it survives the constructor return and is freed only in `Drop`, after ISR teardown.
-- The `Drop` implementation's load-bearing order (disable interrupts → remove handlers → tombstone + critical-section barrier → free heap) closes a use-after-free race on dual-core SoCs (e.g., ESP32-S3).
+- The `Drop` implementation's load-bearing order (disable interrupts → remove handlers → tombstone + lock barrier → IPC barrier → free heap) closes a use-after-free race on dual-core SoCs (e.g., ESP32-S3).
 - The polled button half reuses `tamer::button::ButtonDecoder` directly (no seam); the interrupt half uses a per-instance context pattern that is **specific to raw ESP-IDF FFI** and not trait-ified.
 - The public API (synchronous, `update(now_ms)` poll) is compatible with a later trait extraction, but the async shape question is **deliberately deferred**: when the esp-hal twin lands and its design is proven on hardware, the trait is extracted and both impls are unified.
   If the esp-hal side needs async, that is discovered then and the trait is designed to subsume both shapes (or both are kept separate, per AGENTS.md's demand-driven rule).
@@ -50,12 +50,15 @@ This ADR **records the departure** from AGENTS.md's "every hardware interaction 
 
 1. `gpio_intr_disable` both pins — no *new* edge can trigger the ISR.
 2. `gpio_isr_handler_remove` both pins — ESP-IDF stops dispatching to the trampoline.
-3. Store `armed = false` (`Release`), then take a `critical_section::with(|_| {})` barrier. Steps 1–2 only stop *future* interrupts; an edge that fired just before them can still be running `encoder_isr` on the other core. The ISR wraps its *entire* body (tombstone check included) in one `critical_section::with`, and a critical section is mutually exclusive across cores, so this barrier cannot return until any in-flight invocation that already entered its critical section has exited it. Any invocation that enters *after* the barrier sees `armed == false` and returns without touching `self.ctx`.
-4. The compiler frees `Box<IsrContext>` after `drop` returns — safe only because 1–3 proved nothing can still observe it.
+3. Store `armed = false` (`Release`), then take a `ctx.decoder.lock(|_| {})` barrier on the per-instance `IsrLocked` section (esp-idf-hal `interrupt::IsrCriticalSection`). Steps 1–2 only stop *future* interrupts; an edge that fired just before them can still be running `encoder_isr` on the other core. The ISR wraps its *entire* body (tombstone check included) in one `lock`, and the section is mutually exclusive across cores, so this barrier cannot return until any in-flight invocation that already entered it has exited. Any invocation that enters *after* the barrier sees `armed == false` and returns without touching `self.ctx`.
+4. On dual-core builds, a blocking no-op `esp_ipc_call_blocking` on each core (see the residual risk below).
+5. `Box<IsrContext>` is freed (it is `ManuallyDrop`, released by `release_ctx`) — safe only because 1–4 proved nothing can still observe it; any disarm or IPC failure leaks it instead.
+
+Until 2026-10-28 steps 3 and the ISR used `critical_section::with`; see the amendment "ISR-safe lock" below for why that was wrong.
 
 Steps 1–2 are best-effort: failures are logged (`log::warn!`), never propagated (`Drop` cannot return `Result`).
 
-**Residual risk — fixed in code, pending device confirmation (2026-10-28).**
+**Residual risk — fixed and device-validated on ESP32-S3 (2026-10-28, `920d12e`); see the "ISR-safe lock" amendment.**
 The barrier in step 3 only synchronizes with an ISR invocation that has *already entered* its critical section.
 ESP-IDF v5.3.3 does not close the earlier window: `gpio_isr_loop` loads `fn` and `args` from the handler table without a lock (`esp_driver_gpio/src/gpio.c:465-466`), and `gpio_isr_handler_remove` only nulls them under a spinlock the dispatcher never takes (`gpio.c:542-553`).
 The GPIO ISR service runs on the core of the first `gpio_install_isr_service` caller (`gpio.c:597-603`).
@@ -145,3 +148,49 @@ It has the five methods `update`, `position`, `set_position`, `reset`, and `is_b
 The implementors are `rustyfarian_esp_idf_peripherals::rotary::Encoder` and `rustyfarian_esp_hal_peripherals::rotary::InterruptEncoder`, both delegating to their unchanged inherent methods (an additive change).
 The async esp-hal `rotary::Encoder` does not implement it, because its `position()` only advances while `wait_for_step` is polled, so behind the trait it would silently lose detents under load.
 Diagnostics (`isr_count`, `edge_count`, `skipped_count`, `pin_*_is_high`) stay outside the trait.
+
+## Amendment (2026-10-28) — ISR-safe lock
+
+**Problem.**
+Device validation of the IPC teardown fix crashed an ESP32-S3 with `LoadProhibited` on core 0 after ~480 cross-core construct/drop cycles while the knob was spun.
+The backtrace ran `encoder_isr` → `critical_section::with` → `EspCriticalSection::release` → `xQueueGiveMutexRecursive` → `xTaskRemoveFromEventList`.
+The IPC barrier was not involved.
+
+**Cause.**
+On ESP-IDF the `critical-section` provider (`esp-idf-svc`'s `critical-section` feature → `esp-idf-hal` `task::critical_section::EspCriticalSection`, esp-idf-hal 0.47.0 `src/task.rs:470-500`, `:780-800`) is a FreeRTOS **recursive mutex** taken with `xQueueTakeMutexRecursive(.., portMAX_DELAY)`.
+That is a task-context API: inside an ISR, `xTaskGetCurrentTaskHandle()` returns the interrupted task, so the ISR takes and gives the mutex as that task.
+- Cross-core contention: the ISR holds the mutex, the `drop` barrier on the other core blocks on it, and the ISR's give then unblocks a task from ISR context (`xQueueGenericSend`, FreeRTOS `queue.c:789`) — the observed crash.
+- Reverse contention: a task on the other core holds it and the ISR tries to block on it inside the ISR.
+- Same core: the ISR interrupts the task holding the mutex (e.g. inside `set_position`), the recursive take succeeds, and the `RefCell` is borrowed twice — a panic in ISR context, possible even on single-core chips.
+
+The earlier claim that this provider is "ISR-safe" was wrong.
+
+**Decision.**
+The ESP-IDF tier no longer uses `critical_section` anywhere on an ISR-reachable path.
+The decoder sits in a private `IsrLocked<T>` (`UnsafeCell` + per-instance `esp_idf_hal::interrupt::IsrCriticalSection`).
+On ESP32 / ESP32-S3 that is `xPortEnterCriticalTimeout` / `vPortExitCritical` on a `portMUX_TYPE` (the functions behind `portENTER_CRITICAL_ISR`): it masks interrupts on the calling core and spins on the mux, so it is valid in both ISR and task context.
+On chips without a mux branch in esp-idf-hal (C3, C6) it is `vPortEnterCritical` / `vPortExitCritical`, which only mask interrupts; ESP32-S2 and ESP32-P4 also take the mux path (`src/interrupt.rs:166-215`).
+The ISR body, the constructor's reseed-and-publish, `set_position` and teardown barrier 1 all use the same lock, so the barrier argument in step 3 is unchanged; barrier 2 (IPC) and the NULL-`arg` guard stay.
+A lock-free (atomics-only) ISR was not chosen here: it would need a `tamer` decoder redesign and is already planned as part of `docs/features/iram-safe-isr-v1.md`.
+
+The esp-hal tier is unaffected: esp-hal's `critical-section` impl is `esp_sync::RawMutex`, which masks interrupts and takes a core-owned spinlock on multicore, and is ISR-safe.
+
+**Status.**
+Device-validated on the CrowPanel 1.28" ESP32-S3 (ESP-IDF v5.3.3, esp-idf-hal 0.47.0) on 2026-10-28 at `920d12e`, together with the IPC teardown barrier; `aedf7ec` (the previous `critical_section` lock) crashed on the same test.
+Test: one `Encoder::new` + drop on the main task installs the GPIO ISR service on core 0; a thread pinned to core 1 (cross-core) or core 0 (same-core) then loops `new` → hold 0–20 ms → `position()` / `isr_count()` → drop while the knob is spun.
+An ISR-independent counter of raw A/B level changes separates "knob still" from "ISR dead".
+
+| Run        | Cycles | With edges | Detents | ISR edges | Raw level changes | Drop min / avg / max (µs) |
+|:-----------|-------:|-----------:|--------:|----------:|------------------:|:--------------------------|
+| Cross-core |  4,700 |    ~1,900  |     394 |     4,242 |               517 | 224 / 232 / 256           |
+| Same-core  | 10,000 |    ~2,000  |     408 |     4,189 |               475 | 215 / 236 / 283           |
+
+Both runs had no panic, `LoadProhibited`, watchdog or reboot, no `rotary teardown:` lines and no `esp_ipc_call_blocking` failures.
+The heap stayed flat at 8,695,336 bytes in steady state (minimum 8,695,284); there was no downward trend.
+The IPC barrier adds no visible drop cost cross-core.
+Two measurement notes:
+- Drop time is only meaningful with IDF `gpio` logging at ERROR and the rotary target at WARN; otherwise pin-reset INFO logging inflates drop to ~20 ms.
+- A 0–20 ms hold rarely completes a 4-step detent, so use `isr_count()`, not `position()`, to prove that edges arrived.
+
+Open: the single-core ESP32-C3 / C6 path (`vPortEnterCritical`) is compile-verified only.
+There, the old lock's failure mode was the same-core recursive re-entry, not the cross-core wake.

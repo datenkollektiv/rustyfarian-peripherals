@@ -28,6 +28,7 @@ This project follows [Semantic Versioning](https://semver.org/) (pre-1.0: minor 
 - `rustyfarian-esp-hal-peripherals::rotary::Encoder::skipped_count()` pass-through; the module docs now state the measured blocking-work budget (~10 ms per step) between `wait_for_step` calls.
 
 ### Fixed
+- ESP-IDF `rotary::Encoder`: the GPIO ISR no longer takes `critical_section`, which on ESP-IDF is a FreeRTOS mutex and crashed an ESP32-S3 (`xTaskRemoveFromEventList` in ISR context) under cross-core construct/drop; it now uses esp-idf-hal's ISR-safe `interrupt::IsrCriticalSection`. See ADR-006.
 - ESP-IDF `rotary::Encoder::drop`: no use-after-free on dual-core chips (ESP32, ESP32-S3); see ADR-006.
 - ESP-IDF `rotary::Encoder::set_position` / `reset`: a concurrent edge can no longer leave the position mirror and decoder out of step.
 - ESP-IDF `rotary::Encoder::new`: a turn during construction no longer shifts the first detent.

@@ -60,8 +60,9 @@ esp-idf-hal  = { version = "=0.47.0" }
 esp-idf-svc  = { version = "=0.53.0" }
 esp-idf-sys  = { version = "=0.38.1" }
 embuild      = { version = "=0.33.5", features = ["espidf"] }
-# Exact: the rotary ISR relies on esp-idf-hal supplying the FreeRTOS-backed,
-# ISR-safe `critical-section` impl; see docs/project-lore.md.
+# Exact: the esp-hal tier's rotary ISR relies on esp-hal's ISR-safe
+# `critical-section` impl (interrupt mask + spinlock). The ESP-IDF provider is a
+# FreeRTOS mutex and NOT ISR-safe; see docs/project-lore.md.
 critical-section = { version = "=1.2.0" }
 log         = { version = "0.4" }
 anyhow      = { version = "1.0" }

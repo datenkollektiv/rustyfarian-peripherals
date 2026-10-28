@@ -20,14 +20,13 @@ Actual behaviour today (verified against ESP-IDF v5.3.2 and esp-idf-hal 0.47.0, 
 
 Flash-resident pieces on the current ISR path, each of which must go before the IRAM flag can be set:
 
-| Piece                                    | Where it lives                                      | Why it is flash-resident                                                          |
-|:-----------------------------------------|:----------------------------------------------------|:----------------------------------------------------------------------------------|
-| `encoder_isr_trampoline` / `encoder_isr` | esp-idf tier `.text`                                | No `#[link_section]`.                                                             |
-| `QuadratureDecoder::update`              | `tamer` `.text`                                     | Monomorphic, not `#[inline(always)]`.                                             |
-| `QUAD_TABLE`                             | `tamer` `.rodata` → flash DROM                      | `static` lookup table.                                                            |
-| `gpio_get_level`                         | ESP-IDF `esp_driver_gpio`                           | Plain function; `CONFIG_GPIO_CTRL_FUNC_IN_IRAM` does not cover `get_level`.       |
-| `critical_section::with`                 | esp-idf-hal `_critical_section_1_0_acquire/release` | `enter`/`exit` are `.iram1`, but the `set_impl!` wrappers that call them are not. |
-| `RefCell` borrow-failure panic path      | `core` `.text`                                      | Never taken in practice, but a jump to flash if it were.                          |
+| Piece                                    | Where it lives                                      | Why it is flash-resident                                                                |
+|:-----------------------------------------|:----------------------------------------------------|:----------------------------------------------------------------------------------------|
+| `encoder_isr_trampoline` / `encoder_isr` | esp-idf tier `.text`                                | No `#[link_section]`.                                                                   |
+| `QuadratureDecoder::update`              | `tamer` `.text`                                     | Monomorphic, not `#[inline(always)]`.                                                   |
+| `QUAD_TABLE`                             | `tamer` `.rodata` → flash DROM                      | `static` lookup table.                                                                  |
+| `gpio_get_level`                         | ESP-IDF `esp_driver_gpio`                           | Plain function; `CONFIG_GPIO_CTRL_FUNC_IN_IRAM` does not cover `get_level`.             |
+| `IsrLocked::lock`                        | esp-idf-hal `IsrCriticalSection` (since 2026-10-28) | Inlined `enter`/`exit` wrappers land in flash `encoder_isr`; the port callees are IRAM. |
 
 ## Scope
 
