@@ -56,20 +56,69 @@
 //! The trait impl delegates one-to-one to the inherent methods, which remain
 //! available.
 
-use core::cell::RefCell;
+use core::cell::UnsafeCell;
 use core::ffi::c_void;
 use core::fmt;
 use core::mem::ManuallyDrop;
 use core::sync::atomic::{AtomicBool, AtomicI32, AtomicU32, Ordering};
 
-use critical_section::Mutex;
 use esp_idf_hal::gpio::{Input, InputPin, OutputPin, PinDriver, Pull};
+use esp_idf_hal::interrupt::IsrCriticalSection;
 use esp_idf_sys::{esp_err_t, EspError};
 
 use tamer::button::ButtonDecoder;
 pub use tamer::button::ButtonEvent;
 use tamer::rotary::QuadratureDecoder;
 pub use tamer::rotary::{EncoderDirection, NoopRotaryEncoder, RotaryEncoder};
+
+/// A value guarded by an ISR-safe [`IsrCriticalSection`].
+///
+/// This is deliberately *not* `critical_section::Mutex`: on ESP-IDF the
+/// `critical-section` provider (`esp-idf-hal`'s `EspCriticalSection`, enabled
+/// via `esp-idf-svc`'s `critical-section` feature) is a FreeRTOS recursive
+/// mutex. Taking or giving it from an ISR is invalid — the ISR acts as
+/// whichever task it interrupted, so it can block inside the ISR, wake a
+/// waiting task from ISR context (the `xTaskRemoveFromEventList` crash seen on
+/// ESP32-S3), or "recursively" re-enter a section the interrupted task holds.
+///
+/// [`IsrCriticalSection`] masks interrupts on the calling core and, on
+/// dual-core chips, also takes a `portMUX_TYPE` spinlock
+/// (`xPortEnterCriticalTimeout` / `vPortExitCritical`, the functions behind
+/// `portENTER_CRITICAL_ISR`); on C3 / C6 (no mux branch in esp-idf-hal) it only
+/// masks interrupts (`vPortEnterCritical`). Both are valid in ISR and task context. While a task
+/// holds it, the ISR cannot run on that core; while the ISR holds it, a task
+/// (or ISR) on the other core spins until it is released.
+///
+/// The section nests on the same core, so [`lock`](Self::lock) must never be
+/// called re-entrantly on the same instance (that would alias the `&mut T`).
+/// No closure in this module calls it again.
+struct IsrLocked<T> {
+    cs: IsrCriticalSection,
+    value: UnsafeCell<T>,
+}
+
+// SAFETY: every access to `value` goes through `lock`, which holds `cs` and is
+// therefore mutually exclusive across cores and against ISRs on the same core.
+unsafe impl<T: Send> Sync for IsrLocked<T> {}
+
+impl<T> IsrLocked<T> {
+    fn new(value: T) -> Self {
+        Self {
+            cs: IsrCriticalSection::new(),
+            value: UnsafeCell::new(value),
+        }
+    }
+
+    /// Runs `f` with exclusive access to the value, inside the critical
+    /// section. Keep `f` short: interrupts are masked on this core for its
+    /// whole duration.
+    fn lock<R>(&self, f: impl FnOnce(&mut T) -> R) -> R {
+        let _guard = self.cs.enter();
+        // SAFETY: `cs` is held for the lifetime of this borrow, and `lock` is
+        // never called re-entrantly (see the type docs).
+        f(unsafe { &mut *self.value.get() })
+    }
+}
 
 /// Per-instance state shared between the GPIO ISR and the owning [`Encoder`].
 ///
@@ -80,10 +129,11 @@ pub use tamer::rotary::{EncoderDirection, NoopRotaryEncoder, RotaryEncoder};
 /// `Encoder::new_with_config` returning `Self` by value would move it and
 /// invalidate the pointer already handed to ESP-IDF.
 struct IsrContext {
-    /// The quadrature decoder, guarded by a critical section so the ISR and
-    /// (via [`Encoder::set_position`] / [`Encoder::reset`]) the main task
-    /// never observe a torn update.
-    decoder: Mutex<RefCell<QuadratureDecoder>>,
+    /// The quadrature decoder, guarded by an ISR-safe critical section so the
+    /// ISR and (via [`Encoder::set_position`] / [`Encoder::reset`]) the main
+    /// task never observe a torn update. The ISR's whole body runs inside this
+    /// lock, which is what makes it the teardown barrier in `release_ctx`.
+    decoder: IsrLocked<QuadratureDecoder>,
     /// Accumulated encoder position, mirrored out of `decoder` on every
     /// confirmed detent so [`Encoder::position`] is a lock-free atomic load.
     position: AtomicI32,
@@ -106,22 +156,26 @@ struct IsrContext {
 /// Reads current GPIO levels via `gpio_get_level` (safe in ISR context),
 /// feeds the quadrature decoder, and mirrors any confirmed detent onto the
 /// atomic position counter. Performs no allocation, no clock reads, and no
-/// blocking calls.
+/// blocking calls; the lock can briefly spin while task code on the other core
+/// holds it (a few instructions in `set_position` or the teardown barrier).
 ///
 /// The entire body — the tombstone check *and* every subsequent touch of
-/// `ctx` — runs inside a single [`critical_section::with`] call. This is
+/// `ctx` — runs inside a single `ctx.decoder.lock` call. This is
 /// load-bearing, not just a locking convenience for `decoder`: [`Drop`]'s
-/// teardown barrier is itself a `critical_section::with(|_| {})` call, and a
-/// critical section is mutually exclusive across cores. Keeping every access
-/// to `ctx` inside the same critical section this function uses means the
-/// `Drop` barrier cannot return — and therefore cannot let `ctx` be freed —
-/// while any invocation of this function that has already entered its
-/// critical section is still running. Splitting `ctx` accesses across
-/// multiple critical sections (or leaving any of them outside one entirely)
-/// would reopen a window in which `Drop` observes no contention, frees
-/// `ctx`, and a not-yet-finished ISR invocation then touches freed memory.
+/// teardown barrier is itself a `ctx.decoder.lock(|_| {})` call, and the
+/// [`IsrLocked`] section is mutually exclusive across cores. Keeping every
+/// access to `ctx` inside the same section means the `Drop` barrier cannot
+/// return — and therefore cannot let `ctx` be freed — while any invocation of
+/// this function that has already entered the section is still running.
+/// Splitting `ctx` accesses across multiple sections (or leaving any of them
+/// outside one entirely) would reopen a window in which `Drop` observes no
+/// contention, frees `ctx`, and a not-yet-finished ISR invocation then
+/// touches freed memory.
+///
+/// It must never use `critical_section::with`: on ESP-IDF that is a FreeRTOS
+/// mutex and is not ISR-safe (see [`IsrLocked`]).
 fn encoder_isr(ctx: &IsrContext) {
-    critical_section::with(|cs| {
+    ctx.decoder.lock(|decoder| {
         // Tombstone check: bail out before touching anything else if the
         // `Encoder` is not yet fully armed or is mid-teardown.
         if !ctx.armed.load(Ordering::Acquire) {
@@ -137,7 +191,7 @@ fn encoder_isr(ctx: &IsrContext) {
         let b = unsafe { esp_idf_svc::sys::gpio_get_level(ctx.pin_b) } != 0;
 
         // The mirror's `fetch_add` / `fetch_sub` wrap like the decoder's position.
-        if let Some(direction) = ctx.decoder.borrow_ref_mut(cs).update(a, b) {
+        if let Some(direction) = decoder.update(a, b) {
             match direction {
                 EncoderDirection::Clockwise => {
                     ctx.position.fetch_add(1, Ordering::Relaxed);
@@ -165,7 +219,7 @@ fn encoder_isr(ctx: &IsrContext) {
 /// (critical section, plus IPC on dual-core) have completed;
 /// `Encoder::drop` upholds this
 /// ordering. The function body only reaches into `IsrContext` through
-/// atomics and a `critical_section`, allocates nothing, and calls no
+/// atomics and an ISR-safe [`IsrLocked`] section, allocates nothing, and calls no
 /// blocking or non-reentrant ESP-IDF API, so it is safe to execute in
 /// interrupt context.
 ///
@@ -209,7 +263,7 @@ extern "C" fn noop_ipc(_arg: *mut c_void) {}
 /// and IDF does not expose that core id. So on a dual-core chip a `Drop` on
 /// the *other* core can free the context after the ISR core has loaded `args`
 /// but before it has entered [`encoder_isr`]'s critical section, a window the
-/// critical-section barrier cannot see.
+/// lock barrier cannot see.
 ///
 /// The IPC task of a core only runs once any ISR in flight on that core has
 /// returned, so a blocking no-op IPC call to each core proves no dispatch
@@ -276,9 +330,10 @@ fn release_ctx(ctx: &mut ManuallyDrop<Box<IsrContext>>, disarmed: bool, needs_ip
     }
 
     // Barrier 1 (single-core argument, defence in depth on dual-core): cannot
-    // return until any `encoder_isr` already inside its single critical
-    // section has exited.
-    critical_section::with(|_cs| {});
+    // return until any `encoder_isr` already inside its single `IsrLocked`
+    // section has exited. On dual-core this spins (interrupts masked on this
+    // core) rather than blocking, so the ISR never has to wake a task.
+    ctx.decoder.lock(|_| {});
 
     // Barrier 2 (dual-core): covers a dispatch that loaded `args` but has not
     // yet entered `encoder_isr`'s critical section.
@@ -624,11 +679,11 @@ impl<'d> Encoder<'d> {
         );
 
         let ctx = Box::new(IsrContext {
-            decoder: Mutex::new(RefCell::new(QuadratureDecoder::new(
+            decoder: IsrLocked::new(QuadratureDecoder::new(
                 initial_a,
                 initial_b,
                 config.steps_per_detent,
-            ))),
+            )),
             position: AtomicI32::new(0),
             isr_count: AtomicU32::new(0),
             armed: AtomicBool::new(false),
@@ -651,8 +706,8 @@ impl<'d> Encoder<'d> {
 
         log::info!("Configuring encoder A (GPIO {num_a})...");
         // SAFETY: `ctx_ptr` points at `ctx`, which outlives the armed
-        // interrupt (`Encoder::drop` disarms both pins and waits out a
-        // critical-section barrier before the `Box` is freed).
+        // interrupt (`Encoder::drop` disarms both pins and waits out the
+        // lock and IPC barriers before the `Box` is freed).
         // `encoder_isr_trampoline` is a `'static` ISR-safe `extern "C"` fn.
         if let Err(e) = unsafe { arm_gpio_isr(num_a, encoder_isr_trampoline, ctx_ptr) } {
             // SAFETY: pin A was, at most, partially armed by the failed call
@@ -694,13 +749,13 @@ impl<'d> Encoder<'d> {
         // between the reseed and the publish (the ISR's whole body is one
         // critical section too). A fresh decoder is fine here: position and
         // the skipped-step state are still zero, and the atomic mirror is 0.
-        critical_section::with(|cs| {
+        ctx.decoder.lock(|decoder| {
             // SAFETY: same rationale as `encoder_isr` — `gpio_get_level`
             // reads an input-level register and `num_a` / `num_b` are valid
             // GPIO numbers taken from live `PinDriver`s.
             let a = unsafe { esp_idf_svc::sys::gpio_get_level(num_a) } != 0;
             let b = unsafe { esp_idf_svc::sys::gpio_get_level(num_b) } != 0;
-            *ctx.decoder.borrow_ref_mut(cs) = QuadratureDecoder::new(a, b, config.steps_per_detent);
+            *decoder = QuadratureDecoder::new(a, b, config.steps_per_detent);
             ctx.position.store(0, Ordering::Relaxed);
             ctx.armed.store(true, Ordering::Release);
         });
@@ -748,9 +803,9 @@ impl<'d> Encoder<'d> {
     /// The atomic mirror and the decoder are written in one critical section
     /// so the ISR cannot interleave and leave a permanent offset between them.
     pub fn set_position(&mut self, position: i32) {
-        critical_section::with(|cs| {
+        self.ctx.decoder.lock(|decoder| {
             self.ctx.position.store(position, Ordering::Relaxed);
-            self.ctx.decoder.borrow_ref_mut(cs).set_position(position);
+            decoder.set_position(position);
         });
     }
 
@@ -821,7 +876,7 @@ impl Drop for Encoder<'_> {
     /// pins, (2) `gpio_isr_handler_remove` both pins (best-effort; failures
     /// are logged in [`disarm_gpio_isr`], since `Drop` cannot return
     /// `Result`), (3) store `armed = false` and take a
-    /// `critical_section::with(|_| {})` barrier, (4) on dual-core builds, a
+    /// `ctx.decoder.lock(|_| {})` barrier, (4) on dual-core builds, a
     /// blocking no-op IPC call to each core, (5) only then free the
     /// `Box<IsrContext>`.
     ///
@@ -835,8 +890,8 @@ impl Drop for Encoder<'_> {
     /// ESP-IDF bump (`ESP_IDF_VERSION` in `.cargo/config.toml.dist`).
     /// Consequences:
     ///
-    /// - The critical-section barrier (3) proves no [`encoder_isr`] is *inside*
-    ///   its critical section. On single-core chips (C3, C6) that is enough:
+    /// - The lock barrier (3) proves no [`encoder_isr`] is *inside* its
+    ///   [`IsrLocked`] section. On single-core chips (C3, C6) that is enough:
     ///   `Drop` runs in task context on the ISR core, so no dispatch can be
     ///   half-way between loading `args` and entering `encoder_isr`.
     /// - On dual-core chips (ESP32, S3) a dispatch on the other core may have
@@ -851,7 +906,7 @@ impl Drop for Encoder<'_> {
     /// leaked rather than freed, and an error is logged.
     ///
     /// `Drop` must run in task context with the FreeRTOS scheduler running. It
-    /// must not run inside a `critical_section`, with interrupts masked on
+    /// must not run inside a critical section, with interrupts masked on
     /// either core, from an IPC callback, with the scheduler suspended, or
     /// during a panic unwind on the IPC task: `esp_ipc_call_blocking` would
     /// block indefinitely.
@@ -862,7 +917,7 @@ impl Drop for Encoder<'_> {
         // GPIO numbers.
         let disarmed = unsafe { disarm_gpio_isr(self.ctx.pin_a) & disarm_gpio_isr(self.ctx.pin_b) };
 
-        // Tombstone, critical-section barrier, IPC barrier, then free (or
+        // Tombstone, lock barrier, IPC barrier, then free (or
         // leak on disarm/barrier failure) — see the doc comment above.
         release_ctx(&mut self.ctx, disarmed, true);
     }

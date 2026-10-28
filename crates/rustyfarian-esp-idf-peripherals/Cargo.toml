@@ -27,13 +27,13 @@ embuild = { workspace = true }
 tamer = { workspace = true }
 esp-idf-hal = { workspace = true }
 # The `critical-section` feature makes esp-idf-svc supply the `critical-section`
-# 1.0 implementation (FreeRTOS-backed, ISR-safe) that the rotary driver's ISR
-# relies on. Without a provider crate, linking fails with `undefined reference
-# to _critical_section_1_0_acquire/release` — and `cargo check` does not link,
-# so only a real device build (`just flash`) surfaces it. See project-lore.
+# 1.0 implementation, a FreeRTOS recursive mutex. It is task-context only and
+# NOT ISR-safe, so this crate no longer uses `critical_section` (the rotary ISR
+# uses esp-idf-hal's `interrupt::IsrCriticalSection`). The feature is kept so
+# downstream binaries that relied on this crate enabling the provider still
+# link (`cargo check` does not link; see project-lore).
 esp-idf-svc = { workspace = true, features = ["critical-section"] }
 esp-idf-sys = { workspace = true }
-critical-section = { workspace = true }
 anyhow = { workspace = true }
 log = { workspace = true }
 
