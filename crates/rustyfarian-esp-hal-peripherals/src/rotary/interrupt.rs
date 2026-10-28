@@ -4,6 +4,10 @@
 //! [`position`](InterruptEncoder::position) stays current while the main
 //! context is busy; button gestures are polled synchronously.
 //!
+//! [`InterruptEncoder`] implements [`tamer::rotary::RotaryEncoder`], so
+//! application code can be tier-agnostic across this and the IDF `Encoder`.
+//! The trait impl delegates to the inherent methods, which remain available.
+//!
 //! This mirrors the method names of the `Encoder` in
 //! `rustyfarian-esp-idf-peripherals`, so switching tiers is mostly a change of
 //! import and constructor.
@@ -113,7 +117,7 @@ use esp_hal::gpio::{Event, Input, InputConfig, InputPin, Pull};
 use esp_hal::peripherals::GPIO;
 
 use tamer::button::ButtonDecoder;
-use tamer::rotary::QuadratureDecoder;
+use tamer::rotary::{QuadratureDecoder, RotaryEncoder};
 
 use super::{ButtonEvent, EncoderConfig, EncoderError};
 
@@ -516,6 +520,28 @@ impl<'d> InterruptEncoder<'d> {
     /// `drop` empties it), so `None` is unreachable in practice.
     fn with_slot<R>(&self, f: impl FnOnce(&mut IsrSlot) -> R) -> Option<R> {
         critical_section::with(|cs| SLOT.borrow_ref_mut(cs).as_mut().map(f))
+    }
+}
+
+impl RotaryEncoder for InterruptEncoder<'_> {
+    fn update(&mut self, now_ms: u64) -> Option<ButtonEvent> {
+        InterruptEncoder::update(self, now_ms)
+    }
+
+    fn position(&self) -> i32 {
+        InterruptEncoder::position(self)
+    }
+
+    fn set_position(&mut self, position: i32) {
+        InterruptEncoder::set_position(self, position);
+    }
+
+    fn reset(&mut self) {
+        InterruptEncoder::reset(self);
+    }
+
+    fn is_button_pressed(&self) -> bool {
+        InterruptEncoder::is_button_pressed(self)
     }
 }
 

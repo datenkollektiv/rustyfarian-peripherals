@@ -127,3 +127,11 @@ Rotation now maps to `position()` on both tiers, which refines the 2026-10-14 am
 Spike-validated on hardware.
 The library type `InterruptEncoder` passed hardware validation on the CrowPanel 1.28" ESP32-S3 on 2026-10-27 with `hal_s3_rotary_isr`: round trips at normal and fast speed and fast reversals netted to zero with no skipped Gray states under a 90 ms blocking redraw, and click, double click and long press decoded.
 A downstream knob firmware confirmed it on 2026-10-28 with the real ~90 ms GC9A01 full redraw: up to three detents per blocked interval all reached `position()`, with no skipped Gray states at 24 detents/s.
+
+## Amendment (2026-10-28) — trait extracted
+
+The shared trait deferred above is now extracted as `tamer::rotary::RotaryEncoder`, with a `NoopRotaryEncoder` mock shipped in the same change.
+It has the five methods `update`, `position`, `set_position`, `reset`, and `is_button_pressed`, and is also re-exported at the `tamer` root and in `tamer::prelude`.
+The implementors are `rustyfarian_esp_idf_peripherals::rotary::Encoder` and `rustyfarian_esp_hal_peripherals::rotary::InterruptEncoder`, both delegating to their unchanged inherent methods (an additive change).
+The async esp-hal `rotary::Encoder` does not implement it, because its `position()` only advances while `wait_for_step` is polled, so behind the trait it would silently lose detents under load.
+Diagnostics (`isr_count`, `edge_count`, `skipped_count`, `pin_*_is_high`) stay outside the trait.

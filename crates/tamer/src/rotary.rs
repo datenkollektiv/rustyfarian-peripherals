@@ -44,6 +44,8 @@
 //! assert_eq!(dec.position(), 1);
 //! ```
 
+use crate::button::ButtonEvent;
+
 /// The direction of a confirmed encoder detent step.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum EncoderDirection {
@@ -51,6 +53,131 @@ pub enum EncoderDirection {
     Clockwise,
     /// The encoder moved counter-clockwise (position decreased by 1).
     CounterClockwise,
+}
+
+/// Synchronous core of a rotary encoder with a push button.
+///
+/// This is the tier-agnostic contract shared by the ESP-IDF
+/// `rustyfarian_esp_idf_peripherals::rotary::Encoder` and the esp-hal
+/// `rustyfarian_esp_hal_peripherals::rotary::InterruptEncoder`.
+/// Application code written against `E: RotaryEncoder` runs unchanged on either tier and against [`NoopRotaryEncoder`] on the host.
+///
+/// # Contract
+///
+/// - [`position`](Self::position) reflects every detent decoded so far, including those that occurred while the caller was busy with blocking work.
+///   Implementors therefore decode rotation outside the caller's polling loop.
+/// - [`update`](Self::update) polls only the button half.
+///   Gestures (`Click`, `DoubleClick`, `LongPress`) are measured against `now_ms` but are only detected on a call to `update`.
+///   Pass a monotonic millisecond clock, the same one on every call.
+/// - [`set_position`](Self::set_position) overwrites the position and clears any partial-detent accumulator.
+/// - [`reset`](Self::reset) is `set_position(0)`.
+///
+/// # Thread safety
+///
+/// The trait has no `Send` or `Sync` bound.
+/// Some implementors (the esp-hal `InterruptEncoder`) are `!Send`, so generic code must not require `E: Send`.
+///
+/// # Not implemented by the async esp-hal `Encoder`
+///
+/// `rustyfarian_esp_hal_peripherals::rotary::Encoder` deliberately does **not** implement this trait.
+/// Its `position()` only advances while `wait_for_step` is being polled, so behind this trait it would look like a drop-in but lose detents whenever the caller blocks.
+/// Use `InterruptEncoder` on esp-hal when you need this trait.
+///
+/// # Out of scope
+///
+/// Diagnostics (`isr_count`, `edge_count`, `skipped_count`, `pin_a_is_high`, `pin_b_is_high`) and tier-specific extras (`wait_for_step`, constructors, config) stay as inherent methods on the concrete types.
+/// Constructors are not part of the trait because they take tier-specific pin and peripheral types.
+///
+/// # Evolution
+///
+/// The trait is not sealed, so downstream crates may implement it.
+/// New methods will only be added with default bodies.
+///
+/// # Examples
+///
+/// ```
+/// use tamer::button::ButtonEvent;
+/// use tamer::rotary::{NoopRotaryEncoder, RotaryEncoder};
+///
+/// /// Tier-agnostic knob tick: one function for ESP-IDF, esp-hal, and host tests.
+/// fn on_tick<E: RotaryEncoder>(enc: &mut E, now_ms: u64) -> (i32, Option<ButtonEvent>) {
+///     let event = enc.update(now_ms);
+///     if event == Some(ButtonEvent::LongPress) {
+///         enc.reset();
+///     }
+///     (enc.position(), event)
+/// }
+///
+/// let mut enc = NoopRotaryEncoder::new();
+/// enc.set_position(7);
+/// assert_eq!(on_tick(&mut enc, 0), (7, None));
+/// assert!(!enc.is_button_pressed());
+/// ```
+pub trait RotaryEncoder {
+    /// Polls the button and returns a debounced press/release/gesture event, if one completed.
+    ///
+    /// `now_ms` is a monotonic millisecond timestamp.
+    /// Call this regularly; a gesture is only ever reported on a call to `update`.
+    fn update(&mut self, now_ms: u64) -> Option<ButtonEvent>;
+
+    /// Returns the current encoder position in detents.
+    ///
+    /// Takes `&self` and never blocks.
+    #[must_use]
+    fn position(&self) -> i32;
+
+    /// Overwrites the position and clears the decoder's partial-detent accumulator.
+    fn set_position(&mut self, position: i32);
+
+    /// Resets the position to zero.
+    ///
+    /// Equivalent to `set_position(0)`.
+    fn reset(&mut self) {
+        self.set_position(0);
+    }
+
+    /// Returns the current debounced (stable) button-pressed state.
+    #[must_use]
+    fn is_button_pressed(&self) -> bool;
+}
+
+/// Do-nothing [`RotaryEncoder`] for host tests and trait-generic code.
+///
+/// It never produces a button event and its button is never pressed.
+/// It does honour the position contract so generic code can be exercised:
+/// [`set_position`](RotaryEncoder::set_position) and [`reset`](RotaryEncoder::reset) are observable through [`position`](RotaryEncoder::position).
+/// It does not decode rotation (there is no input to decode), so the position only changes through those two calls.
+///
+/// [`Default`] yields position `0`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub struct NoopRotaryEncoder {
+    position: i32,
+}
+
+impl NoopRotaryEncoder {
+    /// Creates a mock encoder at position `0`.
+    #[must_use]
+    pub const fn new() -> Self {
+        Self { position: 0 }
+    }
+}
+
+impl RotaryEncoder for NoopRotaryEncoder {
+    fn update(&mut self, _now_ms: u64) -> Option<ButtonEvent> {
+        None
+    }
+
+    fn position(&self) -> i32 {
+        self.position
+    }
+
+    fn set_position(&mut self, position: i32) {
+        self.position = position;
+    }
+
+    fn is_button_pressed(&self) -> bool {
+        false
+    }
 }
 
 /// Quadrature transition lookup table.
@@ -740,6 +867,105 @@ mod tests {
             let enc = enc();
             let _ = enc.pin_a();
             let _ = enc.pin_b();
+        }
+    }
+
+    mod encoder_trait {
+        use super::super::*;
+
+        fn tick<E: RotaryEncoder>(e: &mut E, now: u64) -> Option<ButtonEvent> {
+            e.update(now)
+        }
+
+        #[test]
+        fn noop_starts_at_zero() {
+            assert_eq!(NoopRotaryEncoder::new().position(), 0);
+            assert_eq!(NoopRotaryEncoder::default(), NoopRotaryEncoder::new());
+        }
+
+        #[test]
+        fn noop_set_position_is_observable() {
+            let mut e = NoopRotaryEncoder::new();
+            e.set_position(-5);
+            assert_eq!(e.position(), -5);
+            e.set_position(i32::MIN);
+            assert_eq!(e.position(), i32::MIN);
+            e.set_position(i32::MAX);
+            assert_eq!(e.position(), i32::MAX);
+        }
+
+        #[test]
+        fn noop_reset_zeroes_position() {
+            let mut e = NoopRotaryEncoder::new();
+            e.set_position(42);
+            e.reset();
+            assert_eq!(e.position(), 0);
+        }
+
+        #[test]
+        fn noop_update_never_emits() {
+            let mut e = NoopRotaryEncoder::new();
+            e.set_position(3);
+            for now in [0, 1, 10_000, u64::MAX] {
+                assert_eq!(e.update(now), None);
+                assert_eq!(e.position(), 3);
+            }
+        }
+
+        #[test]
+        fn noop_button_never_pressed() {
+            let mut e = NoopRotaryEncoder::new();
+            assert!(!e.is_button_pressed());
+            let _ = e.update(5);
+            e.set_position(9);
+            e.reset();
+            assert!(!e.is_button_pressed());
+        }
+
+        #[test]
+        fn trait_is_generic_usable() {
+            let mut e = NoopRotaryEncoder::new();
+            assert_eq!(tick(&mut e, 0), None);
+            let d: &mut dyn RotaryEncoder = &mut e;
+            assert_eq!(d.position(), 0);
+        }
+
+        #[test]
+        fn noop_is_copy_and_const_new() {
+            const E: NoopRotaryEncoder = NoopRotaryEncoder::new();
+            let a = E;
+            let b = a;
+            assert_eq!(a, b);
+        }
+
+        #[test]
+        fn default_reset_goes_through_set_position() {
+            struct Rec {
+                calls: [Option<i32>; 4],
+                n: usize,
+            }
+            impl RotaryEncoder for Rec {
+                fn update(&mut self, _: u64) -> Option<ButtonEvent> {
+                    None
+                }
+                fn position(&self) -> i32 {
+                    0
+                }
+                fn set_position(&mut self, p: i32) {
+                    self.calls[self.n] = Some(p);
+                    self.n += 1;
+                }
+                fn is_button_pressed(&self) -> bool {
+                    false
+                }
+            }
+            let mut r = Rec {
+                calls: [None; 4],
+                n: 0,
+            };
+            r.reset();
+            assert_eq!(r.calls[0], Some(0));
+            assert_eq!(r.n, 1);
         }
     }
 }

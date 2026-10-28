@@ -47,6 +47,14 @@
 //! executes with the cache off. `esp-idf-hal` defaults that flag to `0`; do
 //! not enable it elsewhere in an application that also uses this encoder.
 //! An IRAM-safe variant is roadmapped as an opt-in follow-up.
+//!
+//! # Tier-agnostic use
+//!
+//! [`Encoder`] implements [`RotaryEncoder`] (re-exported here together with
+//! [`NoopRotaryEncoder`]), so application code can be written against the
+//! trait and run unchanged on the esp-hal `InterruptEncoder`.
+//! The trait impl delegates one-to-one to the inherent methods, which remain
+//! available.
 
 use core::cell::RefCell;
 use core::ffi::c_void;
@@ -59,8 +67,8 @@ use esp_idf_sys::{esp_err_t, EspError};
 
 use tamer::button::ButtonDecoder;
 pub use tamer::button::ButtonEvent;
-pub use tamer::rotary::EncoderDirection;
 use tamer::rotary::QuadratureDecoder;
+pub use tamer::rotary::{EncoderDirection, NoopRotaryEncoder, RotaryEncoder};
 
 /// Per-instance state shared between the GPIO ISR and the owning [`Encoder`].
 ///
@@ -602,6 +610,28 @@ impl<'d> Encoder<'d> {
     #[must_use]
     pub fn pin_b_is_high(&self) -> bool {
         self.pin_b.is_high()
+    }
+}
+
+impl RotaryEncoder for Encoder<'_> {
+    fn update(&mut self, now_ms: u64) -> Option<ButtonEvent> {
+        Encoder::update(self, now_ms)
+    }
+
+    fn position(&self) -> i32 {
+        Encoder::position(self)
+    }
+
+    fn set_position(&mut self, position: i32) {
+        Encoder::set_position(self, position);
+    }
+
+    fn reset(&mut self) {
+        Encoder::reset(self);
+    }
+
+    fn is_button_pressed(&self) -> bool {
+        Encoder::is_button_pressed(self)
     }
 }
 

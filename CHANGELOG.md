@@ -10,6 +10,10 @@ This project follows [Semantic Versioning](https://semver.org/) (pre-1.0: minor 
 ## [Unreleased]
 
 ### Added
+
+- `tamer::rotary::RotaryEncoder` trait (`update`, `position`, `set_position`, `reset`, `is_button_pressed`) and `NoopRotaryEncoder` mock, re-exported at the `tamer` root and `tamer::prelude`; implemented by `rustyfarian-esp-idf-peripherals::rotary::Encoder` and `rustyfarian-esp-hal-peripherals::rotary::InterruptEncoder` for tier-agnostic app code.
+  The async esp-hal `rotary::Encoder` intentionally does not implement it.
+- `rustyfarian-esp-idf-peripherals::rotary` now re-exports `RotaryEncoder` and `NoopRotaryEncoder`.
 - `rustyfarian-esp-hal-peripherals::rotary::InterruptEncoder`: sync, ISR-decoded quadrature encoder with the ESP-IDF `Encoder` method surface, so `position()` keeps up under blocking work; CrowPanel S3 example `hal_s3_rotary_isr`.
 - `rustyfarian-esp-hal-peripherals::rotary::on_gpio_interrupt()`: GPIO interrupt hook that the app calls from its single esp-hal GPIO handler; a no-op when no `InterruptEncoder` is alive.
 - `rustyfarian-esp-hal-peripherals::rotary::EncoderError::AlreadyInUse`: returned when a second `InterruptEncoder` is constructed while one is alive.
