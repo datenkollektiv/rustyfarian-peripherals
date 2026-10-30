@@ -26,6 +26,11 @@ This project follows [Semantic Versioning](https://semver.org/) (pre-1.0: minor 
 - `just ramdisk prune [days]`: removes idle per-repo target trees from the shared RAM disk.
 - `tamer::rotary`: `QuadratureDecoder::skipped_count()` (and `QuadratureInput::skipped_count()`) — monotonic, wrapping count of 2-bit Gray-code jumps, so a starved consumer can detect missed samples; `update` results are unchanged.
 - `rustyfarian-esp-hal-peripherals::rotary::Encoder::skipped_count()` pass-through; the module docs now state the measured blocking-work budget (~10 ms per step) between `wait_for_step` calls.
+- `tamer::mpu6050::Mpu6050<I2C>` I2C driver behind `hal`: `init`, `who_am_i`, `read_raw`, `calibrate`, and `release`; errors are `mpu6050::Error` (`Bus`, `WrongIdentity`) with `Error::is_nack()`.
+- `TiltEstimator` (feature `tilt`), re-exported at the `tamer` root and `tamer::prelude`: EMA-smoothed tilt angle from `RawReading` against calibrated offsets, with `update` and `reset`.
+- `tamer::mock::MockI2c`, `MockI2cError`, `Transaction`, and `NoopDelay` under `hal`, for scripted host-side bus and delay tests.
+- The `hal` feature now also covers `embedded_hal::i2c::I2c` and `DelayNs`, not only the `InputPin` adapters.
+- `hal_c3_mpu6050_tilt` / `idf_c3_mpu6050_tilt`: ESP32-C3 examples on I2C0 (GPIO 4 SDA / GPIO 5 SCL, 100 kHz) that check `WHO_AM_I`, calibrate at rest, and print the tilt angle; compile-verified, not yet run on hardware.
 
 ### Fixed
 - ESP-IDF `rotary::Encoder`: the GPIO ISR no longer takes `critical_section`, which on ESP-IDF is a FreeRTOS mutex and crashed an ESP32-S3 (`xTaskRemoveFromEventList` in ISR context) under cross-core construct/drop; it now uses esp-idf-hal's ISR-safe `interrupt::IsrCriticalSection`. See ADR-006.

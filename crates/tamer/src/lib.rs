@@ -28,8 +28,10 @@
 //!   ([`hall`], [`hotplug`], [`mpu6050`], [`touch`]) have no trait to mock — the raw-sample
 //!   feed itself is the test seam.
 //! - **The `hal` feature is the only hardware seam.** Enabling it adds thin
-//!   adapters over `embedded_hal::digital::InputPin` that feed the pure logic;
-//!   the default build pulls in nothing hardware-related.
+//!   adapters over `embedded_hal::digital::InputPin` that feed the pure logic,
+//!   plus the `embedded_hal::i2c::I2c` / `embedded_hal::delay::DelayNs`
+//!   sensor drivers such as [`Mpu6050`]; the default build pulls in nothing
+//!   hardware-related.
 //!
 //! The thin, chip-specific glue lives in the companion hardware crates
 //! (`rustyfarian-esp-hal-peripherals` for bare-metal esp-hal, and
@@ -59,7 +61,8 @@
 //!   built on the [`debounce`] edge detector.
 //! - [`mpu6050`] — MPU6050 IMU register map, raw-burst parsing, and
 //!   accelerometer offset calibration; `tamer`'s first device-named module.
-//!   Pair with the `tilt` feature for tilt-angle trigonometry.
+//!   With `hal` it adds the [`Mpu6050`] I2C driver; with `tilt`, the
+//!   [`TiltEstimator`] smoothed tilt angle.
 //! - [`tone`] — a tone/duration sequencer (melody player) stepping a borrowed
 //!   `&[Note]` table into [`ToneOutput`] values;
 //!   `tamer`'s first output/actuator primitive, feeding a buzzer/PWM/DAC
@@ -181,28 +184,39 @@ pub use button::{ButtonDecoder, ButtonEvent};
 #[cfg(feature = "hal")]
 pub use button::ButtonInput;
 
-/// Settable mock pin for unit-testing the `hal` adapters.
+/// Mocks for unit-testing the `hal` adapters and drivers.
 ///
 /// [`MockInputPin`](mock::MockInputPin) implements
 /// `embedded_hal::digital::InputPin` with an `Infallible` error type.
-/// Downstream crates should use it as a drop-in for real GPIO in host tests.
+/// [`MockI2c`](mock::MockI2c) replays a scripted slice of
+/// [`Transaction`](mock::Transaction)s as an `embedded_hal::i2c::I2c`, and
+/// [`NoopDelay`](mock::NoopDelay) is a no-op `DelayNs`.
+/// Downstream crates should use them as drop-ins for real hardware in host tests.
 #[cfg(feature = "hal")]
 pub mod mock;
 
 #[cfg(feature = "hal")]
-pub use mock::MockInputPin;
+pub use mock::{MockI2c, MockInputPin, NoopDelay};
 
 /// MPU6050 IMU protocol constants, raw-burst parsing, and accelerometer
 /// calibration — [`RawReading`](mpu6050::RawReading),
 /// [`parse_raw`](mpu6050::parse_raw), [`AccelCalibration`](mpu6050::AccelCalibration),
 /// [`AccelOffsets`](mpu6050::AccelOffsets), and [`apply_offsets`](mpu6050::apply_offsets).
 ///
-/// This module is HAL-agnostic and imports no I2C, HAL, or chip crate — the
-/// caller performs the I2C burst read and feeds the 14-byte buffer in. Enable
-/// the `tilt` feature for `tamer::tilt`'s `atan2`-based tilt-angle
-/// trigonometry on the parsed axes.
+/// The protocol types are HAL-agnostic: the caller may perform the I2C burst
+/// read itself and feed the 14-byte buffer in. Enable the `hal` feature for
+/// the [`Mpu6050`] driver over `embedded_hal::i2c::I2c`
+/// (errors in [`mpu6050::Error`]), and the `tilt` feature for
+/// `tamer::tilt`'s `atan2`-based trigonometry and the
+/// [`TiltEstimator`].
 pub mod mpu6050;
 pub use mpu6050::{apply_offsets, parse_raw, AccelCalibration, AccelOffsets, RawReading};
+
+#[cfg(feature = "hal")]
+pub use mpu6050::Mpu6050;
+
+#[cfg(feature = "tilt")]
+pub use mpu6050::TiltEstimator;
 
 /// Scale-free two-axis tilt-angle trigonometry —
 /// [`tilt_degrees`](tilt::tilt_degrees) and [`tilt_degrees_i32`](tilt::tilt_degrees_i32).
@@ -290,7 +304,11 @@ pub mod prelude {
     #[cfg(feature = "hal")]
     pub use crate::debounce::DebouncedInput;
     #[cfg(feature = "hal")]
-    pub use crate::mock::MockInputPin;
+    pub use crate::mock::{MockI2c, MockInputPin, NoopDelay};
+    #[cfg(feature = "hal")]
+    pub use crate::mpu6050::Mpu6050;
+    #[cfg(feature = "tilt")]
+    pub use crate::mpu6050::TiltEstimator;
     #[cfg(feature = "hal")]
     pub use crate::presence::DigitalPresenceInput;
     #[cfg(feature = "hal")]

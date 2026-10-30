@@ -15,8 +15,9 @@ categories = ["embedded", "no-std"]
 [features]
 default = []
 # `hal`: opt-in `embedded-hal` adapters that drive the pure logic from real
-# `InputPin`s. Kept optional, so the pure core has zero hardware dependencies and
-# stays buildable on any host. See README "Architecture" for the seam.
+# `InputPin`s, plus I2C sensor drivers over `I2c` + `DelayNs` (ADR-009). Kept
+# optional, so the pure core has zero hardware dependencies and stays buildable
+# on any host. See README "Architecture" for the seam.
 hal = ["dep:embedded-hal"]
 # `tilt`: opt-in `atan2`-based tilt-angle trigonometry (`tamer::tilt`). Kept
 # optional so the default build stays dependency-free — only this feature

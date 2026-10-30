@@ -107,6 +107,9 @@ embassy-futures  = { workspace = true, optional = true }
 [dev-dependencies]
 esp-println = { workspace = true, features = ["auto"] }
 nb = { workspace = true }
+# Dev-dependency features only apply to examples/tests under resolver 2, so the
+# library itself keeps the pure `tamer` (no `hal`/`tilt`).
+tamer = { workspace = true, features = ["hal", "tilt"] }
 
 [[example]]
 name = "hal_c3_active_buzzer_morse"
@@ -118,6 +121,10 @@ required-features = ["esp32c3", "rt", "unstable"]
 
 [[example]]
 name = "hal_c3_blink"
+required-features = ["esp32c3", "rt", "unstable"]
+
+[[example]]
+name = "hal_c3_mpu6050_tilt"
 required-features = ["esp32c3", "rt", "unstable"]
 
 [[example]]
