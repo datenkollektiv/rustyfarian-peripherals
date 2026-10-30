@@ -26,6 +26,7 @@ timeline
     title rustyfarian-peripherals Roadmap
 
     Ready     : MPU6050 hardware example twin — repo's first I2C example (hal/idf c3, burst read → tilt) (feature-doc)
+              : BME680 environmental sensor — pure core + first I2C driver in tamer, after the MPU6050 twin (feature-doc)
 
     Near term : Docs-sync — align README / AGENTS framing with VISION input+output scope
               : Hall linear examples — hardware-verify hal/idf c3 hall_linear once a 49E sensor is on hand
@@ -48,6 +49,7 @@ timeline
 - **Sans-io boundary:** all decode / render / timing logic lives in `tamer` (pure, `no_std`, host-testable); the hardware crates only read pins and push bytes.
 - **Trait-first + mocks:** every hardware interaction sits behind a trait, and every trait ships its `Noop*` mock in the same change.
 - **`embedded-hal` is the seam:** adapters behind `tamer`'s `hal` feature read the `embedded-hal` traits and feed the pure logic.
+- **I2C sensor drivers live in `tamer`:** per-device feature, driver compiled with `hal`, `MockI2c` in `tamer::mock` ([ADR-009](adr/009-i2c-sensor-drivers-in-tamer.md)).
 - **Two mirrored tiers:** `rustyfarian-esp-hal-peripherals` (bare-metal) and `rustyfarian-esp-idf-peripherals` (std) keep parallel module layouts.
 - **Demand-driven:** no peripheral lands without a real consumer.
 - **Exact-pinned esp stacks:** pins follow the wave the sibling repos are on and move via the cycle in [`maintenance-plan.md`](../maintenance-plan.md).
@@ -58,6 +60,13 @@ timeline
 
 **Goal:** the repo's first I2C example on both tiers, feeding `tamer::mpu6050` burst reads into `tilt`.
 See [Feature: MPU6050 v1](features/mpu6050-imu-v1.md).
+
+## Ready — BME680 environmental sensor
+
+**Goal:** temperature, pressure, humidity, and gas resistance from a BME680, as `tamer::bme680` plus the first I2C sensor driver.
+Ported from donated source, with two calibration bugs fixed; follows the MPU6050 twin, which proves the I2C example pattern.
+SHT3x follows the same placement ([ADR-009](adr/009-i2c-sensor-drivers-in-tamer.md)); HX711 is not I2C and needs its own decision.
+See [Feature: BME680 v1](features/bme680-v1.md).
 
 ## Mid term — IRAM-safe interrupt handler
 
