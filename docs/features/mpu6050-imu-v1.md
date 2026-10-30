@@ -182,9 +182,9 @@ The mapping the implementation and its tests must satisfy.
   behavioral contract specified)
 - [x] Core implementation (`tamer::mpu6050` + `smoothing::EmaFilter` + `tamer::tilt`)
 - [x] Host tests passing (per **Required tests** above): 147 unit + 17 doctests default; 184 + 24 with `--all-features`, all green
-- [ ] Documentation updated (module docs, prelude exports, doctests, CHANGELOG;
-  numeric-convention exception noted)
-- [x] Hardware example twin (compile-verified; awaiting rig validation)
+- [x] Documentation updated (module docs, prelude exports, doctests, CHANGELOG;
+  numeric-convention exception noted in ADR-003)
+- [x] Hardware example twin — `hal_c3_mpu6050_tilt` validated on an ESP32-C3 SuperMini 2026-10-30; `idf_c3_mpu6050_tilt` compile-verified, hardware run pending
 
 ## Session Log
 
@@ -228,3 +228,4 @@ The mapping the implementation and its tests must satisfy.
   `Error::AcknowledgeCheckFailed` from other errors. Both scanners now surface
   stuck buses as warnings, not silence.
 - 2026-10-30 — Driver and estimator moved into `tamer` per ADR-009: `Mpu6050<I2C>` (`hal`) owns the init, WHO_AM_I, and calibration sequence and `TiltEstimator` (`tilt`) owns the smoothed tilt, so the twin examples `hal_c3_mpu6050_tilt` / `idf_c3_mpu6050_tilt` (ESP32-C3, GPIO 4/5, 100 kHz) are bus setup and printing only; `hardware-setup.md`, CHANGELOG, and ADR-009 updated; rig validation pending.
+- 2026-10-30 — Rig validation of `hal_c3_mpu6050_tilt` (ESP32-C3 SuperMini, GY-521, AD0 unwired): `WHO_AM_I OK (0x68) at address 0x68`, offsets `{ y: -194, z: -339 }`, steady `0.0°` level, smooth jitter-free ramp to `29.9°`; isolated `AcknowledgeCheckFailed` reads traced to a loose VCC/GND jumper (power LED dimmed while moving) and recovered without panic as designed — symptom recorded in `hardware-setup.md`. Open: ±90° reading, idf twin on hardware, deliberate NACK-hint test; `just capture` yields nothing for print-once firmware, use `just monitor`.

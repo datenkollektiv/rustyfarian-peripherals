@@ -25,7 +25,7 @@ Shipped work is recorded in [`CHANGELOG.md`](../CHANGELOG.md); this roadmap trac
 timeline
     title rustyfarian-peripherals Roadmap
 
-    Ready     : MPU6050 hardware example twin — repo's first I2C example (hal/idf c3, burst read → tilt) (feature-doc)
+    Ready     : MPU6050 hardware example twin — repo's first I2C example (hal/idf c3, tamer driver → tilt) (in progress — merged, rig validation pending)
               : BME680 environmental sensor — pure core + first I2C driver in tamer, after the MPU6050 twin (feature-doc)
 
     Near term : Docs-sync — align README / AGENTS framing with VISION input+output scope
@@ -59,6 +59,7 @@ timeline
 ## Ready — MPU6050 example twin
 
 **Goal:** the repo's first I2C example on both tiers, feeding `tamer::mpu6050` burst reads into `tilt`.
+Code merged in `eb14976` (driver in `tamer` per ADR-009, examples are bus setup + printing); remaining: rig validation, then close the feature doc.
 See [Feature: MPU6050 v1](features/mpu6050-imu-v1.md).
 
 ## Ready — BME680 environmental sensor

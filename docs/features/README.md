@@ -25,8 +25,8 @@ directory as historical records, and move to [`archive/`](archive/) once fully
 closed out; [`../../CHANGELOG.md`](../../CHANGELOG.md) is the source of truth for
 what has landed.
 
-| Feature                                                                                           | Status                  |
-|:--------------------------------------------------------------------------------------------------|:------------------------|
-| [MPU6050 accelerometer / IMU](mpu6050-imu-v1.md) — sans-IO parse, calibration, feature-gated tilt | Design approved (Ready) |
-| [BME680 environmental sensor](bme680-v1.md) — pure core + first I2C driver in `tamer` (ADR-009)   | Design approved (Ready) |
-| [IRAM-safe ISR](iram-safe-isr-v1.md) — run the encoder ISR from SRAM for flash-cache-off safety   | Scoped (skeleton)       |
+| Feature                                                                                           | Status                         |
+|:--------------------------------------------------------------------------------------------------|:-------------------------------|
+| [MPU6050 accelerometer / IMU](mpu6050-imu-v1.md) — sans-IO parse, calibration, feature-gated tilt | Merged; rig validation pending |
+| [BME680 environmental sensor](bme680-v1.md) — pure core + first I2C driver in `tamer` (ADR-009)   | Design approved (Ready)        |
+| [IRAM-safe ISR](iram-safe-isr-v1.md) — run the encoder ISR from SRAM for flash-cache-off safety   | Scoped (skeleton)              |

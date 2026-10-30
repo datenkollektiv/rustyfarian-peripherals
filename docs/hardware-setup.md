@@ -123,4 +123,8 @@ The 100-sample calibration takes the zero point from that pose, so moving the bo
 After `WHO_AM_I` reports `0x68` and calibration completes, the example prints a tilt angle in degrees about five times per second.
 The angle should read close to 0 when the board lies flat and change as the board is tilted; the exact line format is in the example's doc comment.
 
-The examples are compile-verified only until they are flashed on a board, so treat this wiring as untested on hardware until then.
+Validated 2026-10-30 with `hal_c3_mpu6050_tilt` on an ESP32-C3 SuperMini and a GY-521 with AD0 unwired: `WHO_AM_I` `0x68`, resting offsets of a few hundred LSB, a steady `0.0°` when level, and a smooth, jitter-free ramp while tilting.
+`idf_c3_mpu6050_tilt` is compile-verified only until it has been run on the same wiring.
+
+Isolated `read failed (1 in a row): … AcknowledgeCheckFailed` lines between good readings, together with the breakout's power LED dimming as the module moves, mean a loose VCC or GND jumper, not a bus or driver fault.
+The sensor browns out for a moment and cannot ACK; reseat the supply jumpers (or solder the header) and the NACKs stop.
