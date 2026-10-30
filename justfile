@@ -120,7 +120,13 @@ test:
 test-hal:
     cargo test {{ tamer_hal_flags }}
 
-# run host-side unit tests with every tamer feature enabled (hal + tilt)
+# `--all-features` never builds the `bme680`-without-`hal` combination, hence
+# run host-side unit tests for the BME680 module alone and with its I2C driver
+test-bme680:
+    cargo test {{ host_flags }} --features bme680
+    cargo test {{ host_flags }} --features bme680,hal
+
+# run host-side unit tests with every tamer feature enabled (hal + tilt + bme680)
 test-all-features:
     cargo test {{ tamer_all_features_flags }}
 

@@ -23,6 +23,11 @@ hal = ["dep:embedded-hal"]
 # optional so the default build stays dependency-free — only this feature
 # pulls in `micromath`, `tamer`'s first floating-point dependency.
 tilt = ["dep:micromath"]
+# `bme680`: opt-in BME680 register map, parsing, and `f32` compensation
+# (`tamer::bme680`). Kept optional so the default build carries no BME680
+# float code; adds no dependency (`core` `f32` arithmetic only). The I2C
+# driver additionally needs `hal` (ADR-009).
+bme680 = []
 
 [dependencies]
 embedded-hal = { workspace = true, optional = true }

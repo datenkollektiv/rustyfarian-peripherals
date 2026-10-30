@@ -63,6 +63,10 @@
 //!   accelerometer offset calibration; `tamer`'s first device-named module.
 //!   With `hal` it adds the [`Mpu6050`] I2C driver; with `tilt`, the
 //!   [`TiltEstimator`] smoothed tilt angle.
+//! - `bme680` (feature `bme680`) — BME680 environmental-sensor register map,
+//!   raw-block parsing, and Bosch SensorAPI v4.4.8 float compensation
+//!   (temperature, pressure, humidity, gas resistance).
+//!   With `hal` it adds the [`Bme680`] I2C driver.
 //! - [`tone`] — a tone/duration sequencer (melody player) stepping a borrowed
 //!   `&[Note]` table into [`ToneOutput`] values;
 //!   `tamer`'s first output/actuator primitive, feeding a buzzer/PWM/DAC
@@ -231,6 +235,23 @@ pub mod tilt;
 #[cfg(feature = "tilt")]
 pub use tilt::{tilt_degrees, tilt_degrees_i32};
 
+/// BME680 environmental-sensor protocol constants, raw-block parsing, and
+/// compensation — `CalibrationData`, `parse_raw`, `compensate`, `Reading`,
+/// `res_heat`, and `measurement_duration_us`.
+///
+/// Gated behind the `bme680` feature, which adds no dependency: the Bosch
+/// SensorAPI v4.4.8 float path needs only `core` `f32` arithmetic. The
+/// typed driver arguments [`Oversampling`] and [`IirFilter`] are
+/// re-exported at the crate root; the other names stay module-scoped
+/// because they would collide with [`mpu6050`]'s.
+#[cfg(feature = "bme680")]
+pub mod bme680;
+
+#[cfg(all(feature = "bme680", feature = "hal"))]
+pub use bme680::Bme680;
+#[cfg(feature = "bme680")]
+pub use bme680::{IirFilter, Oversampling};
+
 /// Tone/duration sequencer (melody player) — [`ToneSequencer`], [`Note`],
 /// [`SequenceMode`], [`ToneOutput`], and [`SequenceEvent`].
 ///
@@ -299,6 +320,10 @@ pub mod prelude {
     pub use crate::tone::{Note, SequenceMode, ToneSequencer};
     pub use crate::touch::{SwipeDirection, TouchEvent, TouchPoint, TouchTracker};
 
+    #[cfg(all(feature = "bme680", feature = "hal"))]
+    pub use crate::bme680::Bme680;
+    #[cfg(feature = "bme680")]
+    pub use crate::bme680::{IirFilter, Oversampling};
     #[cfg(feature = "hal")]
     pub use crate::button::ButtonInput;
     #[cfg(feature = "hal")]

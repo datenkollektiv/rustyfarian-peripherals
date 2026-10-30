@@ -26,7 +26,7 @@ timeline
     title rustyfarian-peripherals Roadmap
 
     Ready     : MPU6050 hardware example twin — repo's first I2C example (hal/idf c3, tamer driver → tilt) (in progress — merged, rig validation pending)
-              : BME680 environmental sensor — pure core + first I2C driver in tamer, after the MPU6050 twin (feature-doc)
+              : BME680 environmental sensor — pure core + first I2C driver in tamer, after the MPU6050 twin (feature-doc) (in progress — core + driver landed, examples pending)
 
     Near term : Docs-sync — align README / AGENTS framing with VISION input+output scope
               : Hall linear examples — hardware-verify hal/idf c3 hall_linear once a 49E sensor is on hand
