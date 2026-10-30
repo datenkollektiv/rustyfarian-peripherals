@@ -119,6 +119,7 @@ The mapping the implementation and its tests must satisfy.
 - `tamer::mpu6050` — `I2C_ADDR`, `I2C_ADDR_ALT`, `REG_*`, `WHO_AM_I_VALUE`,
   `ACCEL_SENSITIVITY_2G`, `INIT_SEQUENCE`, `RawReading`, `parse_raw`,
   `AccelCalibration`, `apply_offsets`.
+- Driver layer (added 2026-10-30 per ADR-009): `tamer::mpu6050::Mpu6050<I2C>` and `mpu6050::Error<E>` (`hal`), `TiltEstimator` (`tilt`), and `tamer::mock::{MockI2c, MockI2cError, Transaction, NoopDelay}` (`hal`).
 - `tamer::smoothing` — gains `EmaFilter` next to `SlidingAverage`.
 - `tamer::tilt` (feature `tilt`) — `tilt_degrees`, `tilt_degrees_i32`.
 - **Prelude**: add `mpu6050::{RawReading, AccelCalibration}` and
@@ -165,10 +166,11 @@ The mapping the implementation and its tests must satisfy.
   `analog::AnalogCalibration`. Keep it `mpu6050`-local for v1 (its Y/Z accel
   semantics and `RawReading` coupling tie it here), or extract a shared type now?
   Leaning: keep local; extract only if a second consumer needs the same shape.
-- [ ] **Hardware example / tier twin.** Should v1 ship an esp-hal / esp-idf example
+- [x] **Hardware example / tier twin.** Should v1 ship an esp-hal / esp-idf example
   (I2C burst read → `parse_raw` → `tilt_degrees`), or land the pure module first and
   add the twin on demand? (An I2C display pairing is the natural showcase but pulls in
   a display driver.)
+  **Resolved 2026-10-30:** shipped as console-only tilt examples on both tiers (`hal_c3_mpu6050_tilt`, `idf_c3_mpu6050_tilt`), driven by a tamer-side driver per ADR-009; the display pairing stays deferred.
 - [ ] **Prelude for tilt functions.** Confirm the lean to exclude free functions from
   the prelude (call `tamer::tilt::tilt_degrees` explicitly), keeping the prelude
   types-only.
@@ -182,6 +184,7 @@ The mapping the implementation and its tests must satisfy.
 - [x] Host tests passing (per **Required tests** above): 147 unit + 17 doctests default; 184 + 24 with `--all-features`, all green
 - [ ] Documentation updated (module docs, prelude exports, doctests, CHANGELOG;
   numeric-convention exception noted)
+- [x] Hardware example twin (compile-verified; awaiting rig validation)
 
 ## Session Log
 
@@ -224,3 +227,4 @@ The mapping the implementation and its tests must satisfy.
   `to_i2c_err` classifier; esp-hal twin already distinguished
   `Error::AcknowledgeCheckFailed` from other errors. Both scanners now surface
   stuck buses as warnings, not silence.
+- 2026-10-30 — Driver and estimator moved into `tamer` per ADR-009: `Mpu6050<I2C>` (`hal`) owns the init, WHO_AM_I, and calibration sequence and `TiltEstimator` (`tilt`) owns the smoothed tilt, so the twin examples `hal_c3_mpu6050_tilt` / `idf_c3_mpu6050_tilt` (ESP32-C3, GPIO 4/5, 100 kHz) are bus setup and printing only; `hardware-setup.md`, CHANGELOG, and ADR-009 updated; rig validation pending.

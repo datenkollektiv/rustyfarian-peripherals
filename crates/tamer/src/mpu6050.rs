@@ -4,7 +4,14 @@
 //! InvenSense MPU6050 6-axis IMU (accelerometer + gyroscope) over I2C. The
 //! I2C transport is left entirely to the caller — this module only
 //! interprets the datasheet's register map and byte layout, and accumulates
-//! calibration offsets. It imports no I2C, HAL, or chip crate.
+//! calibration offsets. The protocol types import no I2C, HAL, or chip crate.
+//!
+//! With the `hal` feature, [`Mpu6050`](crate::mpu6050::Mpu6050) adds a
+//! blocking driver generic over `embedded_hal::i2c::I2c` and
+//! `embedded_hal::delay::DelayNs` (see ADR-009), so the same code runs on
+//! esp-hal and esp-idf-hal. With the `tilt` feature,
+//! [`TiltEstimator`](crate::mpu6050::TiltEstimator) turns raw readings into a
+//! smoothed tilt angle.
 //!
 //! This module is device-specific by design (see the [feature
 //! doc](https://github.com/datenkollektiv/rustyfarian-peripherals/blob/main/docs/features/mpu6050-imu-v1.md)):
@@ -73,6 +80,11 @@
 //! assert_eq!(ay, -45); // reading.accel_y() is 0, so 0 - 45 = -45
 //! assert_eq!(az, 16384);
 //! ```
+
+#[cfg(feature = "hal")]
+use embedded_hal::delay::DelayNs;
+#[cfg(feature = "hal")]
+use embedded_hal::i2c::{ErrorKind, I2c};
 
 // ─── Protocol constants ─────────────────────────────────────────────────────
 
@@ -388,6 +400,248 @@ impl AccelCalibration {
     }
 }
 
+// ─── Error ───────────────────────────────────────────────────────────────────
+
+/// Error returned by the [`Mpu6050`] driver.
+///
+/// `E` is the HAL's own I2C error type, kept intact in [`Bus`](Self::Bus) so
+/// callers can inspect it. There is deliberately no `From<E>` impl: map bus
+/// errors explicitly with `Error::Bus` to keep `?` conversions unambiguous.
+#[cfg(feature = "hal")]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Error<E> {
+    /// The I2C bus reported an error.
+    Bus(E),
+    /// `WHO_AM_I` returned an unexpected value.
+    WrongIdentity {
+        /// The value read from [`REG_WHO_AM_I`].
+        found: u8,
+    },
+}
+
+#[cfg(feature = "hal")]
+impl<E: embedded_hal::i2c::Error> Error<E> {
+    /// Returns `true` if this is a bus error of kind
+    /// [`ErrorKind::NoAcknowledge`].
+    ///
+    /// This is the portable way to tell "no device answered" (absent, miswired,
+    /// or wrong address) from a genuine bus fault: esp-hal maps
+    /// `AcknowledgeCheckFailed` and esp-idf-hal maps `ESP_FAIL` to
+    /// `NoAcknowledge`.
+    #[must_use]
+    pub fn is_nack(&self) -> bool {
+        match self {
+            Self::Bus(e) => matches!(e.kind(), ErrorKind::NoAcknowledge(_)),
+            Self::WrongIdentity { .. } => false,
+        }
+    }
+}
+
+#[cfg(feature = "hal")]
+impl<E: core::fmt::Debug> core::fmt::Display for Error<E> {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        match self {
+            Self::Bus(e) => write!(f, "I2C bus error: {e:?}"),
+            // `WHO_AM_I` holds the upper six address bits only; the AD0 bit
+            // is not reflected, so a genuine MPU6050 reads 0x68 at either
+            // address. An unexpected value means a different device answered
+            // (e.g. an MPU6500/MPU9250 clone), never a wrong AD0 level.
+            Self::WrongIdentity { found } => write!(
+                f,
+                "unexpected WHO_AM_I {found:#04x}: expected {WHO_AM_I_VALUE:#04x} \
+                 — a different device answers at this address"
+            ),
+        }
+    }
+}
+
+// ─── Mpu6050 driver ──────────────────────────────────────────────────────────
+
+/// Blocking MPU6050 driver over an `embedded_hal` I2C bus.
+///
+/// The driver owns the bus; hand it back with [`release`](Self::release). All
+/// protocol knowledge comes from this module's constants and [`parse_raw`], so
+/// the esp-hal and esp-idf tiers share it unchanged.
+///
+/// ```
+/// use tamer::mock::{MockI2c, Transaction};
+/// use tamer::mpu6050::{self, Mpu6050};
+///
+/// let script = [Transaction::WriteRead {
+///     address: mpu6050::I2C_ADDR,
+///     write: &[mpu6050::REG_WHO_AM_I],
+///     response: &[mpu6050::WHO_AM_I_VALUE],
+/// }];
+/// let mut imu = Mpu6050::new(MockI2c::new(&script), mpu6050::I2C_ADDR);
+/// assert_eq!(imu.who_am_i().unwrap(), mpu6050::WHO_AM_I_VALUE);
+/// imu.release().done();
+/// ```
+#[cfg(feature = "hal")]
+#[derive(Debug)]
+pub struct Mpu6050<I2C> {
+    i2c: I2C,
+    address: u8,
+}
+
+#[cfg(feature = "hal")]
+impl<I2C: I2c> Mpu6050<I2C> {
+    /// Creates a driver on `i2c` for the device at `address`.
+    ///
+    /// Pass [`I2C_ADDR`] or [`I2C_ADDR_ALT`] (AD0 high). No bus traffic occurs
+    /// until [`init`](Self::init).
+    #[must_use]
+    pub const fn new(i2c: I2C, address: u8) -> Self {
+        Self { i2c, address }
+    }
+
+    /// Verifies the device identity, then writes [`INIT_SEQUENCE`].
+    ///
+    /// The identity read comes first so that nothing is written into a
+    /// foreign device that happens to answer at this address; on
+    /// [`Error::WrongIdentity`] no register has been touched.
+    /// That first transaction is also where a missing or miswired device
+    /// surfaces, as a NACK; see [`Error::is_nack`].
+    ///
+    /// # Errors
+    ///
+    /// Returns [`Error::WrongIdentity`] if `WHO_AM_I` is not
+    /// [`WHO_AM_I_VALUE`], or [`Error::Bus`] if any transfer fails.
+    pub fn init(&mut self) -> Result<(), Error<I2C::Error>> {
+        let found = self.who_am_i()?;
+        if found != WHO_AM_I_VALUE {
+            return Err(Error::WrongIdentity { found });
+        }
+        for &(reg, val) in INIT_SEQUENCE {
+            self.i2c
+                .write(self.address, &[reg, val])
+                .map_err(Error::Bus)?;
+        }
+        Ok(())
+    }
+
+    /// Reads the `WHO_AM_I` register.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`Error::Bus`] if the transfer fails.
+    pub fn who_am_i(&mut self) -> Result<u8, Error<I2C::Error>> {
+        let mut id = [0u8; 1];
+        self.i2c
+            .write_read(self.address, &[REG_WHO_AM_I], &mut id)
+            .map_err(Error::Bus)?;
+        Ok(id[0])
+    }
+
+    /// Burst-reads the 14 data bytes and parses them.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`Error::Bus`] if the transfer fails.
+    pub fn read_raw(&mut self) -> Result<RawReading, Error<I2C::Error>> {
+        let mut buf = [0u8; 14];
+        self.i2c
+            .write_read(self.address, &[REG_ACCEL_XOUT_H], &mut buf)
+            .map_err(Error::Bus)?;
+        Ok(parse_raw(&buf))
+    }
+
+    /// Learns Y/Z offsets from `samples` readings taken `interval_ms` apart.
+    ///
+    /// The device must rest level with Z pointing up. The raw axes are fed to
+    /// [`AccelCalibration`], which subtracts the 1 g reference itself.
+    /// `samples == 0` takes no readings and yields the default offsets.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`Error::Bus`] on the first failed read; calibration is aborted
+    /// and the caller decides whether to retry.
+    pub fn calibrate<D: DelayNs>(
+        &mut self,
+        delay: &mut D,
+        samples: u32,
+        interval_ms: u32,
+    ) -> Result<AccelOffsets, Error<I2C::Error>> {
+        let mut cal = AccelCalibration::new();
+        for i in 0..samples {
+            if i > 0 {
+                delay.delay_ms(interval_ms);
+            }
+            let r = self.read_raw()?;
+            cal.add_sample(r.accel_y(), r.accel_z());
+        }
+        Ok(cal.offsets())
+    }
+
+    /// Consumes the driver and returns the I2C bus.
+    #[must_use]
+    pub fn release(self) -> I2C {
+        self.i2c
+    }
+}
+
+// ─── TiltEstimator ───────────────────────────────────────────────────────────
+
+/// Smoothed tilt angle from raw MPU6050 readings.
+///
+/// Applies calibration offsets, smooths the Y and Z axes with an
+/// [`EmaFilter`](crate::smoothing::EmaFilter) each (smoothing the axes rather
+/// than the angle avoids the wrap artefact at +/-180 degrees), then computes
+/// the angle with [`tilt_degrees_i32`](crate::tilt::tilt_degrees_i32).
+///
+/// ```
+/// use tamer::mpu6050::{parse_raw, AccelOffsets, TiltEstimator};
+///
+/// let mut est = TiltEstimator::new(AccelOffsets::default(), 0.5);
+/// let mut buf = [0u8; 14];
+/// buf[4] = 0x40; // Z = +1 g, level
+/// assert!(est.update(&parse_raw(&buf)).abs() < 1.0);
+/// ```
+#[cfg(feature = "tilt")]
+#[derive(Debug, Clone, Copy)]
+pub struct TiltEstimator {
+    offsets: AccelOffsets,
+    y: crate::smoothing::EmaFilter,
+    z: crate::smoothing::EmaFilter,
+}
+
+#[cfg(feature = "tilt")]
+impl TiltEstimator {
+    /// Creates an estimator with the given offsets and EMA smoothing factor.
+    ///
+    /// # Panics
+    ///
+    /// Panics if `alpha` is not in `0.0..=1.0` (see
+    /// [`EmaFilter::new`](crate::smoothing::EmaFilter::new)).
+    #[must_use]
+    pub fn new(offsets: AccelOffsets, alpha: f32) -> Self {
+        Self {
+            offsets,
+            y: crate::smoothing::EmaFilter::new(alpha),
+            z: crate::smoothing::EmaFilter::new(alpha),
+        }
+    }
+
+    /// Feeds one reading and returns the smoothed tilt in degrees.
+    ///
+    /// Level (Z about +16384) gives about 0; Y about +/-16384 with Z about 0
+    /// gives about +/-90.
+    #[must_use]
+    pub fn update(&mut self, reading: &RawReading) -> f32 {
+        let (cy, cz) = apply_offsets(reading, self.offsets.y, self.offsets.z);
+        let fy = self.y.update(cy as f32);
+        let fz = self.z.update(cz as f32);
+        // `as i32` truncates toward zero; the half-LSB bias rounds to nearest.
+        let round = |v: f32| (if v < 0.0 { v - 0.5 } else { v + 0.5 }) as i32;
+        crate::tilt::tilt_degrees_i32(round(fy), round(fz))
+    }
+
+    /// Clears the smoothing state; the next reading re-seeds both filters.
+    pub fn reset(&mut self) {
+        self.y.reset();
+        self.z.reset();
+    }
+}
+
 // ─── Tests ───────────────────────────────────────────────────────────────────
 
 #[cfg(test)]
@@ -673,5 +927,261 @@ mod tests {
         assert_eq!(INIT_SEQUENCE[2], (REG_SMPLRT_DIV, 0x09));
         assert_eq!(INIT_SEQUENCE[3], (REG_ACCEL_CONFIG, 0x00));
         assert_eq!(INIT_SEQUENCE[4], (REG_GYRO_CONFIG, 0x00));
+    }
+
+    // ── Mpu6050 driver ──────────────────────────────────────────────────
+
+    #[cfg(feature = "hal")]
+    mod driver {
+        use super::*;
+        use crate::mock::{MockI2c, MockI2cError, NoopDelay, Transaction};
+
+        const A: u8 = I2C_ADDR;
+
+        /// The exact bus traffic of a successful `init` at `address`: the
+        /// identity read first, then the five configuration writes.
+        fn init_script<'a>(address: u8, id: &'a [u8]) -> [Transaction<'a>; 6] {
+            [
+                Transaction::WriteRead {
+                    address,
+                    write: &[REG_WHO_AM_I],
+                    response: id,
+                },
+                Transaction::Write {
+                    address,
+                    bytes: &[REG_PWR_MGMT_1, 0x00],
+                },
+                Transaction::Write {
+                    address,
+                    bytes: &[REG_CONFIG, 0x03],
+                },
+                Transaction::Write {
+                    address,
+                    bytes: &[REG_SMPLRT_DIV, 0x09],
+                },
+                Transaction::Write {
+                    address,
+                    bytes: &[REG_ACCEL_CONFIG, 0x00],
+                },
+                Transaction::Write {
+                    address,
+                    bytes: &[REG_GYRO_CONFIG, 0x00],
+                },
+            ]
+        }
+
+        fn burst(ay: i16, az: i16) -> [u8; 14] {
+            let mut b = [0u8; 14];
+            b[2..4].copy_from_slice(&ay.to_be_bytes());
+            b[4..6].copy_from_slice(&az.to_be_bytes());
+            b
+        }
+
+        #[test]
+        fn init_happy_path_consumes_script() {
+            let script = init_script(A, &[WHO_AM_I_VALUE]);
+            let mut imu = Mpu6050::new(MockI2c::new(&script), A);
+            imu.init().unwrap();
+            imu.release().done();
+        }
+
+        #[test]
+        fn init_wrong_identity_writes_nothing() {
+            // Only the identity read is scripted: any configuration write
+            // into the foreign device would hit the end of the script and
+            // panic the mock, and `done()` proves the read was the sole
+            // transaction.
+            let script = [Transaction::WriteRead {
+                address: A,
+                write: &[REG_WHO_AM_I],
+                response: &[0x70],
+            }];
+            let mut imu = Mpu6050::new(MockI2c::new(&script), A);
+            assert_eq!(imu.init(), Err(Error::WrongIdentity { found: 0x70 }));
+            imu.release().done();
+        }
+
+        #[test]
+        fn init_nack_on_identity_read() {
+            let script = [Transaction::Error(MockI2cError::nack())];
+            let mut imu = Mpu6050::new(MockI2c::new(&script), A);
+            let err = imu.init().unwrap_err();
+            assert!(matches!(err, Error::Bus(_)));
+            assert!(err.is_nack());
+        }
+
+        #[test]
+        fn bus_fault_is_not_nack() {
+            let script = [Transaction::Error(MockI2cError::bus())];
+            let mut imu = Mpu6050::new(MockI2c::new(&script), A);
+            assert!(!imu.init().unwrap_err().is_nack());
+            assert!(!Error::<MockI2cError>::WrongIdentity { found: 0 }.is_nack());
+        }
+
+        #[test]
+        fn read_raw_parses_negative_values() {
+            let mut b = burst(-100, -16384);
+            b[0..2].copy_from_slice(&(-5i16).to_be_bytes());
+            let script = [Transaction::WriteRead {
+                address: A,
+                write: &[REG_ACCEL_XOUT_H],
+                response: &b,
+            }];
+            let mut imu = Mpu6050::new(MockI2c::new(&script), A);
+            let r = imu.read_raw().unwrap();
+            assert_eq!((r.accel_x(), r.accel_y(), r.accel_z()), (-5, -100, -16384));
+            imu.release().done();
+        }
+
+        #[test]
+        fn calibrate_averages_samples() {
+            let (b1, b2) = (burst(10, 16484), burst(30, 16584));
+            let read = |response| Transaction::WriteRead {
+                address: A,
+                write: &[REG_ACCEL_XOUT_H],
+                response,
+            };
+            let script = [read(&b1), read(&b2)];
+            let mut imu = Mpu6050::new(MockI2c::new(&script), A);
+            let off = imu.calibrate(&mut NoopDelay, 2, 10).unwrap();
+            assert_eq!(
+                off,
+                AccelOffsets {
+                    y: 20,
+                    z: 16534 - 16384
+                }
+            );
+            imu.release().done();
+        }
+
+        #[test]
+        fn calibrate_propagates_mid_run_error() {
+            let b = burst(0, 16384);
+            let script = [
+                Transaction::WriteRead {
+                    address: A,
+                    write: &[REG_ACCEL_XOUT_H],
+                    response: &b,
+                },
+                Transaction::Error(MockI2cError::bus()),
+            ];
+            let mut imu = Mpu6050::new(MockI2c::new(&script), A);
+            let err = imu.calibrate(&mut NoopDelay, 3, 1).unwrap_err();
+            assert!(matches!(err, Error::Bus(_)));
+        }
+
+        #[test]
+        fn calibrate_zero_samples_is_default() {
+            let mut imu = Mpu6050::new(MockI2c::new(&[]), A);
+            assert_eq!(
+                imu.calibrate(&mut NoopDelay, 0, 1).unwrap(),
+                AccelOffsets::default()
+            );
+        }
+
+        #[test]
+        fn display_renders() {
+            extern crate std;
+            use std::string::ToString;
+            let wrong = Error::<MockI2cError>::WrongIdentity { found: 0x70 }.to_string();
+            assert!(wrong.contains("0x70") && wrong.contains("0x68"));
+            // AD0 only moves the bus address; WHO_AM_I stays 0x68 at 0x69,
+            // so the identity hint must not suggest the alternate address.
+            assert!(!wrong.contains("0x69") && !wrong.contains("AD0"));
+            let bus = Error::Bus(MockI2cError::bus()).to_string();
+            assert!(bus.contains("I2C bus error"));
+        }
+
+        #[test]
+        fn init_at_alternate_address_still_expects_0x68() {
+            // AD0 high moves the device to 0x69, but WHO_AM_I is unchanged.
+            let script = init_script(I2C_ADDR_ALT, &[WHO_AM_I_VALUE]);
+            let mut imu = Mpu6050::new(MockI2c::new(&script), I2C_ADDR_ALT);
+            imu.init().unwrap();
+            imu.release().done();
+        }
+
+        /// Records every `DelayNs` call so a test can assert count and duration.
+        struct CountingDelay {
+            calls: u32,
+            total_ns: u64,
+        }
+
+        impl embedded_hal::delay::DelayNs for CountingDelay {
+            fn delay_ns(&mut self, ns: u32) {
+                self.calls += 1;
+                self.total_ns += u64::from(ns);
+            }
+        }
+
+        #[test]
+        fn calibrate_delays_between_samples_only() {
+            let b = burst(0, 16384);
+            let read = || Transaction::WriteRead {
+                address: A,
+                write: &[REG_ACCEL_XOUT_H],
+                response: &b,
+            };
+            let script = [read(), read(), read(), read()];
+            let mut imu = Mpu6050::new(MockI2c::new(&script), A);
+            let mut delay = CountingDelay {
+                calls: 0,
+                total_ns: 0,
+            };
+            imu.calibrate(&mut delay, 4, 10).unwrap();
+            // Four samples are separated by three pauses; no pause precedes
+            // the first sample and none follows the last. `delay_ms` may be
+            // split into several `delay_ns` calls, so assert the total only
+            // for duration and check the pause count via the 1 ms granularity.
+            assert_eq!(delay.total_ns, 3 * 10 * 1_000_000);
+            assert!(delay.calls >= 3);
+            imu.release().done();
+        }
+    }
+
+    // ── TiltEstimator ───────────────────────────────────────────────────
+
+    #[cfg(feature = "tilt")]
+    mod estimator {
+        use super::*;
+
+        #[test]
+        fn level_and_tipped() {
+            let mut est = TiltEstimator::new(AccelOffsets::default(), 1.0);
+            assert!(est.update(&reading_with(0, 16384)).abs() < 1.0);
+            assert!((est.update(&reading_with(16384, 0)) - 90.0).abs() < 1.0);
+            assert!((est.update(&reading_with(-16384, 0)) + 90.0).abs() < 1.0);
+        }
+
+        #[test]
+        fn offsets_are_applied() {
+            let mut est = TiltEstimator::new(AccelOffsets { y: 100, z: -400 }, 1.0);
+            assert!(est.update(&reading_with(100, 15984)).abs() < 1.0);
+        }
+
+        #[test]
+        fn reset_clears_state() {
+            let mut est = TiltEstimator::new(AccelOffsets::default(), 0.1);
+            let _ = est.update(&reading_with(16384, 0));
+            est.reset();
+            // After reset the filter re-seeds from the next reading exactly.
+            assert!(est.update(&reading_with(0, 16384)).abs() < 1.0);
+        }
+
+        #[test]
+        fn smoothing_survives_the_180_degree_wrap() {
+            // Upside down (Z = -1 g) with Y jittering around zero, the raw
+            // angle flips between about +179.6° and -179.6°. Smoothing the
+            // angle would average those toward 0°; smoothing the axes keeps
+            // the estimate at the far side, |angle| ≈ 180°.
+            let mut est = TiltEstimator::new(AccelOffsets::default(), 0.5);
+            let mut last = 0.0f32;
+            for i in 0..20 {
+                let y = if i % 2 == 0 { 100 } else { -100 };
+                last = est.update(&reading_with(y, -16384));
+                assert!(last.abs() > 179.0, "iteration {i}: {last}");
+            }
+            assert!(last.abs() > 179.0);
+        }
     }
 }

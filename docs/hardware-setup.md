@@ -1,7 +1,7 @@
 # Hardware Setup Guide
 
 This guide covers the physical wiring and pin configuration for running `rustyfarian-peripherals` input and output drivers on supported boards.
-It is populated with per-board examples: rotary encoder, passive-piezo arpeggio, and active-buzzer Morse keying.
+It is populated with per-board examples: rotary encoder, passive-piezo arpeggio, active-buzzer Morse keying, and MPU6050 tilt over I2C.
 Add new sections per input/output type and board, using the table formats shown below — one wiring table per driver type per board.
 
 ---
@@ -11,11 +11,11 @@ Add new sections per input/output type and board, using the table formats shown 
 ESP32 (RISC-V and Xtensa), via the esp-hal (bare-metal) and esp-idf (std) tiers.
 Specific dev boards are listed here as examples target them.
 
-| Board                 | Chip     | Tier(s)          | Status                                                                                                                                                   |
-|:----------------------|:---------|:-----------------|:---------------------------------------------------------------------------------------------------------------------------------------------------------|
-| CrowPanel 1.28" HMI   | ESP32-S3 | esp-hal, esp-idf | rotary encoder (hal_s3_rotary, idf_s3_rotary)                                                                                                            |
-| ESP32-C3 SuperMini    | ESP32-C3 | esp-hal, esp-idf | passive arpeggio (hal_c3_passive_buzzer_arpeggio, idf_c3_passive_buzzer_arpeggio); active Morse (hal_c3_active_buzzer_morse, idf_c3_active_buzzer_morse) |
-| ESP32-C6-DevKitC-1    | ESP32-C6 | esp-hal          | button (hal_c6_b3f); passive arpeggio (hal_c6_passive_buzzer_arpeggio)                                                                                   |
+| Board               | Chip     | Tier(s)          | Status                                                                                                                                                                                                            |
+|:--------------------|:---------|:-----------------|:------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| CrowPanel 1.28" HMI | ESP32-S3 | esp-hal, esp-idf | rotary encoder (hal_s3_rotary, idf_s3_rotary)                                                                                                                                                                     |
+| ESP32-C3 SuperMini  | ESP32-C3 | esp-hal, esp-idf | passive arpeggio (hal_c3_passive_buzzer_arpeggio, idf_c3_passive_buzzer_arpeggio); active Morse (hal_c3_active_buzzer_morse, idf_c3_active_buzzer_morse); MPU6050 tilt (hal_c3_mpu6050_tilt, idf_c3_mpu6050_tilt) |
+| ESP32-C6-DevKitC-1  | ESP32-C6 | esp-hal          | button (hal_c6_b3f); passive arpeggio (hal_c6_passive_buzzer_arpeggio)                                                                                                                                            |
 
 ---
 
@@ -96,3 +96,31 @@ For a much larger or lower-impedance buzzer beyond that margin, drive it through
 Some TMB12A03 datasheets list acoustic response times up to 50 ms at the lowest operating voltage.
 A 60 ms dot leaves little margin, especially with 5 ms polling.
 Keep `Relaxed` (100 ms dot, ~12 WPM) as the default and verify `Standard` on your exact unit before relying on it in production.
+
+---
+
+## Wiring — MPU6050 tilt (ESP32-C3 SuperMini)
+
+MPU6050 6-axis IMU on I2C0, read by `tamer::mpu6050` and reduced to a tilt angle by `tamer::TiltEstimator`.
+Examples: `hal_c3_mpu6050_tilt` / `idf_c3_mpu6050_tilt`.
+
+| Signal | Pin on breakout | ESP32-C3 GPIO | Notes                                                  |
+|:-------|:----------------|:--------------|:-------------------------------------------------------|
+| VCC    | VCC             | 3V3           | 3.3 V supply                                           |
+| GND    | GND             | GND           | ground                                                 |
+| SDA    | SDA             | GPIO 4        | I2C0 data; 3.3 V logic, never connect to 5 V           |
+| SCL    | SCL             | GPIO 5        | I2C0 clock at 100 kHz; 3.3 V logic                     |
+| AD0    | AD0             | GND or open   | sets the address: low or open = 0x68; high = 0x69      |
+| INT    | INT             | unused        | not wired; the examples poll at about 5 Hz             |
+
+Most GY-521 breakouts already carry 4.7 kΩ pull-ups on SDA and SCL to 3V3, so no extra resistors are needed.
+A bare MPU6050 chip needs external 4.7 kΩ pull-ups on both lines.
+Check the board's schematic before adding resistors, because a second pair in parallel lowers the effective pull-up value.
+
+The board must rest level, with the Z axis up, during calibration.
+The 100-sample calibration takes the zero point from that pose, so moving the board during the sampling window biases every later reading.
+
+After `WHO_AM_I` reports `0x68` and calibration completes, the example prints a tilt angle in degrees about five times per second.
+The angle should read close to 0 when the board lies flat and change as the board is tilted; the exact line format is in the example's doc comment.
+
+The examples are compile-verified only until they are flashed on a board, so treat this wiring as untested on hardware until then.
