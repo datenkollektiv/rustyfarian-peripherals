@@ -9,7 +9,7 @@ The rustyfarian-peripherals workspace ships its first I2C support with a pair of
 hardware bring-up examples: `hal_c3_i2c_scan` and `idf_c3_i2c_scan` on ESP32-C3.
 These are bus scanners — diagnostic tools that probe every 7-bit I2C address
 (`0x08..0x77`) and report ACKing devices — and **neither is a peripheral driver**.
-They follow the esp-hal 1.x and esp-idf-hal 0.46 native I2C APIs directly with no
+They follow the esp-hal 1.x and esp-idf-hal 0.47 native I2C APIs directly with no
 `tamer` involvement.
 
 Two intertwined decisions needed resolution:

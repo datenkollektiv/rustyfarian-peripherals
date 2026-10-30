@@ -33,6 +33,11 @@ Symptom: `just check-hal` (then `cargo +nightly … -Zbuild-std=core,alloc`) fai
 Cause: Cargo compares only the numeric version, so a nightly older than a stabilisation date passes the MSRV gate and then rejects the code (the sibling `rustyfarian-ws2812` hit the same class on its AVR nightly). The RISC-V bare-metal targets have prebuilt `core` on stable, so `-Zbuild-std` — the only reason for nightly — was never needed there.
 Fix: RISC-V bare-metal recipes (`check-hal`, `scripts/build-example.sh`) build on stable with the rustup target (as the sibling does); only Xtensa keeps `+esp -Zbuild-std=core,alloc`. Applied 2026-09-25 during the esp-hal 1.2.2 bump.
 
+**A full build RAM disk makes `just check-idf` fail with a misleading `esp-idf-sys` build-script error, not an out-of-space message.**
+Symptom: `failed to run custom build command for esp-idf-sys` with `cargo metadata exited with an error: could not find Cargo.toml in /Volumes/RustBuilds/targets/idf`, while the real `No space left on device (os error 28)` sits further up the log; `just build-example` may still pass because an incremental relink needs almost no space.
+Cause: the 12 GiB `/Volumes/RustBuilds` is shared across all rustyfarian repos, and sibling target trees (`rustyfarian-network`, `rustyfarian-power`) fill it; `df -h /Volumes/RustBuilds` shows 100 %.
+Fix: `just ramdisk prune [days]` to drop idle sibling trees, then re-run the gate; grep the full output for `os error 28` before reading the build-script error literally. Hit 2026-10-30 on the MPU6050 example twin.
+
 ## Hardware — inputs
 
 **KY-003 and "Hall sensor" marketplace labels are ambiguous — verify the actual chip before modeling behavior.**
@@ -60,8 +65,8 @@ Confirmed on ESP32-C3-DevKitM-1: after the calibration sweep, both tiers sweep f
 
 **`esp-println` configured for `jtag-serial` is invisible on a board that only exposes its UART bridge.**
 The `jtag-serial` transport routes output to the chip's internal USB Serial/JTAG controller (the native USB port), not UART0; a dev board wired through a UART-bridge chip (`/dev/cu.usbserial-*`, e.g. CP210x) with no native-USB connection shows the boot log (ROM/bootloader use UART0) but never the app's `esp-println` output. The symptom is identical to a dead program: boot lines appear, the app's first `println!` does not.
-Fix: select `esp-println/uart` for the chip so output goes to UART0 and lands on the same `usbserial` bridge used to flash — or connect the board's native USB port and monitor the `/dev/cu.usbmodem*` device it enumerates. The C3/C6 hal examples here use `uart`; `rustyfarian-network`'s hal tier uses `jtag-serial` (it assumes the native-USB port).
-Confirmed on ESP32-C3 with `hal_c3_b3f`: after switching to `uart`, output appears on `/dev/cu.usbserial-210`.
+Fix: select `esp-println/uart` for the chip so output goes to UART0 and lands on the same `usbserial` bridge used to flash — or connect the board's native USB port and monitor the `/dev/cu.usbmodem*` device it enumerates. The hal tier here now selects `esp-println/auto` per chip feature (since `b370177`): native USB Serial/JTAG when a monitor is attached there, UART0 otherwise, so both port types work; `rustyfarian-network`'s hal tier uses `jtag-serial` (it assumes the native-USB port).
+Confirmed on ESP32-C3 with `hal_c3_b3f`: after switching from `jtag-serial` to `uart`, output appears on `/dev/cu.usbserial-210`; `auto` keeps that behaviour on the bridge port.
 
 **`espflash monitor --non-interactive` without a TTY captures nothing from a native USB Serial/JTAG board — it stops after `Using flash stub` and the app never prints.**
 Run from a script or agent, the monitor connects through the bootloader and leaves the chip in the flash stub instead of resetting into the app.
