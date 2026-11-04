@@ -50,6 +50,7 @@ timeline
 - **Trait-first + mocks:** every hardware interaction sits behind a trait, and every trait ships its `Noop*` mock in the same change.
 - **`embedded-hal` is the seam:** adapters behind `tamer`'s `hal` feature read the `embedded-hal` traits and feed the pure logic.
 - **I2C sensor drivers live in `tamer`:** per-device feature, driver compiled with `hal`, `MockI2c` in `tamer::mock` ([ADR-009](adr/009-i2c-sensor-drivers-in-tamer.md)).
+- **Shared-logic ladder:** generic `embedded-hal` driver first, then event machine, then sans-IO action machine only on a trigger; adapter branches that are not error/event mapping move to `tamer` ([ADR-010](adr/010-shared-logic-ladder.md)).
 - **Two mirrored tiers:** `rustyfarian-esp-hal-peripherals` (bare-metal) and `rustyfarian-esp-idf-peripherals` (std) keep parallel module layouts.
 - **Demand-driven:** no peripheral lands without a real consumer.
 - **Exact-pinned esp stacks:** pins follow the wave the sibling repos are on and move via the cycle in [`maintenance-plan.md`](../maintenance-plan.md).

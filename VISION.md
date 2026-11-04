@@ -90,10 +90,9 @@ genuine use case arises and the pure-logic discipline can be preserved.
 - **Power / charging grey zone:** do battery-charging and power-management
   devices count as peripherals here, or stay in `rustyfarian-power`? Currently
   leaning `rustyfarian-power`; revisit if a charging IC needs a driver.
-- **Interrupt vs. polling boundary:** should `tamer` expose its state machines as
-  both poll-driven (tick with a sampled level) and event-driven (fed from a
-  pin-change interrupt), or standardise on one? Resolve when the first
-  interrupt-driven consumer appears.
+- **Interrupt vs. polling boundary:** resolved by ADR-010 — `tamer` machines
+  take samples and `now` as inputs, so a polled adapter and an ISR feed the same
+  machine (the rotary encoder does both).
 - **Where generic pin/bus abstractions stop and `embedded-hal` begins.** The pure
   core should lean on `embedded-hal` traits rather than reinventing them; revisit
   if a downstream need exposes a gap.
