@@ -60,6 +60,8 @@ This project follows [Semantic Versioning](https://semver.org/) (pre-1.0: minor 
 - `idf_esp_b3f`, `idf_c6_b3f` and `idf_s3_b3f`: button smoke examples on ESP32, C6 and S3 (ESP-IDF), matching the esp-hal `b3f` examples.
 
 ### Fixed
+
+- `tamer::mpu6050::AccelCalibration`: sums are `i64`, so long calibration runs (over ~65,500 samples at full scale) no longer overflow (debug panic, release wrap) and the average divides by the full `u32` count instead of a cast that went negative above `i32::MAX`; samples beyond `u32::MAX` are ignored.
 - ESP-IDF `rotary::Encoder`: the GPIO ISR no longer takes `critical_section`, which on ESP-IDF is a FreeRTOS mutex and crashed an ESP32-S3 (`xTaskRemoveFromEventList` in ISR context) under cross-core construct/drop; it now uses esp-idf-hal's ISR-safe `interrupt::IsrCriticalSection`. See ADR-006.
 - ESP-IDF `rotary::Encoder::drop`: no use-after-free on dual-core chips (ESP32, ESP32-S3); see ADR-006.
 - ESP-IDF `rotary::Encoder::set_position` / `reset`: a concurrent edge can no longer leave the position mirror and decoder out of step.

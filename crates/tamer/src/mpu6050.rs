@@ -345,8 +345,8 @@ pub struct AccelOffsets {
 /// ```
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub struct AccelCalibration {
-    sum_y: i32,
-    sum_z: i32,
+    sum_y: i64,
+    sum_z: i64,
     count: u32,
 }
 
@@ -362,9 +362,16 @@ impl AccelCalibration {
     }
 
     /// Feeds one accelerometer sample.
+    ///
+    /// The accumulator holds up to `u32::MAX` samples, the full range of
+    /// [`OffsetSampler`]; samples beyond that are ignored, so the average
+    /// stays exact and nothing overflows.
     pub fn add_sample(&mut self, accel_y: i16, accel_z: i16) {
-        self.sum_y += i32::from(accel_y);
-        self.sum_z += i32::from(accel_z);
+        if self.count == u32::MAX {
+            return;
+        }
+        self.sum_y += i64::from(accel_y);
+        self.sum_z += i64::from(accel_z);
         self.count += 1;
     }
 
@@ -380,10 +387,9 @@ impl AccelCalibration {
     /// - `z` is the average Z reading minus 1g (`16384` LSB for the +/-2g
     ///   range), so the offset is `0` when the sensor correctly reports 1g.
     ///
-    /// Both fields are `i32` (see [`AccelOffsets`]): the accumulator sums
-    /// `i16` samples into `i32` already, and the whole computation here
-    /// stays in `i32`, so this cannot overflow for any sequence of `i16`
-    /// samples.
+    /// The sums are `i64`, which holds `u32::MAX` samples of any `i16`
+    /// value, and the average of `i16` samples is itself within `i16`
+    /// range, so both fields fit [`AccelOffsets`]' `i32` without overflow.
     ///
     /// Returns `AccelOffsets { y: 0, z: 0 }` if no samples have been
     /// collected.
@@ -392,10 +398,14 @@ impl AccelCalibration {
         if self.count == 0 {
             return AccelOffsets::default();
         }
-        let count = self.count as i32;
+        let count = i64::from(self.count);
+        // An average of `i16` samples lies within `i16` range, so the
+        // narrowing casts below cannot truncate.
+        let avg_y = (self.sum_y / count) as i32;
+        let avg_z = (self.sum_z / count) as i32;
         AccelOffsets {
-            y: self.sum_y / count,
-            z: self.sum_z / count - 16384,
+            y: avg_y,
+            z: avg_z - 16384,
         }
     }
 }
@@ -1033,6 +1043,30 @@ mod tests {
     }
 
     // ── AccelCalibration ────────────────────────────────────────────────
+
+    #[test]
+    fn calibration_beyond_i32_sum_range_does_not_overflow() {
+        // 65_539 * i16::MAX exceeds i32::MAX; the i32 sums used to overflow here.
+        let mut cal = AccelCalibration::new();
+        for _ in 0..65_539 {
+            cal.add_sample(i16::MAX, i16::MAX);
+        }
+        assert_eq!(cal.count(), 65_539);
+        let off = cal.offsets();
+        assert_eq!(off.y, i32::from(i16::MAX));
+        assert_eq!(off.z, i32::from(i16::MAX) - 16384);
+    }
+
+    #[test]
+    fn calibration_beyond_i32_sum_range_negative_does_not_overflow() {
+        let mut cal = AccelCalibration::new();
+        for _ in 0..65_539 {
+            cal.add_sample(i16::MIN, i16::MIN);
+        }
+        let off = cal.offsets();
+        assert_eq!(off.y, i32::from(i16::MIN));
+        assert_eq!(off.z, i32::from(i16::MIN) - 16384);
+    }
 
     #[test]
     fn calibration_no_samples_returns_zero_offsets() {
