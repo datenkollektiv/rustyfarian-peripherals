@@ -24,6 +24,10 @@ doc_flags  := "-p tamer --target " + host_target + " --no-deps"
 hal_target := "riscv32imc-unknown-none-elf"
 idf_target := "riscv32imc-esp-espidf"
 
+# Pinned AVR nightly for the avr-none recipes; matches the AVR example's
+# rust-toolchain.toml; the cross-target-avr workflows install it via `just setup-avr`.
+avr_nightly := "nightly-2025-04-27"
+
 # Bare-metal and ESP-IDF builds use SEPARATE target dirs so their artifacts
 # (no_std `build-std=core` vs `std`) never collide. They share the optional
 # RAM disk at {{ ramdisk }} (across all rustyfarian repos, namespaced per repo);
@@ -37,6 +41,10 @@ ramdisk := "/Volumes/RustBuilds"
 ramdisk_mounted := shell(justfile_directory() + '/scripts/ramdisk-mounted.sh "' + ramdisk + '"')
 hal_dir := if ramdisk_mounted == "true" { ramdisk + "/targets/hal/" + file_name(justfile_directory()) } else { "target/hal" }
 idf_dir := if ramdisk_mounted == "true" { ramdisk + "/targets/idf/" + file_name(justfile_directory()) } else { "target/idf" }
+avr_dir := if ramdisk_mounted == "true" { ramdisk + "/targets/avr/" + file_name(justfile_directory()) } else { "target/avr" }
+# Absolute form for recipes that cd into examples/avr-nano-tamer (a relative target dir would
+# resolve under the example, not the repo root).
+avr_abs_dir := if ramdisk_mounted == "true" { ramdisk + "/targets/avr/" + file_name(justfile_directory()) } else { justfile_directory() + "/target/avr" }
 
 # list available recipes (default)
 _default:
@@ -97,6 +105,74 @@ doc-hal:
 check-idf:
     MCU=esp32c3 cargo +esp check -p rustyfarian-esp-idf-peripherals --target {{ idf_target }} \
         --target-dir {{ idf_dir }}
+
+# --- Chip matrix ----------------------------------------------------------
+#
+# Every tier checks and lints on all four ESP32 chips (docs/features/chip-matrix-v1.md).
+# Kept out of `verify`: the four ESP-IDF builds are slow. Chips run one at a time, and
+# each chip is also a recipe of its own (the CI jobs call the per-chip form).
+
+# check and clippy both tier libraries on all four ESP32 chips (slow; requires espup)
+check-matrix: check-matrix-hal check-matrix-idf
+
+# check and clippy the esp-hal library on all four ESP32 chips, one at a time (requires espup)
+check-matrix-hal:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    for chip in esp32 esp32c3 esp32c6 esp32s3; do
+        # stop before a chip build can fill the shared RAM disk; pruning stays a manual `just ramdisk prune`
+        if [ "{{ ramdisk_mounted }}" = true ]; then
+            free_kb=$(df -k "{{ ramdisk }}" | awk 'NR == 2 { print $4 }')
+            if [ "$free_kb" -lt 4194304 ]; then
+                printf 'error: less than 4 GiB free on %s before %s; run: just ramdisk prune\n' "{{ ramdisk }}" "$chip" >&2
+                exit 1
+            fi
+        fi
+        scripts/check-matrix.sh hal "$chip" "{{ hal_dir }}" "{{ idf_dir }}"
+    done
+
+# check and clippy the ESP-IDF library on all four ESP32 chips, one at a time (requires espup)
+check-matrix-idf:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    for chip in esp32 esp32c3 esp32c6 esp32s3; do
+        # stop before a chip build can fill the shared RAM disk; pruning stays a manual `just ramdisk prune`
+        if [ "{{ ramdisk_mounted }}" = true ]; then
+            free_kb=$(df -k "{{ ramdisk }}" | awk 'NR == 2 { print $4 }')
+            if [ "$free_kb" -lt 4194304 ]; then
+                printf 'error: less than 4 GiB free on %s before %s; run: just ramdisk prune\n' "{{ ramdisk }}" "$chip" >&2
+                exit 1
+            fi
+        fi
+        scripts/check-matrix.sh idf "$chip" "{{ hal_dir }}" "{{ idf_dir }}"
+    done
+
+# check and clippy the esp-hal library for one chip: esp32 | esp32c3 | esp32c6 | esp32s3
+check-matrix-hal-chip chip:
+    scripts/check-matrix.sh hal "{{ chip }}" "{{ hal_dir }}" "{{ idf_dir }}"
+
+# check and clippy the ESP-IDF library for one chip: esp32 | esp32c3 | esp32c6 | esp32s3
+check-matrix-idf-chip chip:
+    scripts/check-matrix.sh idf "{{ chip }}" "{{ hal_dir }}" "{{ idf_dir }}"
+
+# --- AVR (tamer on avr-none) ----------------------------------------------
+#
+# tamer links on the 8-bit AVR (ATmega328P, Arduino Nano). There is no AVR tier crate
+# (see docs/features/chip-matrix-v1.md); the workspace-excluded example package is what
+# reaches the linker. Needs `just setup-avr` and avr-gcc: avr-gcc is required even for a
+# core-only build, because the AVR 32-bit multiply intrinsics come from libgcc.
+
+# check tamer (default + hal) on the real avr-none target (requires: just setup-avr, avr-gcc)
+check-avr-target:
+    RUSTFLAGS="-C target-cpu=atmega328p" cargo +{{ avr_nightly }} check -p tamer --features hal --target avr-none -Z build-std=core --target-dir "{{ avr_dir }}"
+
+# build every binary in the AVR tamer example, linking the avr-none ELF (requires: just setup-avr, avr-gcc)
+build-avr-example:
+    cd examples/avr-nano-tamer && cargo +{{ avr_nightly }} build --release -Z build-std=core --bins --locked --target-dir "{{ avr_abs_dir }}"
+
+# build the AVR example against upstream avr-hal main: the weekly early-warning check (throwaway copy)
+build-avr-example-upstream:
+    scripts/build-avr-example-upstream.sh "{{ justfile_directory() }}" "{{ avr_nightly }}" "{{ avr_abs_dir }}"
 
 # --- Code Quality ---------------------------------------------------------
 
@@ -180,6 +256,7 @@ clean:
     cargo clean
     cargo clean --target-dir {{ hal_dir }}
     cargo clean --target-dir {{ idf_dir }}
+    cargo clean --target-dir "{{ avr_abs_dir }}"
     rm -rf tmp
 
 # clean only the bare-metal (esp-hal) tier's target dir; keeps the ESP-IDF cache
@@ -192,7 +269,7 @@ clean-idf:
 
 # report development tooling status and the resolved build target dirs
 doctor:
-    @scripts/doctor.sh "{{ ramdisk }}" "{{ hal_dir }}" "{{ idf_dir }}"
+    @scripts/doctor.sh "{{ ramdisk }}" "{{ hal_dir }}" "{{ idf_dir }}" "{{ avr_dir }}"
 
 # manage the shared build RAM disk: just ramdisk attach | detach | prune [days]
 ramdisk action *args:
@@ -298,3 +375,7 @@ setup-cargo-config:
 # install the ESP-IDF / Xtensa toolchain via espup (only needed for device builds)
 setup-toolchain:
     espup install
+
+# install the pinned AVR nightly with rust-src (also needs avr-gcc: brew install avr-gcc / apt install gcc-avr)
+setup-avr:
+    rustup toolchain install {{ avr_nightly }} --profile minimal --component rust-src

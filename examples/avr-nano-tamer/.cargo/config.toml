@@ -1,0 +1,13 @@
+[build]
+target = "avr-none"
+
+[target.'cfg(target_arch = "avr")']
+rustflags = ["-C", "target-cpu=atmega328p"]
+runner = "ravedude"
+
+# NOTE: build-std is intentionally NOT set here.
+# The workspace root's .cargo/config.toml sets build-std = ["std", "panic_abort"]
+# for ESP-IDF. Cargo merges arrays from parent configs, producing
+# ["std", "panic_abort", "core"] — which fails on AVR (no std).
+# Instead, pass -Z build-std=core on the command line (the just recipe does this).
+# See: just build-avr-example

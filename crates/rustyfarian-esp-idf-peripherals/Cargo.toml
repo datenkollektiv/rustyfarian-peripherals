@@ -49,6 +49,15 @@ name = "idf_c3_active_buzzer_morse"
 name = "idf_c3_b3f"
 
 [[example]]
+name = "idf_c6_b3f"
+
+[[example]]
+name = "idf_esp_b3f"
+
+[[example]]
+name = "idf_s3_b3f"
+
+[[example]]
 name = "idf_c3_blink"
 
 [[example]]
@@ -74,6 +83,15 @@ name = "idf_c3_poti_led"
 
 [[example]]
 name = "idf_c3_reed"
+
+[[example]]
+name = "idf_c3_rotary"
+
+[[example]]
+name = "idf_c6_rotary"
+
+[[example]]
+name = "idf_esp_rotary"
 
 [[example]]
 name = "idf_c3_tilt_motion"

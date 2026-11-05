@@ -189,7 +189,8 @@ fn main() -> ! {
                     drive_mode: esp_hal::gpio::DriveMode::PushPull,
                 }) {
                     Ok(()) => {
-                        let duty = (MAX_DUTY / 2 * u32::from(out.amplitude) / 255) as u16;
+                        // `duty()` is <= MAX_DUTY, so the conversion always fits; saturate rather than panic.
+                        let duty = u16::try_from(out.duty(MAX_DUTY)).unwrap_or(u16::MAX);
                         if let Err(err) = channel.set_duty_cycle(duty) {
                             println!("failed to set buzzer duty: {:?}", err);
                         }

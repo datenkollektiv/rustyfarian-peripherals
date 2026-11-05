@@ -59,11 +59,11 @@
 //!   [`set_frequency`](LedcTimerDriver::set_frequency) call — it does not
 //!   re-run clock selection per retune. `LEDC_AUTO_CLK` tries APB first, then
 //!   XTAL, then RC_FAST, taking the first clock whose divisor is valid. APB
-//!   (80 MHz) is valid at 8-bit duty resolution down to roughly 305 Hz, which
+//!   (80 MHz) is valid at 10-bit duty resolution down to roughly 77 Hz, which
 //!   spans this melody's full 523–1047 Hz range — so APB (crystal/PLL-derived
 //!   and stable), *not* RC_FAST, is what actually gets locked in here.
 //!   Constructing the timer at [`MIN_FREQ_HZ`] (the melody's lowest note) is
-//!   still the right defensive habit: if a future note dropped below ~305 Hz,
+//!   still the right defensive habit: if a future note dropped below ~77 Hz,
 //!   constructing at a *higher* note first would lock in APB and then reject
 //!   that lower note's retune outright, whereas constructing at the lowest
 //!   note first gives `LEDC_AUTO_CLK` its best chance to pick a clock that
@@ -108,7 +108,7 @@ fn main() -> anyhow::Result<()> {
     // note keeps the choice valid if a future edit adds a lower note.
     let timer_config = TimerConfig::new()
         .frequency(Hertz(MIN_FREQ_HZ))
-        .resolution(Resolution::Bits8);
+        .resolution(Resolution::Bits10);
     let mut timer_driver = LedcTimerDriver::new(peripherals.ledc.timer0, &timer_config)?;
 
     // Pass the timer driver BY REFERENCE, not by value. `LedcDriver::new` only
@@ -125,10 +125,10 @@ fn main() -> anyhow::Result<()> {
         peripherals.pins.gpio6,
     )?;
 
-    // The LEDC timer above is 8-bit, so max_duty is 256; scale a ~50% square
-    // wave by the note's amplitude (0..=255) for a coarse "volume" proxy.
+    // The LEDC timer above is 10-bit (matching the hal twins), so max_duty is
+    // 1024; `ToneOutput::duty` scales a ~50% square wave by the note's
+    // amplitude (0..=255) for a coarse "volume" proxy.
     let max_duty = led.get_max_duty();
-    let half_duty = max_duty / 2;
 
     let mut sequencer = ToneSequencer::new(&MELODY, SequenceMode::Loop);
     let start = Instant::now();
@@ -168,7 +168,7 @@ fn main() -> anyhow::Result<()> {
                     err
                 );
             } else {
-                let duty = half_duty * u32::from(out.amplitude) / 255;
+                let duty = out.duty(max_duty);
                 if let Err(err) = led.set_duty(duty) {
                     log::warn!("failed to set buzzer duty: {:?}", err);
                 }

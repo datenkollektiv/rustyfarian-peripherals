@@ -143,8 +143,6 @@ static SLOT: Mutex<RefCell<Option<IsrSlot>>> = Mutex::new(RefCell::new(None));
 
 struct IsrSlot {
     decoder: QuadratureDecoder,
-    last: (bool, bool),
-    edge_count: u32,
     isr_count: u32,
 }
 
@@ -152,8 +150,6 @@ impl IsrSlot {
     fn new(a: bool, b: bool, steps_per_detent: u8) -> Self {
         Self {
             decoder: QuadratureDecoder::new(a, b, steps_per_detent),
-            last: (a, b),
-            edge_count: 0,
             isr_count: 0,
         }
     }
@@ -251,14 +247,11 @@ fn read_levels(cell_a: u32, cell_b: u32) -> (bool, bool) {
     )
 }
 
-/// Feeds one sampled pair to the decoder if it changed. Shared by the hook and
-/// the constructor's reconcile so they cannot diverge.
+/// Feeds one sampled pair to the decoder, which ignores repeats and counts
+/// changes. Shared by the hook and the constructor's reconcile so they cannot
+/// diverge.
 fn apply_sample(slot: &mut IsrSlot, now: (bool, bool)) {
-    if now != slot.last {
-        slot.last = now;
-        slot.edge_count = slot.edge_count.wrapping_add(1);
-        let _ = slot.decoder.update(now.0, now.1);
-    }
+    let _ = slot.decoder.update(now.0, now.1);
 }
 
 /// Feeds the interrupt-driven encoder from the application's GPIO handler.
@@ -371,9 +364,10 @@ impl<'d> InterruptEncoder<'d> {
         button: impl InputPin + 'd,
         config: EncoderConfig,
     ) -> Result<Self, EncoderError> {
-        if config.steps_per_detent == 0 {
-            return Err(EncoderError::InvalidConfig);
-        }
+        // Validate before touching any pin or shared state; the probe decoder
+        // is discarded and the live one is seeded later.
+        QuadratureDecoder::try_new(true, true, config.steps_per_detent)
+            .map_err(|_| EncoderError::InvalidConfig)?;
 
         // Claim the slot first so a second instance fails before it touches
         // any pin. The hook ignores the placeholder: the masks are still zero.
@@ -489,7 +483,8 @@ impl<'d> InterruptEncoder<'d> {
     /// wraps (`u32`).
     #[must_use]
     pub fn edge_count(&self) -> u32 {
-        self.with_slot(|slot| slot.edge_count).unwrap_or(0)
+        self.with_slot(|slot| slot.decoder.edge_count())
+            .unwrap_or(0)
     }
 
     /// Number of samples that skipped a Gray-code state since construction.

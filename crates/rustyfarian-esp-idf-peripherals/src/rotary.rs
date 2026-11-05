@@ -655,9 +655,10 @@ impl<'d> Encoder<'d> {
         button: impl InputPin + OutputPin + 'd,
         config: EncoderConfig,
     ) -> Result<Self, EncoderError> {
-        if config.steps_per_detent == 0 {
-            return Err(EncoderError::InvalidConfig);
-        }
+        // Validate before touching any pin or shared state; the probe decoder
+        // is discarded and the live one is seeded later.
+        QuadratureDecoder::try_new(true, true, config.steps_per_detent)
+            .map_err(|_| EncoderError::InvalidConfig)?;
 
         let pin_a = PinDriver::input(pin_a, Pull::Up)?;
         let pin_b = PinDriver::input(pin_b, Pull::Up)?;
@@ -830,6 +831,29 @@ impl<'d> Encoder<'d> {
     #[must_use]
     pub fn isr_count(&self) -> u32 {
         self.ctx.isr_count.load(Ordering::Relaxed)
+    }
+
+    /// Number of A/B level changes fed to the decoder since construction.
+    ///
+    /// **Diagnostic only** — intended for bring-up (e.g. confirming edges are
+    /// arriving) and not part of the semantic contract. It counts sampled
+    /// level changes, not detents; edges that coincide or bounce between two
+    /// ISR samples are not counted individually. It wraps (`u32`); take
+    /// deltas with `wrapping_sub`. See [`QuadratureDecoder::edge_count`].
+    #[must_use]
+    pub fn edge_count(&self) -> u32 {
+        self.ctx.decoder.lock(|d| d.edge_count())
+    }
+
+    /// Number of samples that skipped a Gray-code state since construction.
+    ///
+    /// **Diagnostic only** — a growing count suggests ISR invocations were
+    /// coalesced (for example by a flash-cache stall) and detents may be
+    /// lost; contact bounce can also add to it. It wraps (`u32`); take deltas
+    /// with `wrapping_sub`. See [`QuadratureDecoder::skipped_count`].
+    #[must_use]
+    pub fn skipped_count(&self) -> u32 {
+        self.ctx.decoder.lock(|d| d.skipped_count())
     }
 
     /// Current level of the A pin (diagnostics).

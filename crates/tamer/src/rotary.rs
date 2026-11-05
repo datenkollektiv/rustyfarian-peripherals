@@ -210,6 +210,26 @@ static QUAD_TABLE: [i8; 16] = [
     0,  // 11→11: no change
 ];
 
+/// Error returned by [`QuadratureDecoder::try_new`] when `steps_per_detent`
+/// is `0`.
+///
+/// A detent needs at least one valid transition, so `0` can never complete one.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum DetentStepsError {
+    /// `steps_per_detent` was `0`.
+    Zero,
+}
+
+impl core::fmt::Display for DetentStepsError {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        match self {
+            Self::Zero => f.write_str("steps_per_detent must be greater than zero"),
+        }
+    }
+}
+
+impl core::error::Error for DetentStepsError {}
+
 /// Pure quadrature decoder with accumulator-based debouncing.
 ///
 /// Feed GPIO samples via [`update`](QuadratureDecoder::update) and read the
@@ -236,6 +256,7 @@ pub struct QuadratureDecoder {
     steps_per_detent: i32,
     position: i32,
     skipped: u32,
+    edges: u32,
 }
 
 impl QuadratureDecoder {
@@ -262,7 +283,39 @@ impl QuadratureDecoder {
             steps_per_detent: i32::from(steps_per_detent),
             position: 0,
             skipped: 0,
+            edges: 0,
         }
+    }
+
+    /// Creates a new decoder, rejecting `steps_per_detent == 0` instead of
+    /// panicking.
+    ///
+    /// Arguments are as for [`new`](QuadratureDecoder::new).
+    ///
+    /// # Errors
+    ///
+    /// Returns [`DetentStepsError::Zero`] if `steps_per_detent` is `0`.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use tamer::rotary::{DetentStepsError, QuadratureDecoder};
+    ///
+    /// assert!(QuadratureDecoder::try_new(true, true, 4).is_ok());
+    /// assert_eq!(
+    ///     QuadratureDecoder::try_new(true, true, 0).unwrap_err(),
+    ///     DetentStepsError::Zero
+    /// );
+    /// ```
+    pub fn try_new(
+        initial_a: bool,
+        initial_b: bool,
+        steps_per_detent: u8,
+    ) -> Result<Self, DetentStepsError> {
+        if steps_per_detent == 0 {
+            return Err(DetentStepsError::Zero);
+        }
+        Ok(Self::new(initial_a, initial_b, steps_per_detent))
     }
 
     /// Feeds a new A/B sample.
@@ -273,8 +326,12 @@ impl QuadratureDecoder {
     /// Returns `None` for partial steps, bounce, or invalid transitions.
     /// An invalid transition (both pins changed) is also counted in
     /// [`skipped_count`](QuadratureDecoder::skipped_count).
+    /// A sample equal to the previous one changes nothing, so callers may
+    /// feed every sample without de-duplicating; samples that differ are
+    /// counted in [`edge_count`](QuadratureDecoder::edge_count).
     pub fn update(&mut self, a: bool, b: bool) -> Option<EncoderDirection> {
         let state = (a as u8) << 1 | b as u8;
+        self.edges = self.edges.wrapping_add(u32::from(self.last_state != state));
         self.skipped = self
             .skipped
             .wrapping_add(u32::from((self.last_state ^ state) == 0b11));
@@ -339,9 +396,40 @@ impl QuadratureDecoder {
         self.skipped
     }
 
+    /// Returns how many fed samples differed from the previous one since
+    /// construction.
+    ///
+    /// Every changed `(a, b)` pair counts, including invalid two-bit jumps
+    /// (which are also in [`skipped_count`](QuadratureDecoder::skipped_count));
+    /// repeated identical samples do not.
+    /// Edges that coincide or bounce between two samples are not counted
+    /// individually.
+    /// The count is a bring-up diagnostic, not a detent count, and it is
+    /// monotonic, wraps at `u32::MAX`, and is not cleared by
+    /// [`set_position`](QuadratureDecoder::set_position) or
+    /// [`reset`](QuadratureDecoder::reset).
+    /// Measure a window by taking deltas with `wrapping_sub`.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use tamer::rotary::QuadratureDecoder;
+    ///
+    /// let mut dec = QuadratureDecoder::new(true, true, 4);
+    /// dec.update(true, true); // unchanged: not an edge
+    /// dec.update(false, true);
+    /// dec.update(false, true); // unchanged again
+    /// assert_eq!(dec.edge_count(), 1);
+    /// ```
+    #[must_use]
+    pub fn edge_count(&self) -> u32 {
+        self.edges
+    }
+
     /// Overwrites the absolute position and clears the accumulator.
     ///
-    /// The [`skipped_count`](QuadratureDecoder::skipped_count) is preserved.
+    /// The [`skipped_count`](QuadratureDecoder::skipped_count) and
+    /// [`edge_count`](QuadratureDecoder::edge_count) are preserved.
     pub fn set_position(&mut self, position: i32) {
         self.position = position;
         self.accumulator = 0;
@@ -349,7 +437,8 @@ impl QuadratureDecoder {
 
     /// Resets the position to zero and clears the accumulator.
     ///
-    /// The [`skipped_count`](QuadratureDecoder::skipped_count) is preserved.
+    /// The [`skipped_count`](QuadratureDecoder::skipped_count) and
+    /// [`edge_count`](QuadratureDecoder::edge_count) are preserved.
     pub fn reset(&mut self) {
         self.position = 0;
         self.accumulator = 0;
@@ -505,6 +594,34 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn try_new_rejects_zero_steps() {
+        assert_eq!(
+            QuadratureDecoder::try_new(true, true, 0).unwrap_err(),
+            DetentStepsError::Zero
+        );
+    }
+
+    #[test]
+    fn try_new_accepts_valid_steps_and_matches_new() {
+        for steps in [1u8, 2, 4, 255] {
+            let mut a = QuadratureDecoder::try_new(true, true, steps).unwrap();
+            let mut b = QuadratureDecoder::new(true, true, steps);
+            for (x, y) in [(false, true), (false, false), (true, false), (true, true)] {
+                assert_eq!(a.update(x, y), b.update(x, y));
+            }
+            assert_eq!(a.position(), b.position());
+        }
+    }
+
+    #[test]
+    fn detent_steps_error_displays() {
+        assert_eq!(
+            DetentStepsError::Zero.to_string(),
+            "steps_per_detent must be greater than zero"
+        );
+    }
 
     fn decoder() -> QuadratureDecoder {
         // Start at state 11 (both pins high — typical resting detent position).
@@ -796,6 +913,82 @@ mod tests {
         assert_eq!(dec.skipped_count(), 1);
         dec.set_position(7);
         assert_eq!(dec.skipped_count(), 1);
+    }
+
+    // --- edge_count ---
+
+    #[test]
+    fn edge_count_ignores_unchanged_samples() {
+        let mut dec = QuadratureDecoder::new(true, true, 4);
+        for _ in 0..5 {
+            assert_eq!(dec.update(true, true), None);
+        }
+        assert_eq!(dec.edge_count(), 0);
+        assert_eq!(dec.position(), 0);
+    }
+
+    #[test]
+    fn edge_count_counts_every_change_including_invalid_jumps() {
+        let mut dec = QuadratureDecoder::new(true, true, 4);
+        dec.update(false, true); // valid
+        dec.update(true, false); // 01 -> 10: invalid jump
+        dec.update(true, true); // valid
+        assert_eq!(dec.edge_count(), 3);
+        assert_eq!(dec.skipped_count(), 1);
+    }
+
+    #[test]
+    fn edge_count_cw_and_ccw_detent_both_count_four() {
+        let mut cw = QuadratureDecoder::new(true, true, 4);
+        for (a, b) in [(false, true), (false, false), (true, false), (true, true)] {
+            cw.update(a, b);
+        }
+        let mut ccw = QuadratureDecoder::new(true, true, 4);
+        for (a, b) in [(true, false), (false, false), (false, true), (true, true)] {
+            ccw.update(a, b);
+        }
+        assert_eq!(cw.position(), 1);
+        assert_eq!(ccw.position(), -1);
+        assert_eq!(cw.edge_count(), 4);
+        assert_eq!(ccw.edge_count(), 4);
+    }
+
+    #[test]
+    fn edge_count_update_return_values_unchanged_by_repeats() {
+        let mut dec = QuadratureDecoder::new(true, true, 4);
+        let mut got = None;
+        for (a, b) in [
+            (false, true),
+            (false, true),
+            (false, false),
+            (true, false),
+            (true, false),
+            (true, true),
+        ] {
+            if let Some(d) = dec.update(a, b) {
+                got = Some(d);
+            }
+        }
+        assert_eq!(got, Some(EncoderDirection::Clockwise));
+        assert_eq!(dec.edge_count(), 4);
+    }
+
+    #[test]
+    fn edge_count_wraps_without_panicking() {
+        let mut dec = QuadratureDecoder::new(true, true, 4);
+        dec.edges = u32::MAX;
+        dec.update(false, true);
+        assert_eq!(dec.edge_count(), 0);
+    }
+
+    #[test]
+    fn reset_and_set_position_preserve_edge_count() {
+        let mut dec = QuadratureDecoder::new(true, true, 4);
+        dec.update(false, true);
+        dec.set_position(7);
+        assert_eq!(dec.edge_count(), 1);
+        dec.reset();
+        assert_eq!(dec.edge_count(), 1);
     }
 
     #[test]

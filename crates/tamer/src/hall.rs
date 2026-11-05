@@ -29,6 +29,18 @@
 
 use crate::presence::Presence;
 
+/// Magnetic pole facing a linear Hall-effect sensor, as classified by
+/// [`HallSensor::pole`].
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Pole {
+    /// A field is present and the reading is at or below the midpoint.
+    North,
+    /// A field is present and the reading is strictly above the midpoint.
+    South,
+    /// No field exceeds the presence threshold.
+    Absent,
+}
+
 /// Error type returned by [`HallSensor::calibrate_from_samples`].
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum HallCalibrationError {
@@ -149,6 +161,34 @@ impl HallSensor {
         }
     }
 
+    /// Classifies the pole facing the sensor for a raw ADC reading.
+    ///
+    /// Returns [`Pole::Absent`] when [`evaluate`](Self::evaluate) reports
+    /// [`Presence::Absent`].
+    /// Otherwise returns [`Pole::South`] when `raw` is strictly above the
+    /// midpoint and [`Pole::North`] when it is below.
+    /// An exact midpoint reading falls on the [`Pole::North`] side; it can only
+    /// be present when the threshold is 0.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use tamer::hall::{HallSensor, Pole};
+    ///
+    /// let sensor = HallSensor::new(300, 2048);
+    /// assert_eq!(sensor.pole(2400), Pole::South);
+    /// assert_eq!(sensor.pole(1700), Pole::North);
+    /// assert_eq!(sensor.pole(2060), Pole::Absent);
+    /// ```
+    #[must_use]
+    pub const fn pole(&self, raw: u16) -> Pole {
+        match self.evaluate(raw) {
+            Presence::Absent => Pole::Absent,
+            Presence::Present if raw > self.midpoint => Pole::South,
+            Presence::Present => Pole::North,
+        }
+    }
+
     /// Returns the absolute deviation of `raw` from the midpoint.
     ///
     /// Useful for diagnostics and threshold-tuning during development.
@@ -161,6 +201,36 @@ impl HallSensor {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn pole_south_above_midpoint() {
+        assert_eq!(HallSensor::new(300, 2048).pole(2400), Pole::South);
+    }
+
+    #[test]
+    fn pole_north_below_midpoint() {
+        assert_eq!(HallSensor::new(300, 2048).pole(1700), Pole::North);
+    }
+
+    #[test]
+    fn pole_none_when_absent() {
+        let sensor = HallSensor::new(300, 2048);
+        assert_eq!(sensor.pole(2048), Pole::Absent);
+        assert_eq!(sensor.pole(2347), Pole::Absent);
+        assert_eq!(sensor.pole(1749), Pole::Absent);
+    }
+
+    #[test]
+    fn pole_threshold_boundaries_are_present() {
+        let sensor = HallSensor::new(300, 2048);
+        assert_eq!(sensor.pole(2348), Pole::South);
+        assert_eq!(sensor.pole(1748), Pole::North);
+    }
+
+    #[test]
+    fn pole_exact_midpoint_with_zero_threshold_is_north() {
+        assert_eq!(HallSensor::new(0, 2048).pole(2048), Pole::North);
+    }
 
     #[test]
     fn new_sets_midpoint_and_threshold() {

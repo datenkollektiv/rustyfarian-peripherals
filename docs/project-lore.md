@@ -87,3 +87,10 @@ Fix: for edge-dense inputs, call `gpio_isr_handler_add` directly (via `esp_idf_s
 Symptom: `LoadProhibited` (EXCVADDR `0x4`) on the GPIO ISR core in `xTaskRemoveFromEventList` ← `xQueueGiveMutexRecursive` ← `EspCriticalSection::release` ← `encoder_isr`, after a few hundred cross-core `Encoder` construct/drop cycles with the knob turning (ESP32-S3, 2026-10-28).
 Cause: `esp-idf-svc`'s `critical-section` feature forwards to `esp-idf-hal`'s `EspCriticalSection` (`src/task.rs:470-500`, `:780-800` in 0.47.0): `xQueueTakeMutexRecursive(.., portMAX_DELAY)` / `xQueueGiveMutexRecursive`. In an ISR the "current task" is whichever task was interrupted, so the ISR can block, wake a waiter from ISR context (the crash, when task code on the other core waits on the section), or recursively re-enter a section the interrupted task holds (a `RefCell` double borrow, even on single-core chips). The 2026-07 entry here that called this backend "ISR-safe, disables interrupts" confused it with `IsrCriticalSection` in `src/interrupt.rs`.
 Fix: guard ISR-shared state with `IsrCriticalSection` (`xPortEnterCriticalTimeout` on a `portMUX_TYPE` on ESP32/S3, `vPortEnterCritical` on C3/C6 — interrupt mask plus spinlock, valid in ISR and task context), as `rotary::IsrLocked` does. The esp-hal tier's provider (`esp_sync::RawMutex`, interrupt mask + core-owned spinlock) *is* ISR-safe. Repeat this source check on every `esp-idf-hal` bump (see `maintenance-plan.md`).
+
+## AVR — fresh lockfile fails on the pinned nightly
+
+**A fresh `cargo` resolution of `examples/avr-nano-tamer` fails on `nightly-2025-04-27`; seed `Cargo.lock` from `rustyfarian-ws2812`'s AVR example and let Cargo extend it.**
+Symptom: a compile error in `encoding_rs` 0.8.44, which calls `slice::as_chunks`, still unstable on that nightly.
+Cause: the newest `encoding_rs` is picked up by a fresh resolution, and it needs a newer toolchain than the pinned AVR nightly provides.
+Fix: keep the seeded `Cargo.lock` committed (`.gitignore` has the `!examples/avr-nano-tamer/Cargo.lock` exception) and build with `--locked`. The same failure is recorded in the ws2812 lore.

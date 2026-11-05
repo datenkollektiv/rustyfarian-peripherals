@@ -831,6 +831,373 @@ pub const fn measurement_duration_us(
     cycles * 1963 + 477 * 4 + 477 * 5 + 1000
 }
 
+// ─── Forced-conversion action machine ───────────────────────────────────────
+
+/// Minimum `timeout_ms` for one forced conversion, in milliseconds.
+///
+/// `(measurement_duration_us + 150_000 if read_gas).div_ceil(1000)`.
+/// This is the single source for [`ForcedConversion`] and the `measure` docs.
+///
+/// ```
+/// use tamer::bme680::{required_ms, Oversampling};
+///
+/// let (t, p, h) = (Oversampling::X2, Oversampling::X16, Oversampling::X1);
+/// assert_eq!(required_ms(t, p, h, false), 43);
+/// assert_eq!(required_ms(t, p, h, true), 193);
+/// ```
+#[must_use]
+pub const fn required_ms(
+    osrs_t: Oversampling,
+    osrs_p: Oversampling,
+    osrs_h: Oversampling,
+    read_gas: bool,
+) -> u32 {
+    let gas_us = if read_gas {
+        // 150 ms heater plateau; at most 249_517 us in total, no overflow.
+        HEATER_DURATION_MS as u32 * 1000
+    } else {
+        0
+    };
+    (measurement_duration_us(osrs_t, osrs_p, osrs_h) + gas_us).div_ceil(1000)
+}
+
+/// Input fed to [`ForcedConversion::poll`]: the answer to the previous action.
+///
+/// The enum is exhaustive; adding a variant is a breaking change.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ConversionInput {
+    /// Begin the conversion (first poll only).
+    Start,
+    /// A [`ConversionAction::Write`] completed.
+    Written,
+    /// The byte read for a [`ConversionAction::ReadByte`].
+    Byte(u8),
+    /// The block read for a [`ConversionAction::ReadData`].
+    Data([u8; DATA_LEN]),
+    /// A [`ConversionAction::Wait`] elapsed.
+    Waited,
+}
+
+/// Action requested by [`ForcedConversion::poll`].
+///
+/// The enum is exhaustive; adding a variant is a breaking change.
+#[must_use]
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum ConversionAction {
+    /// `i2c.write(addr, &[reg, value])`, answer [`ConversionInput::Written`].
+    Write {
+        /// Register to write.
+        reg: u8,
+        /// Value to write.
+        value: u8,
+    },
+    /// `i2c.write_read(addr, &[reg], &mut [u8; 1])`, answer [`ConversionInput::Byte`].
+    ReadByte {
+        /// Register to read.
+        reg: u8,
+    },
+    /// `i2c.write_read(addr, &[REG_MEAS_STATUS_0], &mut [u8; DATA_LEN])`,
+    /// answer [`ConversionInput::Data`].
+    ReadData,
+    /// `delay.delay_ms(ms)`, answer [`ConversionInput::Waited`].
+    Wait {
+        /// Milliseconds to wait.
+        ms: u32,
+    },
+    /// Terminal: the conversion succeeded.
+    Done(Reading),
+    /// Terminal: the conversion failed.
+    Fail(ConversionError),
+    /// The input did not match the machine's phase; a no-op.
+    /// Runners treat this as an error exit.
+    OutOfPhase,
+}
+
+/// Failure of a [`ForcedConversion`] (bus errors are the runner's business).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ConversionError {
+    /// `timeout_ms` is shorter than the conversion needs; no bus traffic occurred.
+    BudgetTooShort {
+        /// The minimum `timeout_ms` for the requested settings, in milliseconds.
+        required_ms: u32,
+    },
+    /// The sensor was not ready when the remaining budget was spent.
+    Timeout,
+}
+
+#[cfg(feature = "hal")]
+impl<E> From<ConversionError> for Error<E> {
+    fn from(e: ConversionError) -> Self {
+        match e {
+            ConversionError::BudgetTooShort { required_ms } => Self::BudgetTooShort { required_ms },
+            ConversionError::Timeout => Self::Timeout,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum State {
+    Idle,
+    SleepProbe,
+    SleepForced,
+    SleepPoll,
+    SleepWait,
+    Write(Step),
+    Drain,
+    Settle,
+    StatusPoll,
+    StatusWait,
+    Fetch,
+    Finished,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Step {
+    Config,
+    CtrlHum,
+    ResHeat,
+    GasWait,
+    CtrlGas0,
+    CtrlGas1,
+    Trigger,
+}
+
+/// Sans-io action machine for one forced-mode conversion (ADR-010, rung 3).
+///
+/// It never touches a bus or a clock: [`poll`](Self::poll) takes the answer
+/// to the previous action and returns the next one, ending in
+/// [`ConversionAction::Done`] or [`ConversionAction::Fail`].
+/// Waits are actions; elapsed time comes back as [`ConversionInput::Waited`].
+/// `Bme680::measure` (feature `hal`) is a thin blocking runner over it.
+/// Bus errors are not machine inputs: a runner simply stops polling.
+///
+/// Sequence (identical to the blocking driver, see `Bme680::measure`):
+/// budget check, sleep-mode recovery, config writes, drain read, trigger,
+/// `required_ms` wait, status poll every 1 ms, data read, compensation.
+/// `timeout_ms` budgets only the machine's own [`ConversionAction::Wait`]s.
+///
+/// ```
+/// use tamer::bme680::{
+///     ConversionAction as A, ConversionInput as I, ForcedConversion, IirFilter, Oversampling,
+/// };
+/// # use tamer::bme680::CalibrationData;
+/// # let calib = CalibrationData::from_raw(&[0x11; 25], &[0x22; 16], 1, 1, 0).unwrap();
+/// let o = Oversampling::X1;
+/// let mut m = ForcedConversion::new(calib, 25.0, o, o, o, IirFilter::Off, false, 5);
+/// // Budget too short: fails on the first poll, before any bus traffic.
+/// assert!(matches!(m.poll(I::Start), A::Fail(_)));
+/// assert!(m.is_finished());
+/// ```
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct ForcedConversion {
+    state: State,
+    calib: CalibrationData,
+    ambient_c: f32,
+    osrs_t: Oversampling,
+    osrs_p: Oversampling,
+    osrs_h: Oversampling,
+    filter: IirFilter,
+    read_gas: bool,
+    required_ms: u32,
+    remaining: u32,
+    timeout_ms: u32,
+}
+
+impl ForcedConversion {
+    /// Creates a machine; does no arithmetic beyond `required_ms` and no I/O.
+    ///
+    /// `ambient_c` feeds the heater set-point when `read_gas` is set.
+    /// `timeout_ms` budgets only the machine's own waits.
+    #[must_use]
+    #[allow(clippy::too_many_arguments)] // mirrors the Measurement contract in the feature doc
+    pub const fn new(
+        calib: CalibrationData,
+        ambient_c: f32,
+        osrs_t: Oversampling,
+        osrs_p: Oversampling,
+        osrs_h: Oversampling,
+        filter: IirFilter,
+        read_gas: bool,
+        timeout_ms: u32,
+    ) -> Self {
+        Self {
+            state: State::Idle,
+            calib,
+            ambient_c,
+            osrs_t,
+            osrs_p,
+            osrs_h,
+            filter,
+            read_gas,
+            required_ms: required_ms(osrs_t, osrs_p, osrs_h, read_gas),
+            remaining: 0,
+            timeout_ms,
+        }
+    }
+
+    /// Returns `true` once the machine emitted a terminal action.
+    #[must_use]
+    pub const fn is_finished(&self) -> bool {
+        matches!(self.state, State::Finished)
+    }
+
+    /// Returns the minimum `timeout_ms` for these settings, in milliseconds.
+    #[must_use]
+    pub const fn required_ms(&self) -> u32 {
+        self.required_ms
+    }
+
+    /// Returns the ambient temperature in °C: the constructor value until
+    /// [`ConversionAction::Done`], then the measured temperature.
+    #[must_use]
+    pub const fn ambient_c(&self) -> f32 {
+        self.ambient_c
+    }
+
+    /// Upper bound on polls for any flow, for bounding runner loops.
+    #[must_use]
+    pub const fn max_polls(&self) -> u64 {
+        2 * self.timeout_ms as u64 + 32
+    }
+
+    fn finish(&mut self, action: ConversionAction) -> ConversionAction {
+        self.state = State::Finished;
+        action
+    }
+
+    fn write(&mut self, step: Step, reg: u8, value: u8) -> ConversionAction {
+        self.state = State::Write(step);
+        ConversionAction::Write { reg, value }
+    }
+
+    fn read_byte(&mut self, state: State, reg: u8) -> ConversionAction {
+        self.state = state;
+        ConversionAction::ReadByte { reg }
+    }
+
+    /// Shared tail of the sleep check: first config write.
+    fn begin_config(&mut self) -> ConversionAction {
+        self.write(Step::Config, REG_CONFIG, config_byte(self.filter))
+    }
+
+    /// Handles a failed readiness check: spend one budget unit or time out.
+    fn retry_or_timeout(&mut self, wait_state: State) -> ConversionAction {
+        if self.remaining == 0 {
+            return self.finish(ConversionAction::Fail(ConversionError::Timeout));
+        }
+        self.remaining -= 1;
+        self.state = wait_state;
+        ConversionAction::Wait { ms: 1 }
+    }
+
+    /// Advances the machine with the answer to its previous action.
+    ///
+    /// The first call takes [`ConversionInput::Start`].
+    /// A mismatched input, or any input after a terminal action, returns
+    /// [`ConversionAction::OutOfPhase`] and leaves the state unchanged.
+    pub fn poll(&mut self, input: ConversionInput) -> ConversionAction {
+        use ConversionInput as I;
+        match (self.state, input) {
+            (State::Idle, I::Start) => {
+                if self.timeout_ms < self.required_ms {
+                    return self.finish(ConversionAction::Fail(ConversionError::BudgetTooShort {
+                        required_ms: self.required_ms,
+                    }));
+                }
+                self.remaining = self.timeout_ms - self.required_ms;
+                self.read_byte(State::SleepProbe, REG_CTRL_MEAS)
+            }
+            (State::SleepProbe, I::Byte(c)) => {
+                if op_mode(c) == 0 {
+                    self.begin_config()
+                } else {
+                    self.state = State::SleepForced;
+                    ConversionAction::Write {
+                        reg: REG_CTRL_MEAS,
+                        value: with_sleep_mode(c),
+                    }
+                }
+            }
+            (State::SleepForced, I::Written) => self.read_byte(State::SleepPoll, REG_CTRL_MEAS),
+            (State::SleepPoll, I::Byte(c)) => {
+                if op_mode(c) == 0 {
+                    self.begin_config()
+                } else {
+                    self.retry_or_timeout(State::SleepWait)
+                }
+            }
+            (State::SleepWait, I::Waited) => self.read_byte(State::SleepPoll, REG_CTRL_MEAS),
+            (State::Write(Step::Config), I::Written) => {
+                self.write(Step::CtrlHum, REG_CTRL_HUM, ctrl_hum_byte(self.osrs_h))
+            }
+            (State::Write(Step::CtrlHum), I::Written) => {
+                if self.read_gas {
+                    let rh = res_heat(&self.calib, HEATER_TARGET_C, self.ambient_c);
+                    self.write(Step::ResHeat, REG_RES_HEAT_0, rh)
+                } else {
+                    self.ctrl_gas_0()
+                }
+            }
+            (State::Write(Step::ResHeat), I::Written) => {
+                self.write(Step::GasWait, REG_GAS_WAIT_0, gas_wait(HEATER_DURATION_MS))
+            }
+            (State::Write(Step::GasWait), I::Written) => self.ctrl_gas_0(),
+            (State::Write(Step::CtrlGas0), I::Written) => self.write(
+                Step::CtrlGas1,
+                REG_CTRL_GAS_1,
+                ctrl_gas_1_byte(self.read_gas),
+            ),
+            (State::Write(Step::CtrlGas1), I::Written) => {
+                // PENDING(hardware): confirm new_data clears on read vs on trigger (feature doc open question)
+                self.state = State::Drain;
+                ConversionAction::ReadData
+            }
+            (State::Drain, I::Data(_)) => self.write(
+                Step::Trigger,
+                REG_CTRL_MEAS,
+                ctrl_meas_byte(self.osrs_t, self.osrs_p),
+            ),
+            (State::Write(Step::Trigger), I::Written) => {
+                self.state = State::Settle;
+                ConversionAction::Wait {
+                    ms: self.required_ms,
+                }
+            }
+            (State::Settle, I::Waited) => self.read_byte(State::StatusPoll, REG_MEAS_STATUS_0),
+            (State::StatusPoll, I::Byte(s)) => {
+                let gas_done = !self.read_gas || !is_gas_measuring(s);
+                if is_new_data(s) && !is_measuring(s) && gas_done {
+                    self.state = State::Fetch;
+                    ConversionAction::ReadData
+                } else {
+                    self.retry_or_timeout(State::StatusWait)
+                }
+            }
+            (State::StatusWait, I::Waited) => self.read_byte(State::StatusPoll, REG_MEAS_STATUS_0),
+            (State::Fetch, I::Data(b)) => {
+                let mut reading = compensate(&self.calib, &parse_raw(&b));
+                if !self.read_gas {
+                    reading.gas_resistance_ohm = None;
+                }
+                self.ambient_c = reading.temperature_c;
+                self.finish(ConversionAction::Done(reading))
+            }
+            _ => ConversionAction::OutOfPhase,
+        }
+    }
+
+    fn ctrl_gas_0(&mut self) -> ConversionAction {
+        // PENDING(hardware): Bosch sets the heater bit by read-modify-write of
+        // ctrl_gas_0 bit 3; this plain write assumes the other bits are
+        // reserved/zero (datasheet-derived, not in the feature-doc contract).
+        self.write(
+            Step::CtrlGas0,
+            REG_CTRL_GAS_0,
+            ctrl_gas_0_byte(self.read_gas),
+        )
+    }
+}
+
 // ─── Driver ──────────────────────────────────────────────────────────────────
 
 #[cfg(feature = "hal")]
@@ -1041,7 +1408,8 @@ impl<I2C: I2c> Bme680<I2C> {
     /// [`HEATER_DURATION_MS`]) runs, with the last measured temperature (25 °C
     /// before the first) as the ambient input.
     ///
-    /// The register sequence is, after the budget check:
+    /// The step sequence lives in [`ForcedConversion`], the single source this
+    /// method runs over. The register sequence is, after the budget check:
     ///
     /// 0. sleep-mode recovery: read [`REG_CTRL_MEAS`]; if the mode bits are not
     ///    `00`, write the same byte with them cleared ([`with_sleep_mode`]) and
@@ -1084,80 +1452,48 @@ impl<I2C: I2c> Bme680<I2C> {
         read_gas: bool,
         timeout_ms: u32,
     ) -> Result<Reading, Error<I2C::Error>> {
-        let gas_us = if read_gas {
-            // 150 ms heater plateau; at most 249_517 us in total, no overflow.
-            u32::from(HEATER_DURATION_MS) * 1000
-        } else {
-            0
-        };
-        let required_ms = (measurement_duration_us(osrs_t, osrs_p, osrs_h) + gas_us).div_ceil(1000);
-        if timeout_ms < required_ms {
-            return Err(Error::BudgetTooShort { required_ms });
-        }
-        let mut remaining = timeout_ms - required_ms;
-
-        let mut ctrl = [0u8; 1];
-        self.i2c
-            .write_read(self.address, &[REG_CTRL_MEAS], &mut ctrl)
-            .map_err(Error::Bus)?;
-        if op_mode(ctrl[0]) != 0 {
-            self.write_reg(REG_CTRL_MEAS, with_sleep_mode(ctrl[0]))?;
-            loop {
-                self.i2c
-                    .write_read(self.address, &[REG_CTRL_MEAS], &mut ctrl)
-                    .map_err(Error::Bus)?;
-                if op_mode(ctrl[0]) == 0 {
-                    break;
+        let mut m = ForcedConversion::new(
+            self.calib,
+            self.ambient_c,
+            osrs_t,
+            osrs_p,
+            osrs_h,
+            filter,
+            read_gas,
+            timeout_ms,
+        );
+        let mut input = ConversionInput::Start;
+        for _ in 0..m.max_polls() {
+            input = match m.poll(input) {
+                ConversionAction::Write { reg, value } => {
+                    self.write_reg(reg, value)?;
+                    ConversionInput::Written
                 }
-                if remaining == 0 {
-                    return Err(Error::Timeout);
+                ConversionAction::ReadByte { reg } => {
+                    let mut b = [0u8; 1];
+                    self.i2c
+                        .write_read(self.address, &[reg], &mut b)
+                        .map_err(Error::Bus)?;
+                    ConversionInput::Byte(b[0])
                 }
-                delay.delay_ms(1);
-                remaining = remaining.saturating_sub(1);
-            }
+                ConversionAction::ReadData => ConversionInput::Data(self.read_data()?),
+                ConversionAction::Wait { ms } => {
+                    delay.delay_ms(ms);
+                    ConversionInput::Waited
+                }
+                ConversionAction::Done(r) => {
+                    self.ambient_c = m.ambient_c();
+                    return Ok(r);
+                }
+                ConversionAction::Fail(e) => return Err(e.into()),
+                ConversionAction::OutOfPhase => break,
+            };
         }
-
-        self.write_reg(REG_CONFIG, config_byte(filter))?;
-        self.write_reg(REG_CTRL_HUM, ctrl_hum_byte(osrs_h))?;
-        if read_gas {
-            let rh = res_heat(&self.calib, HEATER_TARGET_C, self.ambient_c);
-            self.write_reg(REG_RES_HEAT_0, rh)?;
-            self.write_reg(REG_GAS_WAIT_0, gas_wait(HEATER_DURATION_MS))?;
-        }
-        // PENDING(hardware): Bosch sets the heater bit by read-modify-write of
-        // ctrl_gas_0 bit 3; this plain write assumes the other bits are
-        // reserved/zero (datasheet-derived, not in the feature-doc contract).
-        self.write_reg(REG_CTRL_GAS_0, ctrl_gas_0_byte(read_gas))?;
-        self.write_reg(REG_CTRL_GAS_1, ctrl_gas_1_byte(read_gas))?;
-        // PENDING(hardware): confirm new_data clears on read vs on trigger (feature doc open question)
-        self.read_data()?;
-        self.write_reg(REG_CTRL_MEAS, ctrl_meas_byte(osrs_t, osrs_p))?;
-
-        delay.delay_ms(required_ms);
-        loop {
-            let mut status = [0u8; 1];
-            self.i2c
-                .write_read(self.address, &[REG_MEAS_STATUS_0], &mut status)
-                .map_err(Error::Bus)?;
-            let s = status[0];
-            let gas_done = !read_gas || !is_gas_measuring(s);
-            if is_new_data(s) && !is_measuring(s) && gas_done {
-                break;
-            }
-            if remaining == 0 {
-                return Err(Error::Timeout);
-            }
-            delay.delay_ms(1);
-            remaining = remaining.saturating_sub(1);
-        }
-
-        let raw = parse_raw(&self.read_data()?);
-        let mut reading = compensate(&self.calib, &raw);
-        if !read_gas {
-            reading.gas_resistance_ohm = None;
-        }
-        self.ambient_c = reading.temperature_c;
-        Ok(reading)
+        // Unreachable: the runner answers every action with the matching input
+        // and `max_polls` bounds every flow. No error variant exists for it
+        // (behaviour preservation), so report the closest one.
+        debug_assert!(false, "ForcedConversion out of phase");
+        Err(Error::Timeout)
     }
 
     fn write_reg(&mut self, reg: u8, value: u8) -> Result<(), Error<I2C::Error>> {
@@ -2586,5 +2922,369 @@ mod tests {
             assert_eq!(measurement_duration_us(X1, X1, X1), 11182);
             assert_eq!(measurement_duration_us(X16, X16, X16), 99517);
         }
+    }
+}
+
+// ─── Action-machine tests ────────────────────────────────────────────────────
+
+/// Host tests for [`ForcedConversion`]; need no `hal` and no mock bus.
+#[cfg(test)]
+mod machine_tests {
+    use super::*;
+    use ConversionAction as A;
+    use ConversionInput as I;
+
+    const COEFF1: [u8; 25] = [
+        0x00, 0x66, 0x66, 0x03, 0x00, 0x72, 0x8D, 0x2E, 0xD7, 0x58, 0x00, 0xD4, 0x1C, 0x79, 0xFF,
+        0x28, 0x1E, 0x00, 0x00, 0xF6, 0xF5, 0xEA, 0xF7, 0x1E, 0x00,
+    ];
+    const COEFF2: [u8; 16] = [
+        0x3F, 0x2D, 0x32, 0x00, 0x2D, 0x14, 0x78, 0x9C, 0x9D, 0x65, 0x20, 0xEA, 0xE2, 0x12, 0x00,
+        0x00,
+    ];
+    const DATA: [u8; 15] = [
+        0x80, 0x00, 0x55, 0xD6, 0xB0, 0x79, 0x24, 0x60, 0x58, 0x76, 0x00, 0x00, 0x00, 0xD5, 0xF7,
+    ];
+    const T: Oversampling = Oversampling::X2;
+    const P: Oversampling = Oversampling::X16;
+    const H: Oversampling = Oversampling::X1;
+    const F: IirFilter = IirFilter::Coeff3;
+    const REQ: u32 = 43;
+    const REQ_GAS: u32 = 193;
+    const READY: u8 = 0x80;
+    const NEW_MEASURING: u8 = 0x80 | 0x20;
+    const NEW_GAS_MEASURING: u8 = 0x80 | 0x40;
+
+    fn calib() -> CalibrationData {
+        CalibrationData::from_raw(
+            &COEFF1,
+            &COEFF2,
+            res_heat_range_from_reg(0x10),
+            0xF4u8 as i8,
+            range_sw_err_from_reg(0xE0),
+        )
+        .unwrap()
+    }
+
+    fn machine(ambient: f32, gas: bool, timeout: u32) -> ForcedConversion {
+        ForcedConversion::new(calib(), ambient, T, P, H, F, gas, timeout)
+    }
+
+    /// Scripted sensor: queued `ctrl_meas` and `meas_status_0` answers
+    /// (the last entry repeats), plus the data block.
+    struct Sim {
+        ctrl: Vec<u8>,
+        status: Vec<u8>,
+        data: [u8; 15],
+    }
+
+    impl Sim {
+        fn new(ctrl: &[u8], status: &[u8]) -> Self {
+            Self {
+                ctrl: ctrl.to_vec(),
+                status: status.to_vec(),
+                data: DATA,
+            }
+        }
+
+        fn answer(&mut self, a: ConversionAction) -> ConversionInput {
+            fn pop(q: &mut Vec<u8>) -> u8 {
+                if q.len() > 1 {
+                    q.remove(0)
+                } else {
+                    q[0]
+                }
+            }
+            match a {
+                A::Write { .. } => I::Written,
+                A::ReadByte { reg: REG_CTRL_MEAS } => I::Byte(pop(&mut self.ctrl)),
+                A::ReadByte { .. } => I::Byte(pop(&mut self.status)),
+                A::ReadData => I::Data(self.data),
+                A::Wait { .. } => I::Waited,
+                other => panic!("terminal or out-of-phase action {other:?}"),
+            }
+        }
+    }
+
+    /// Runs the machine to a terminal action; returns every action emitted.
+    fn drive(m: &mut ForcedConversion, sim: &mut Sim) -> Vec<ConversionAction> {
+        let mut trace = Vec::new();
+        let mut input = I::Start;
+        for _ in 0..m.max_polls() {
+            let a = m.poll(input);
+            trace.push(a);
+            if matches!(a, A::Done(_) | A::Fail(_)) {
+                return trace;
+            }
+            input = sim.answer(a);
+        }
+        panic!("machine did not terminate within max_polls");
+    }
+
+    fn waits(trace: &[ConversionAction]) -> Vec<u32> {
+        trace
+            .iter()
+            .filter_map(|a| match a {
+                A::Wait { ms } => Some(*ms),
+                _ => None,
+            })
+            .collect()
+    }
+
+    fn w(reg: u8, value: u8) -> ConversionAction {
+        A::Write { reg, value }
+    }
+
+    fn expected() -> Reading {
+        compensate(&calib(), &parse_raw(&DATA))
+    }
+
+    #[test]
+    fn happy_path_with_gas() {
+        let mut m = machine(25.0, true, 300);
+        let t = drive(&mut m, &mut Sim::new(&[0x54], &[READY]));
+        let rh = res_heat(&calib(), HEATER_TARGET_C, 25.0);
+        let want = [
+            A::ReadByte { reg: REG_CTRL_MEAS },
+            w(REG_CONFIG, 0x08),
+            w(REG_CTRL_HUM, 0x01),
+            w(REG_RES_HEAT_0, rh),
+            w(REG_GAS_WAIT_0, gas_wait(HEATER_DURATION_MS)),
+            w(REG_CTRL_GAS_0, 0x00),
+            w(REG_CTRL_GAS_1, 0x10),
+            A::ReadData,
+            w(REG_CTRL_MEAS, 0x55),
+            A::Wait { ms: REQ_GAS },
+            A::ReadByte {
+                reg: REG_MEAS_STATUS_0,
+            },
+            A::ReadData,
+            A::Done(expected()),
+        ];
+        assert_eq!(t, want);
+        assert!(m.is_finished());
+        assert_eq!(m.ambient_c(), expected().temperature_c());
+    }
+
+    #[test]
+    fn res_heat_follows_ambient() {
+        let mut seen = Vec::new();
+        for amb in [25.0, 80.0] {
+            let mut m = machine(amb, true, 300);
+            let t = drive(&mut m, &mut Sim::new(&[0x54], &[READY]));
+            let b = t
+                .iter()
+                .find_map(|a| match a {
+                    A::Write {
+                        reg: REG_RES_HEAT_0,
+                        value,
+                    } => Some(*value),
+                    _ => None,
+                })
+                .unwrap();
+            assert_eq!(b, res_heat(&calib(), HEATER_TARGET_C, amb));
+            seen.push(b);
+        }
+        assert_ne!(seen[0], seen[1]);
+    }
+
+    #[test]
+    fn happy_path_without_gas() {
+        let mut m = machine(25.0, false, 300);
+        // gas_valid and heat_stab set in the data block.
+        let mut sim = Sim::new(&[0x54], &[READY]);
+        sim.data[14] |= 0x30;
+        let t = drive(&mut m, &mut sim);
+        assert!(!t.iter().any(|a| matches!(
+            a,
+            A::Write {
+                reg: REG_RES_HEAT_0 | REG_GAS_WAIT_0,
+                ..
+            }
+        )));
+        assert!(t.contains(&w(REG_CTRL_GAS_0, 0x08)));
+        assert!(t.contains(&w(REG_CTRL_GAS_1, 0x00)));
+        let Some(A::Done(r)) = t.last().copied() else {
+            panic!("no Done")
+        };
+        assert_eq!(r.gas_resistance_ohm(), None);
+        assert_eq!(r.temperature_c(), expected().temperature_c());
+    }
+
+    #[test]
+    fn sleep_recovery() {
+        // Mode 0: no sleep write.
+        let mut m = machine(25.0, false, 100);
+        let t = drive(&mut m, &mut Sim::new(&[0x54], &[READY]));
+        assert!(!t
+            .iter()
+            .any(|a| matches!(a, A::Write { reg: REG_CTRL_MEAS, value } if *value != 0x55)));
+        // Mode != 0: forced to sleep, re-read, wait 1 ms per nonzero read.
+        let mut m = machine(25.0, false, 100);
+        let t = drive(&mut m, &mut Sim::new(&[0x55, 0x55, 0x54], &[READY]));
+        assert_eq!(t[0], A::ReadByte { reg: REG_CTRL_MEAS });
+        assert_eq!(t[1], w(REG_CTRL_MEAS, with_sleep_mode(0x55)));
+        assert_eq!(t[2], A::ReadByte { reg: REG_CTRL_MEAS });
+        assert_eq!(t[3], A::Wait { ms: 1 });
+        assert_eq!(t[4], A::ReadByte { reg: REG_CTRL_MEAS });
+        assert_eq!(waits(&t), vec![1, REQ]);
+        assert!(matches!(t.last(), Some(A::Done(_))));
+    }
+
+    #[test]
+    fn status_readiness() {
+        for (gas, status, ready) in [
+            (false, 0x00, false),
+            (false, NEW_MEASURING, false),
+            (false, NEW_GAS_MEASURING, true),
+            (true, NEW_GAS_MEASURING, false),
+            (true, NEW_MEASURING, false),
+            (true, READY, true),
+        ] {
+            let mut m = machine(25.0, gas, 300);
+            let t = drive(&mut m, &mut Sim::new(&[0x54], &[status, READY]));
+            let polls_waited = waits(&t).len() - 1;
+            assert_eq!(
+                polls_waited,
+                usize::from(!ready),
+                "gas={gas} s={status:#04x}"
+            );
+        }
+    }
+
+    #[test]
+    fn budget_boundary() {
+        for (gas, req) in [(true, REQ_GAS), (false, REQ)] {
+            let mut m = machine(25.0, gas, req - 1);
+            assert_eq!(
+                m.poll(I::Start),
+                A::Fail(ConversionError::BudgetTooShort { required_ms: req })
+            );
+            assert!(m.is_finished());
+            // exactly required: not ready -> Timeout, no 1 ms wait.
+            let mut m = machine(25.0, gas, req);
+            let t = drive(&mut m, &mut Sim::new(&[0x54], &[0x00]));
+            assert_eq!(waits(&t), vec![req]);
+            assert_eq!(t.last(), Some(&A::Fail(ConversionError::Timeout)));
+            // required + 1: exactly one Wait{1}.
+            let mut m = machine(25.0, gas, req + 1);
+            let t = drive(&mut m, &mut Sim::new(&[0x54], &[0x00]));
+            assert_eq!(waits(&t), vec![req, 1]);
+        }
+    }
+
+    #[test]
+    fn remaining_budget_before_timeout() {
+        for r in 0..=5u32 {
+            // status phase
+            let mut m = machine(25.0, false, REQ + r);
+            let t = drive(&mut m, &mut Sim::new(&[0x54], &[0x00]));
+            assert_eq!(waits(&t).iter().filter(|&&x| x == 1).count() as u32, r);
+            assert_eq!(t.last(), Some(&A::Fail(ConversionError::Timeout)));
+            // sleep phase
+            let mut m = machine(25.0, false, REQ + r);
+            let t = drive(&mut m, &mut Sim::new(&[0x55], &[READY]));
+            assert_eq!(waits(&t), vec![1; r as usize]);
+            assert_eq!(t.last(), Some(&A::Fail(ConversionError::Timeout)));
+        }
+    }
+
+    #[test]
+    fn budget_is_shared_between_phases() {
+        // Spend 1 in sleep recovery; the status phase gets the other 2.
+        let mut m = machine(25.0, false, REQ + 3);
+        let t = drive(&mut m, &mut Sim::new(&[0x55, 0x55, 0x54], &[0x00]));
+        assert_eq!(waits(&t), vec![1, REQ, 1, 1]);
+        assert_eq!(t.last(), Some(&A::Fail(ConversionError::Timeout)));
+    }
+
+    #[test]
+    fn out_of_phase_matrix() {
+        // Snapshot every state: sleep recovery, gas, one status retry.
+        let mut m = machine(25.0, true, 300);
+        let mut sim = Sim::new(&[0x55, 0x55, 0x54], &[0x00, READY]);
+        let mut snaps = vec![(m, I::Start)];
+        let mut input = I::Start;
+        loop {
+            let a = m.poll(input);
+            if matches!(a, A::Done(_)) {
+                break;
+            }
+            input = sim.answer(a);
+            snaps.push((m, input));
+        }
+        assert!(snaps.len() > 15);
+        let all = [I::Start, I::Written, I::Byte(0), I::Data(DATA), I::Waited];
+        for (snap, right) in snaps {
+            for bad in all {
+                if core::mem::discriminant(&bad) == core::mem::discriminant(&right) {
+                    continue;
+                }
+                let mut c = snap;
+                assert_eq!(c.poll(bad), A::OutOfPhase);
+                assert_eq!(c, snap);
+            }
+            let mut c = snap;
+            assert_ne!(c.poll(right), A::OutOfPhase);
+        }
+    }
+
+    #[test]
+    fn terminal_is_sticky() {
+        let all = [I::Start, I::Written, I::Byte(0), I::Data(DATA), I::Waited];
+        let mut done = machine(25.0, false, 100);
+        drive(&mut done, &mut Sim::new(&[0x54], &[READY]));
+        let mut budget = machine(25.0, false, 1);
+        let _ = budget.poll(I::Start);
+        let mut timeout = machine(25.0, false, REQ);
+        drive(&mut timeout, &mut Sim::new(&[0x54], &[0x00]));
+        for mut m in [done, budget, timeout] {
+            assert!(m.is_finished());
+            for i in all {
+                assert_eq!(m.poll(i), A::OutOfPhase);
+                assert!(m.is_finished());
+            }
+        }
+    }
+
+    #[test]
+    fn progress_property() {
+        for t_ms in REQ..REQ + 8 {
+            let mut m = machine(25.0, false, t_ms);
+            let mut sim = Sim::new(&[0x54], &[0x00]);
+            let mut n = 0u64;
+            let mut input = I::Start;
+            let mut last = A::OutOfPhase;
+            while !matches!(last, A::Fail(_) | A::Done(_)) {
+                last = m.poll(input);
+                input = match last {
+                    A::Fail(_) => break,
+                    a => sim.answer(a),
+                };
+                n += 1;
+            }
+            assert!(n < m.max_polls());
+            assert_eq!(last, A::Fail(ConversionError::Timeout));
+        }
+    }
+
+    #[test]
+    fn wait_totals_match_delay_accounting() {
+        let mut m = machine(25.0, true, REQ_GAS + 4);
+        let t = drive(
+            &mut m,
+            &mut Sim::new(&[0x55, 0x55, 0x54], &[0x00, 0x00, READY]),
+        );
+        // 1 sleep wait + REQ_GAS + 2 status waits.
+        assert_eq!(waits(&t).iter().sum::<u32>(), 1 + REQ_GAS + 2);
+    }
+
+    #[test]
+    fn new_does_no_work() {
+        let m = machine(25.0, false, 10);
+        assert!(!m.is_finished());
+        assert_eq!(m.required_ms(), REQ);
+        assert_eq!(machine(25.0, true, 10).required_ms(), REQ_GAS);
+        assert_eq!(required_ms(T, P, H, true), REQ_GAS);
     }
 }

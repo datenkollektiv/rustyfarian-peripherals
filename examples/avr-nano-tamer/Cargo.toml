@@ -1,0 +1,32 @@
+[package]
+name = "avr-nano-tamer"
+version = "0.0.0"
+edition = "2021"
+publish = false
+
+[dependencies]
+panic-halt = "1.0"
+embedded-hal = "1.0"
+ufmt = "0.2"
+
+# Path dependency on the pure core, with its embedded-hal adapters. `tamer` stays
+# chip-agnostic: the button is debounced and decoded there, not in this binary.
+tamer = { path = "../../crates/tamer", features = ["hal"] }
+
+[dependencies.arduino-hal]
+git = "https://github.com/Rahix/avr-hal"
+# Same pin as the ws2812 sibling's examples/avr-nano-rainbow. avr-hal publishes
+# nothing to crates.io and ships no tags, so a commit SHA is the only ref available.
+# Bump deliberately together with the sibling; `Cargo.lock` is committed alongside.
+rev = "e5c8f37fe48419956e722490a82b9ca9b9fc61a2"
+features = ["arduino-nano"]
+
+[profile.dev]
+panic = "abort"
+opt-level = "s"
+
+[profile.release]
+panic = "abort"
+codegen-units = 1
+lto = true
+opt-level = "s"

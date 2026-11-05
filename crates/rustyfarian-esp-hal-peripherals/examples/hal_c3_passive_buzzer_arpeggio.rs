@@ -71,9 +71,10 @@
 //!   (1024 duty levels), not the 8-bit resolution `hal_c3_poti_led.rs` uses.
 //!   esp-hal's `LowSpeed` LEDC timer on the ESP32-C3/C6 is APB-clock-only (no
 //!   RC_FAST/ref-tick fallback), and at 8-bit resolution the APB-derived
-//!   divisor cannot represent frequencies below roughly 306 Hz — below this
-//!   melody's lowest note. 10-bit resolution comfortably covers 100 Hz-5 kHz
-//!   on the APB clock alone.
+//!   divisor cannot represent frequencies below roughly 306 Hz. This melody
+//!   (523-1047 Hz) would fit at 8 bits, but 10 bits leaves headroom for lower
+//!   notes, covers 100 Hz-5 kHz on the APB clock alone, and matches
+//!   `idf_c3_passive_buzzer_arpeggio.rs` so the twins share one duty scale.
 
 #![no_std]
 #![no_main]
@@ -198,7 +199,8 @@ fn main() -> ! {
                     drive_mode: esp_hal::gpio::DriveMode::PushPull,
                 }) {
                     Ok(()) => {
-                        let duty = (MAX_DUTY / 2 * u32::from(out.amplitude) / 255) as u16;
+                        // `duty()` is <= MAX_DUTY, so the conversion always fits; saturate rather than panic.
+                        let duty = u16::try_from(out.duty(MAX_DUTY)).unwrap_or(u16::MAX);
                         if let Err(err) = channel.set_duty_cycle(duty) {
                             println!("failed to set buzzer duty: {:?}", err);
                         }

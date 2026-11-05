@@ -10,6 +10,18 @@ This project follows [Semantic Versioning](https://semver.org/) (pre-1.0: minor 
 ## [Unreleased]
 
 ### Added
+
+- `tamer::mpu6050::OffsetSampler` (`new`, `poll`, `is_finished`, `max_polls`), `SamplerInput` and `SamplerAction`: sans-io rung-3 action machine for accelerometer offset calibration (ADR-010); available without `hal`; the enums are exhaustive, so adding a variant is breaking; `AccelCalibration` now also derives `PartialEq, Eq`.
+- `tamer::bme680::ForcedConversion` (`new`, `poll`, `is_finished`, `required_ms`, `ambient_c`, `max_polls`), `ConversionInput`, `ConversionAction`, `ConversionError` and `required_ms(..)`: sans-io rung-3 action machine for one forced-mode conversion (ADR-010); compiles with `bme680` alone, no `hal`; the enums are exhaustive, so adding a variant is breaking; `impl From<ConversionError> for bme680::Error<E>` under `hal`.
+- `tamer::analog::AnalogCalibration::range_or(min_span, fallback)`: observed range if it spans at least `min_span` counts, otherwise the fallback; the poti and poti-LED examples (hal and idf) use it.
+- `tamer::latch::OnceLatch` (`trip`, `rearm`): report-once latch that reports the first event of a run and the end of that run; the poti, poti-LED and linear Hall examples (hal and idf) use it to print ADC read failures and recovery once.
+- `tamer::hall::HallSensor::pole(raw)` and `Pole::{North, South, Absent}`: pole classification (absent field is `Absent`, strictly above the midpoint is `South`, otherwise `North`); the hal and idf linear Hall examples now only print it.
+- `tamer::tone::ToneOutput::duty(max_duty)`: pure PWM duty for a square-wave buzzer (0 for a rest, otherwise half of `max_duty` scaled by amplitude/255, round-to-nearest, overflow-free); the hal and idf passive-buzzer arpeggio examples now call it and use the same 10-bit LEDC resolution.
+- `tamer::rotary::QuadratureDecoder::try_new` and `DetentStepsError`: fallible constructor that rejects `steps_per_detent == 0`; the esp-hal and esp-idf encoder tiers now share it and only map the error to `EncoderError::InvalidConfig`.
+- `tamer::rotary::QuadratureDecoder::edge_count()`: wrapping count of fed samples that differ from the previous one; `update` feeds repeats harmlessly, so the esp-hal `Encoder` / `InterruptEncoder` no longer keep their own last-levels and counter bookkeeping.
+- `rustyfarian-esp-idf-peripherals::rotary::Encoder::edge_count()`: diagnostic pass-through of `QuadratureDecoder::edge_count`, read under the ISR-safe section like `skipped_count` (ADR-010 tier parity).
+- `rustyfarian-esp-idf-peripherals::rotary::Encoder::skipped_count()`: diagnostic pass-through of `QuadratureDecoder::skipped_count`, matching the esp-hal `Encoder` and `InterruptEncoder` (ADR-010 tier parity).
+- `tamer::burst::BurstDetector` / `BurstEvent::{Burst, Quiet}`: pure transition-burst event machine (`update(transition, now_ms) -> Option<BurstEvent>`) counting transitions in a window with a quiet timeout, usable over debounced presence transitions; re-exported at the `tamer` root and `tamer::prelude`.
 - `tamer::rotary::RotaryEncoder` trait (`update`, `position`, `set_position`, `reset`, `is_button_pressed`) and `NoopRotaryEncoder` mock, re-exported at the `tamer` root and `tamer::prelude`; implemented by `rustyfarian-esp-idf-peripherals::rotary::Encoder` and `rustyfarian-esp-hal-peripherals::rotary::InterruptEncoder` for tier-agnostic app code.
   The async esp-hal `rotary::Encoder` intentionally does not implement it.
 - `rustyfarian-esp-idf-peripherals::rotary` now re-exports `RotaryEncoder` and `NoopRotaryEncoder`.
@@ -36,6 +48,14 @@ This project follows [Semantic Versioning](https://semver.org/) (pre-1.0: minor 
 - `tamer::bme680` fixes two calibration misdecodes from the donated source: `par_h1` / `par_h2` now take the correct nibbles of `E2`, and `range_sw_err` is sign-extended; `par_gh1..3` are parsed for `res_heat`.
 - The `hal` feature now also covers `embedded_hal::i2c::I2c` and `DelayNs`, not only the `InputPin` adapters.
 - `hal_c3_mpu6050_tilt` / `idf_c3_mpu6050_tilt`: ESP32-C3 examples on I2C0 (GPIO 4 SDA / GPIO 5 SCL, 100 kHz) that check `WHO_AM_I`, calibrate at rest, and print the tilt angle; the esp-hal twin is hardware-verified on an ESP32-C3 SuperMini, the ESP-IDF twin compile-verified.
+- `just check-matrix`, with `check-matrix-hal` and `check-matrix-idf` and the per-chip forms `check-matrix-hal-chip <chip>` / `check-matrix-idf-chip <chip>`: check and clippy both tier libraries on ESP32, C3, C6 and S3, one chip at a time; not part of `just verify`.
+- `just setup-avr`, `just check-avr-target`, `just build-avr-example` and `just build-avr-example-upstream`: install the pinned AVR nightly, check `tamer --features hal` on `avr-none`, build the AVR example, and run a throwaway build against avr-hal `main`.
+- `examples/avr-nano-tamer`: excluded from the workspace, an Arduino Nano demo that debounces a button on D2 through `tamer::ButtonInput`, toggles D13 on each click and prints events at 57600 baud.
+- `scripts/check-matrix.sh` and `scripts/build-avr-example-upstream.sh`; `scripts/lib.sh` accepts the `esp32c3` and `esp32c6` chip tokens.
+- CI workflows `cross-target-riscv.yml`, `cross-target-xtensa.yml`, `cross-target-avr.yml` and `cross-target-avr-upstream.yml`: path-filtered PR gates for the esp-hal chips and the AVR link, plus a weekly upstream AVR canary; each job runs `just` recipes.
+- `hal_esp_rotary_isr`, `hal_c3_rotary_isr` and `hal_c6_rotary_isr`: ISR-decoded rotary examples for ESP32, C3 and C6 (esp-hal).
+- `idf_esp_rotary`, `idf_c3_rotary` and `idf_c6_rotary`: ISR-decoded rotary examples for ESP32, C3 and C6 (ESP-IDF), printing the same event lines as the esp-hal twins.
+- `idf_esp_b3f`, `idf_c6_b3f` and `idf_s3_b3f`: button smoke examples on ESP32, C6 and S3 (ESP-IDF), matching the esp-hal `b3f` examples.
 
 ### Fixed
 - ESP-IDF `rotary::Encoder`: the GPIO ISR no longer takes `critical_section`, which on ESP-IDF is a FreeRTOS mutex and crashed an ESP32-S3 (`xTaskRemoveFromEventList` in ISR context) under cross-core construct/drop; it now uses esp-idf-hal's ISR-safe `interrupt::IsrCriticalSection`. See ADR-006.
@@ -44,6 +64,11 @@ This project follows [Semantic Versioning](https://semver.org/) (pre-1.0: minor 
 - ESP-IDF `rotary::Encoder::new`: a turn during construction no longer shifts the first detent.
 
 ### Changed
+- `Mpu6050::calibrate` now runs as a bounded blocking runner over `OffsetSampler`; signature, errors, I2C transactions and delay calls are unchanged.
+- Known risk: if `OffsetSampler` ever reports `OutOfPhase` or the runner fuel runs out in a release build, `Mpu6050::calibrate` returns `Ok` with zero offsets (the only silent-success path in either runner); a dedicated `Error::Sequence` variant is a follow-up because adding it is a breaking change.
+- `tamer::bme680::Bme680::measure` now runs as a thin blocking runner over `ForcedConversion`; signature, errors, I2C transaction order and `DelayNs` calls are unchanged.
+- `idf_c3_passive_buzzer_arpeggio` now uses 10-bit LEDC resolution (was 8-bit) to match the hal twins and shares `ToneOutput::duty`; the documented ~77 Hz lower bound is computed, not yet verified on a device.
+- `hal_c3_tilt_motion` / `idf_c3_tilt_motion` examples use `tamer::burst::BurstDetector` instead of a hand-written burst detector; the per-transition `count=` field is dropped from the log line.
 - `tamer::rotary`: position wraps at the `i32` limits instead of panicking in debug builds.
 - `tamer::presence`: `PresenceSession::restore` / `snapshot` keep `last_onset_age` exact when the restored age exceeds the restore tick, instead of collapsing it to `now`.
   `last_onset()` still saturates at `0` in that case.

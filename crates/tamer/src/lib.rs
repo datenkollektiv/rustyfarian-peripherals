@@ -44,6 +44,7 @@
 //!
 //! - [`analog`] — raw ADC range normalization and deadbanded analog movement.
 //! - [`debounce`] — sampled-input debounce state machine and edge detector.
+//! - [`latch`] — report-once latch for persistent conditions
 //! - [`hall`] — Hall-effect magnetic presence detection via configurable
 //!   deviation threshold; calibrates the no-magnet midpoint from samples.
 //! - [`smoothing`] — fixed-size O(1) sliding-window average and an
@@ -59,8 +60,11 @@
 //! - [`rotary`] — quadrature / Gray-code decoding with detent handling, plus the tier-agnostic [`RotaryEncoder`] trait and its `NoopRotaryEncoder` mock.
 //! - [`button`] — press / release / click / double-click / long-press events,
 //!   built on the [`debounce`] edge detector.
+//! - [`burst`] — a transition-burst detector: a count of transitions inside a
+//!   time window raises `Burst`, a quiet timeout raises `Quiet`.
 //! - [`mpu6050`] — MPU6050 IMU register map, raw-burst parsing, and
-//!   accelerometer offset calibration; `tamer`'s first device-named module.
+//!   accelerometer offset calibration (with the sans-io [`OffsetSampler`](mpu6050::OffsetSampler)
+//!   action machine); `tamer`'s first device-named module.
 //!   With `hal` it adds the [`Mpu6050`] I2C driver; with `tilt`, the
 //!   [`TiltEstimator`] smoothed tilt angle.
 //! - `bme680` (feature `bme680`) — BME680 environmental-sensor register map,
@@ -115,6 +119,12 @@ pub use analog::{
     MockAnalogRead,
 };
 
+/// Report-once latch — [`OnceLatch`](latch::OnceLatch).
+///
+/// Suppresses repeated reports of a persistent condition and re-arms when it clears.
+pub mod latch;
+pub use latch::OnceLatch;
+
 /// Hall-effect magnetic presence detection — [`HallSensor`](hall::HallSensor)
 /// and [`HallCalibrationError`](hall::HallCalibrationError).
 ///
@@ -124,7 +134,7 @@ pub use analog::{
 /// call [`evaluate`](hall::HallSensor::evaluate) to obtain a
 /// [`Presence`](presence::Presence) reading.
 pub mod hall;
-pub use hall::{HallCalibrationError, HallSensor};
+pub use hall::{HallCalibrationError, HallSensor, Pole};
 
 /// Sliding-window average smoother — [`SlidingAverage`](smoothing::SlidingAverage) —
 /// and exponential moving average filter — [`EmaFilter`](smoothing::EmaFilter).
@@ -147,6 +157,11 @@ pub use smoothing::{EmaFilter, SlidingAverage};
 /// Enable the `hal` feature to get the `DigitalPresenceInput` adapter that
 /// reads an `embedded-hal` `InputPin` directly.
 pub mod presence;
+
+/// Transition-burst detection — [`BurstDetector`](burst::BurstDetector) and
+/// [`BurstEvent`](burst::BurstEvent).
+pub mod burst;
+pub use burst::{BurstDetector, BurstEvent};
 pub use presence::{
     DigitalPresence, Polarity, Presence, PresenceSession, SessionEvent, SessionPhase, SessionState,
     TriggerMode,
@@ -170,7 +185,9 @@ pub use range_map::RangeMap;
 /// Enable the `hal` feature to get the `QuadratureInput` adapter that reads
 /// two `embedded-hal` `InputPin`s directly.
 pub mod rotary;
-pub use rotary::{EncoderDirection, NoopRotaryEncoder, QuadratureDecoder, RotaryEncoder};
+pub use rotary::{
+    DetentStepsError, EncoderDirection, NoopRotaryEncoder, QuadratureDecoder, RotaryEncoder,
+};
 
 #[cfg(feature = "hal")]
 pub use rotary::QuadratureInput;
@@ -302,10 +319,12 @@ pub mod prelude {
         AnalogCalibration, AnalogInput, AnalogRange, AnalogRead, AnalogSample, AnalogValue,
         MockAnalogRead,
     };
+    pub use crate::burst::{BurstDetector, BurstEvent};
     pub use crate::button::{ButtonDecoder, ButtonEvent};
     pub use crate::debounce::{Debouncer, Edge, EdgeDetector};
-    pub use crate::hall::{HallCalibrationError, HallSensor};
+    pub use crate::hall::{HallCalibrationError, HallSensor, Pole};
     pub use crate::hotplug::{Hotplug, Transition};
+    pub use crate::latch::OnceLatch;
     pub use crate::morse::{MorseKeyer, MorseMode};
     pub use crate::mpu6050::{AccelCalibration, RawReading};
     pub use crate::presence::{
@@ -314,7 +333,7 @@ pub mod prelude {
     };
     pub use crate::range_map::RangeMap;
     pub use crate::rotary::{
-        EncoderDirection, NoopRotaryEncoder, QuadratureDecoder, RotaryEncoder,
+        DetentStepsError, EncoderDirection, NoopRotaryEncoder, QuadratureDecoder, RotaryEncoder,
     };
     pub use crate::smoothing::{EmaFilter, SlidingAverage};
     pub use crate::tone::{Note, SequenceMode, ToneSequencer};

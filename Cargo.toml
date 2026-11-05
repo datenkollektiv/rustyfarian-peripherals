@@ -1,6 +1,8 @@
 [workspace]
 resolver = "2"
 members = ["crates/*"]
+# Device-only firmware package: built for avr-none out of tree, never by the host gates.
+exclude = ["examples/avr-nano-tamer"]
 
 [workspace.package]
 version = "0.1.0"

@@ -1,0 +1,54 @@
+name: AVR upstream early warning
+
+# The AVR example pins `arduino-hal` to an exact avr-hal commit, so PR builds are
+# reproducible — but that pin also hides upstream breakage, which the AVR gate exists
+# partly to catch. This job restores that signal: once a week it drops the pin and builds
+# the example against avr-hal's default branch. The work happens on a throwaway copy in a
+# temp dir (see `just build-avr-example-upstream`), so no tracked file is modified even
+# transiently.
+#
+# A failure here does NOT mean this repo is broken. It means upstream moved and the pin
+# can no longer be bumped without work — investigate, then bump `rev` in
+# examples/avr-nano-tamer/Cargo.toml (and commit the regenerated lockfile) when ready.
+#
+# Worth knowing: avr-hal publishes nothing to crates.io and ships no tags or releases, and
+# its own CI pins the same nightly we do (nightly-2025-04-27) with no MSRV policy, so an
+# upstream toolchain bump would surface here first.
+
+on:
+  schedule:
+    - cron: "0 6 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: avr-upstream-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  avr-upstream:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Install AVR GCC toolchain
+        run: sudo apt-get update && sudo apt-get install -y gcc-avr binutils-avr avr-libc
+
+      - name: Setup just
+        uses: extractions/setup-just@v4
+
+      - name: Install pinned AVR nightly toolchain
+        run: just setup-avr
+
+      # Deliberately uncached: the point is a fresh build against upstream avr-hal's tip.
+      # The lockfile is kept (see the recipe's script), so only the avr-hal git packages
+      # move; a failure here means upstream moved, not that an unrelated crate published.
+      - name: Build AVR example against upstream avr-hal main
+        run: just build-avr-example-upstream

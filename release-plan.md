@@ -31,8 +31,26 @@ Release process for the `rustyfarian-peripherals` workspace.
 - [ ] No uncommitted changes: `git status --short` is empty
 - [ ] Working tree is on `main` and in sync with `origin/main`
 - [ ] Authenticated with crates.io (see Authentication below)
+- [ ] Final hardware pass done (see below); feature docs carry no hardware gates of their own
 
 The hardware tiers cannot dry-run publish until `tamer` of the same version is live on crates.io — see Publish Order.
+
+### Final hardware pass
+
+Hardware checks are collected here, not gated per feature, and run once before the release.
+Tick each item with the board, port, and date; record new gotchas in `docs/project-lore.md`.
+
+- [ ] Every example touched by the ADR-010 alignment runs on both tiers: `tilt_motion`, `hall_linear`, `poti`, `poti_led`, `passive_buzzer_arpeggio` (C3 twins, plus `hal_c6_passive_buzzer_arpeggio`).
+- [ ] `idf_c3_passive_buzzer_arpeggio` at 10-bit LEDC (was 8-bit) still plays the full melody; the ~77 Hz floor is computed, not measured.
+- [ ] Rotary `edge_count()` / `skipped_count()` move under turning on both tiers (the counting now lives in `QuadratureDecoder`).
+- [ ] MPU6050: `idf_c3_mpu6050_tilt` on the C3 rig; a ±90° reading; a deliberate NACK (wrong address) prints the AD0 hint.
+- [ ] BME680 (needs `hal_c3_bme680` / `idf_c3_bme680` written first): readings on the ADR-004 bus, incl. `heat_stab_r` at the fixed heater profile.
+- [ ] BME680: `new_data` is clear after drain + trigger; then drop `PENDING(hardware)` from the drain mock script.
+- [ ] BME680: plain `ctrl_gas_0` write (`0x00` / `0x08`) and the `meas_status_0` bits `0x20` / `0x40` behave as the poll assumes.
+- [ ] BME680: capture a real register dump for the test fixture.
+- [ ] Hall linear: `hal_c3_hall_linear` / `idf_c3_hall_linear` with a 49E sensor.
+- [ ] Chip matrix hardware pass on ESP32, C3, C6 and S3 (`docs/features/chip-matrix-v1.md`), incl. the ESP-IDF rotary `Encoder` on C3 and C6.
+- [ ] Optional: `hal_c6_passive_buzzer_arpeggio` pitch (suspected one octave high from the C6 LEDC clock).
 
 ## Version Bump
 

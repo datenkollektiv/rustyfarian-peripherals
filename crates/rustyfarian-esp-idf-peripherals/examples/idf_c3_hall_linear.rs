@@ -76,7 +76,11 @@ use esp_idf_hal::{
     delay::FreeRtos,
     peripherals::Peripherals,
 };
-use tamer::{hall::HallSensor, presence::Presence, smoothing::SlidingAverage};
+use tamer::latch::OnceLatch;
+use tamer::{
+    hall::{HallSensor, Pole},
+    smoothing::SlidingAverage,
+};
 
 /// Minimum absolute deviation from midpoint to report Present.
 /// Start low for debugging — increase once you see real sensor values.
@@ -105,26 +109,24 @@ fn main() -> anyhow::Result<()> {
     );
 
     let mut cal_buf = [0u16; CAL_SAMPLES];
-    let mut cal_read_failed = false;
+    let mut cal_read_failed = OnceLatch::new();
 
     for sample in cal_buf.iter_mut() {
         loop {
             match adc.read_raw(&mut pin) {
                 Ok(raw) => {
-                    if cal_read_failed {
+                    if cal_read_failed.rearm() {
                         log::info!("ADC read recovered during calibration");
-                        cal_read_failed = false;
                     }
                     *sample = raw;
                     break;
                 }
                 Err(err) => {
-                    if !cal_read_failed {
+                    if cal_read_failed.trip() {
                         log::warn!(
                             "ADC read failed during calibration; suppressing repeated failures: {:?}",
                             err
                         );
-                        cal_read_failed = true;
                     }
                 }
             }
@@ -148,24 +150,21 @@ fn main() -> anyhow::Result<()> {
 
     // --- Detection loop ---
     let mut smoother = SlidingAverage::<8>::new();
-    let mut read_failed = false;
+    let mut read_failed = OnceLatch::new();
 
     loop {
         match adc.read_raw(&mut pin) {
             Ok(raw) => {
-                if read_failed {
+                if read_failed.rearm() {
                     log::info!("ADC read recovered");
-                    read_failed = false;
                 }
 
                 let smoothed = smoother.push(raw);
                 let dev = sensor.deviation(smoothed);
-                let presence = sensor.evaluate(smoothed);
-
-                let tag = match presence {
-                    Presence::Present if smoothed > sensor.midpoint() => "SOUTH",
-                    Presence::Present => "NORTH",
-                    Presence::Absent => "---",
+                let tag = match sensor.pole(smoothed) {
+                    Pole::South => "SOUTH",
+                    Pole::North => "NORTH",
+                    Pole::Absent => "---",
                 };
 
                 log::info!(
@@ -178,9 +177,8 @@ fn main() -> anyhow::Result<()> {
                 );
             }
             Err(err) => {
-                if !read_failed {
+                if read_failed.trip() {
                     log::warn!("ADC read failed; suppressing repeated failures: {:?}", err);
-                    read_failed = true;
                 }
             }
         }

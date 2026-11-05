@@ -1,11 +1,12 @@
 #!/usr/bin/env bash
 set -euo pipefail
 # doctor.sh — report development tooling status and resolved build dirs.
-# Usage: scripts/doctor.sh <ramdisk> <hal_dir> <idf_dir>
+# Usage: scripts/doctor.sh <ramdisk> <hal_dir> <idf_dir> [avr_dir]
 
 ramdisk="${1:-}"
 hal_dir="${2:-target/hal}"
 idf_dir="${3:-target/idf}"
+avr_dir="${4:-target/avr}"
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=./lib.sh
@@ -69,6 +70,7 @@ else
 fi
 status "hal target" "" "$hal_dir"
 status "idf target" "" "$idf_dir"
+status "avr target" "" "$avr_dir"
 
 printf '\nHost work (check / test / clippy / deny) needs only rustc, cargo, and just.\n'
 printf 'The esp toolchain and espflash are required only for the hardware crates.\n'

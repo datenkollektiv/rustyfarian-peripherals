@@ -11,7 +11,9 @@ analog controls, button events, Hall/tilt sensing) *and* output (tone/buzzer
 sequencing). The design is **sans-io**: pure decoding/timing/rendering logic
 lives in a `no_std` crate with no hardware dependency, and two thin hardware
 tiers (esp-hal, ESP-IDF) provide the GPIO glue. Target hardware: ESP32 (RISC-V
-C3/C6 and Xtensa ESP32/S3). MSRV is `1.88` for `tamer`; the two hardware tiers
+C3/C6 and Xtensa ESP32/S3).
+`tamer` also links on 8-bit AVR (ATmega328P, Arduino Nano); there is no AVR tier crate.
+MSRV is `1.88` for `tamer`; the two hardware tiers
 declare `1.95` (required by `esp-hal 1.2`; the ESP-IDF tier matches by policy). It is the peripheral layer of the
 rustyfarian family; LED output lives in the separate `rustyfarian-ws2812` repo,
 which this repo never depends on.
@@ -46,11 +48,34 @@ behaviour cannot drift. Host work needs only `rustc`, `cargo`, and `just`.
 | `just ci` | CI-equivalent: fmt-check + deny + check + clippy + test (the workflows call these recipes individually, plus `audit`) |
 | `just test-all-features` / `just clippy-all-features` | Exercise the `hal` + `tilt` features |
 | `just check-hal` / `just check-idf` | Check a hardware tier on device targets (`check-hal`: C3 + S3; `check-idf`: C3) |
+| `just check-matrix` | Check and clippy both tier libraries on all four ESP32 chips, one at a time (slow, needs `espup`; not part of `verify`) |
+| `just check-matrix-hal-chip <chip>` / `just check-matrix-idf-chip <chip>` | One chip of the matrix; `<chip>` is `esp32`, `esp32c3`, `esp32c6` or `esp32s3` |
+| `just setup-avr` | Install the pinned AVR nightly (`nightly-2025-04-27`) with `rust-src` via `rustup` |
+| `just check-avr-target` | Check `tamer --features hal` on `avr-none` (needs `setup-avr` and `avr-gcc`) |
+| `just build-avr-example` / `just build-avr-example-upstream` | Build every bin of `examples/avr-nano-tamer` with `--locked`; the upstream form builds a throwaway copy against avr-hal `main` (weekly canary) |
 | `just examples` / `just build-example <name>` / `just run <name>` | List / build / flash+monitor device examples |
 | `just deny` / `just audit` / `just doctor` | License-advisory checks / RUSTSEC audit / tooling report |
 
 The `esp` toolchain (`just setup-toolchain`, via espup) and device target config
 (`just setup-cargo-config`) are needed only for the hardware crates and examples.
+
+### Chip matrix
+
+Every tier's library is checked and linted on all four ESP32 chips, and `tamer` links on AVR.
+The chip tokens below are the recipe arguments and the example-name tokens.
+
+| Chip | Recipe argument | Example token |
+|:-----|:----------------|:--------------|
+| ESP32 (WROOM-32, Feather V2) | `esp32` | `esp` |
+| ESP32-C3 | `esp32c3` | `c3` |
+| ESP32-C6 | `esp32c6` | `c6` |
+| ESP32-S3 | `esp32s3` | `s3` |
+
+The matrix runs one chip at a time so that target directories and the RAM disk do not fill up.
+ESP-IDF builds for every chip use `cargo +esp`, and Xtensa esp-hal builds do too.
+The AVR gate covers `tamer` only, on `avr-none` with the pinned nightly.
+Feature examples stay on their reference chip, while rotary examples exist per chip.
+The decisions behind the matrix are in `docs/features/chip-matrix-v1.md`.
 
 ## Key Conventions
 
@@ -80,8 +105,8 @@ fences (not `bash`). Never put comments inside code snippets — explanatory tex
 goes above. ADRs follow the Michael Nygard format under
 `docs/adr/NNN-short-description.md`; feature docs in `docs/features/name-vN.md`.
 
-**Example naming.** `{hal|idf}_{chip}_{name}` (chip ∈ `c3|c6|esp32|esp32s3`),
-e.g. `hal_c3_passive_buzzer_arpeggio`, `idf_s3_rotary`.
+**Example naming.** `{hal|idf}_{chip}_{name}` (chip ∈ `c3|c6|esp|s3`, where `esp` is the classic ESP32; `scripts/lib.sh` also accepts `esp32` and `esp32s3`),
+e.g. `hal_c3_passive_buzzer_arpeggio`, `idf_s3_rotary`, `hal_esp_rotary_isr`.
 
 ## Coding Principles
 

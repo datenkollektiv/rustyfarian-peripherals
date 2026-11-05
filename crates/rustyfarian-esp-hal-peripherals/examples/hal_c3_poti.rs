@@ -52,6 +52,7 @@ use esp_hal::{
 };
 use esp_println::println;
 use tamer::analog::{AnalogCalibration, AnalogRange, AnalogValue};
+use tamer::latch::OnceLatch;
 
 const ADC_MAX: u16 = 4095;
 const DEADBAND_COUNTS: u16 = 32;
@@ -93,22 +94,20 @@ fn main() -> ! {
     );
 
     let mut calibration = AnalogCalibration::from_sample(initial_raw);
-    let mut calibration_read_failed = false;
+    let mut calibration_read_failed = OnceLatch::new();
 
     for _ in 0..CALIBRATION_SAMPLES {
         match nb::block!(adc1.read_oneshot(&mut poti_pin)) {
             Ok(raw) => {
-                if calibration_read_failed {
+                if calibration_read_failed.rearm() {
                     println!("ADC read recovered during calibration");
-                    calibration_read_failed = false;
                 }
 
                 calibration.observe(raw);
             }
             Err(_) => {
-                if !calibration_read_failed {
+                if calibration_read_failed.trip() {
                     println!("ADC read failed during calibration; suppressing repeated failures");
-                    calibration_read_failed = true;
                 }
             }
         }
@@ -116,16 +115,18 @@ fn main() -> ! {
         delay.delay_millis(CALIBRATION_DELAY_MS);
     }
 
-    let range = if let Some(range) = calibration.range_with_min_span(MIN_CALIBRATION_SPAN) {
+    let range = calibration.range_or(MIN_CALIBRATION_SPAN, default_range);
+    if calibration
+        .range_with_min_span(MIN_CALIBRATION_SPAN)
+        .is_some()
+    {
         println!("Calibration accepted; using calibrated range.");
-        range
     } else {
         println!(
             "Calibration span below {} counts; falling back to full ADC range.",
             MIN_CALIBRATION_SPAN
         );
-        default_range
-    };
+    }
     let deadband = range.raw_delta_to_normalized(DEADBAND_COUNTS);
 
     println!(
@@ -139,7 +140,7 @@ fn main() -> ! {
 
     let mut poti = AnalogValue::new(initial_raw, range, deadband);
     let initial = poti.stable_value();
-    let mut read_failed = false;
+    let mut read_failed = OnceLatch::new();
 
     println!(
         "Potentiometer ready on GPIO 4: raw={} normalized={} percent={}%",
@@ -151,9 +152,8 @@ fn main() -> ! {
     loop {
         match nb::block!(adc1.read_oneshot(&mut poti_pin)) {
             Ok(raw) => {
-                if read_failed {
+                if read_failed.rearm() {
                     println!("ADC read recovered");
-                    read_failed = false;
                 }
 
                 if let Some(sample) = poti.update(raw) {
@@ -166,9 +166,8 @@ fn main() -> ! {
                 }
             }
             Err(_) => {
-                if !read_failed {
+                if read_failed.trip() {
                     println!("ADC read failed; suppressing repeated failures");
-                    read_failed = true;
                 }
             }
         }

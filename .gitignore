@@ -1,5 +1,8 @@
 /target
 Cargo.lock
+# Exception: avr-nano-tamer is a firmware binary package, excluded from the workspace, and
+# depends on avr-hal by git. Its lockfile pins that dependency set, so `--locked` CI needs it.
+!examples/avr-nano-tamer/Cargo.lock
 .embuild/
 .cargo/config.toml
 

@@ -11,11 +11,13 @@ Add new sections per input/output type and board, using the table formats shown 
 ESP32 (RISC-V and Xtensa), via the esp-hal (bare-metal) and esp-idf (std) tiers.
 Specific dev boards are listed here as examples target them.
 
-| Board               | Chip     | Tier(s)          | Status                                                                                                                                                                                                            |
-|:--------------------|:---------|:-----------------|:------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| CrowPanel 1.28" HMI | ESP32-S3 | esp-hal, esp-idf | rotary encoder (hal_s3_rotary, idf_s3_rotary)                                                                                                                                                                     |
-| ESP32-C3 SuperMini  | ESP32-C3 | esp-hal, esp-idf | passive arpeggio (hal_c3_passive_buzzer_arpeggio, idf_c3_passive_buzzer_arpeggio); active Morse (hal_c3_active_buzzer_morse, idf_c3_active_buzzer_morse); MPU6050 tilt (hal_c3_mpu6050_tilt, idf_c3_mpu6050_tilt) |
-| ESP32-C6-DevKitC-1  | ESP32-C6 | esp-hal          | button (hal_c6_b3f); passive arpeggio (hal_c6_passive_buzzer_arpeggio)                                                                                                                                            |
+| Board                       | Chip             | Tier(s)          | Status                                                                                                                                                                                                                                                               |
+|:----------------------------|:-----------------|:-----------------|:---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| CrowPanel 1.28" HMI         | ESP32-S3         | esp-hal, esp-idf | button (hal_s3_b3f, idf_s3_b3f); rotary encoder (hal_s3_rotary, idf_s3_rotary)                                                                                                                                                                                       |
+| ESP32-C3 SuperMini          | ESP32-C3         | esp-hal, esp-idf | passive arpeggio (hal_c3_passive_buzzer_arpeggio, idf_c3_passive_buzzer_arpeggio); active Morse (hal_c3_active_buzzer_morse, idf_c3_active_buzzer_morse); MPU6050 tilt (hal_c3_mpu6050_tilt, idf_c3_mpu6050_tilt); rotary encoder (hal_c3_rotary_isr, idf_c3_rotary) |
+| ESP32-C6-DevKitC-1          | ESP32-C6         | esp-hal, esp-idf | button (hal_c6_b3f, idf_c6_b3f); passive arpeggio (hal_c6_passive_buzzer_arpeggio); rotary encoder (hal_c6_rotary_isr, idf_c6_rotary)                                                                                                                                |
+| ESP32 WROOM-32 / Feather V2 | ESP32            | esp-hal, esp-idf | button (hal_esp_b3f, idf_esp_b3f); rotary encoder (hal_esp_rotary_isr, idf_esp_rotary)                                                                                                                                                                               |
+| Arduino Nano                | ATmega328P (AVR) | tamer only       | debounced button on D2 (`examples/avr-nano-tamer`); no tier crate                                                                                                                                                                                                    |
 
 ---
 
@@ -51,6 +53,78 @@ main-loop latency. Button timing (debounce, click, double-click, long-press) is
 polled via [`Encoder::update`], so call it regularly (a 1 ms loop is typical).
 The driver delegates all decode logic to `tamer::rotary::QuadratureDecoder` and
 `tamer::button::ButtonDecoder`.
+
+---
+
+## Wiring — rotary encoder (ESP32 WROOM-32 / Feather V2)
+
+EC11 full-step encoder with integral push button, wired to external pins on this board.
+Examples: `hal_esp_rotary_isr` / `idf_esp_rotary`.
+
+| Signal      | GPIO    | Pull             | Notes                                              |
+|:------------|:--------|:-----------------|:---------------------------------------------------|
+| A / CLK     | GPIO 32 | internal pull-up | quadrature channel A; ISR-decoded                  |
+| B / DT      | GPIO 33 | internal pull-up | quadrature channel B; ISR-decoded                  |
+| Button / SW | GPIO 27 | internal pull-up | active-low (pressed = LOW); polled for debounce    |
+| +           | 3V3     | —                | power                                              |
+| −           | GND     | —                | ground                                             |
+
+GPIO 34 to 39 are input-only and have no internal pull-ups, which is why the pins above avoid them.
+Confirm GPIO 32, 33 and 27 on the Adafruit Feather V2 pinout card before wiring; this guide does not carry the card.
+The pins are 3.3 V logic, so never connect them to 5 V.
+
+---
+
+## Wiring — rotary encoder (ESP32-C3 SuperMini)
+
+EC11 full-step encoder with integral push button, wired to external pins on this board.
+Examples: `hal_c3_rotary_isr` / `idf_c3_rotary`.
+
+| Signal      | GPIO   | Pull             | Notes                                              |
+|:------------|:-------|:-----------------|:---------------------------------------------------|
+| A / CLK     | GPIO 0 | internal pull-up | quadrature channel A; ISR-decoded                  |
+| B / DT      | GPIO 1 | internal pull-up | quadrature channel B; ISR-decoded                  |
+| Button / SW | GPIO 10 | internal pull-up | active-low (pressed = LOW); polled for debounce   |
+| +           | 3V3    | —                | power                                              |
+| −           | GND    | —                | ground                                             |
+
+GPIO 4 to 7 are used by the other C3 examples (I2C and buzzer), and GPIO 2, 8 and 9 are strapping pins, so the encoder avoids all of them.
+The pins are 3.3 V logic, so never connect them to 5 V.
+
+---
+
+## Wiring — rotary encoder (ESP32-C6-DevKitC-1)
+
+EC11 full-step encoder with integral push button, wired to external pins on this board.
+Examples: `hal_c6_rotary_isr` / `idf_c6_rotary`.
+
+| Signal      | GPIO    | Pull             | Notes                                              |
+|:------------|:--------|:-----------------|:---------------------------------------------------|
+| A / CLK     | GPIO 18 | internal pull-up | quadrature channel A; ISR-decoded                  |
+| B / DT      | GPIO 19 | internal pull-up | quadrature channel B; ISR-decoded                  |
+| Button / SW | GPIO 20 | internal pull-up | active-low (pressed = LOW); polled for debounce    |
+| +           | 3V3     | —                | power                                              |
+| −           | GND     | —                | ground                                             |
+
+The three pins sit adjacent on J3 and are clear of the strapping, USB and UART pins.
+The pins are 3.3 V logic, so never connect them to 5 V.
+
+---
+
+## Wiring — Arduino Nano button (examples/avr-nano-tamer)
+
+Momentary button on D2, debounced through `tamer::ButtonInput` on an ATmega328P (5 V logic board).
+The example toggles D13 on each click and prints events over serial at 57600 baud.
+
+| Signal   | Pin  | Pull             | Notes                                              |
+|:---------|:-----|:-----------------|:---------------------------------------------------|
+| Button   | D2   | internal pull-up | active-low (pressed = LOW); enabled in the code    |
+| −        | GND  | —                | ground; the other button leg                       |
+| LED      | D13  | —                | on-board LED, toggled on each click; no wiring     |
+
+The internal pull-up is the only pull, so the button needs no external resistor.
+The debounce window is 20 ticks of 1 ms.
+Flash and monitor through the example's ravedude runner, which uses the same 57600 baud.
 
 ---
 

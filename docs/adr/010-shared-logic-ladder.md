@@ -50,9 +50,9 @@ Constraints:
 - Rung 2 and 3 machines need tick-boundary and state-transition tests in `tamer`.
 - Moving a flow up a rung is demand-driven: the first consumer that needs it pays for it.
 
-First rung-3 candidate: `Bme680::measure`, once a consumer needs a non-blocking measurement.
-Try a two-phase API first (`start_measurement` returns the wait, `read_result` polls and compensates).
-Use a full action machine only if blocking, async and tick drivers must share the sequence.
+The first rung-3 implementations are `ForcedConversion` in `tamer::bme680` (behind `Bme680::measure`) and `OffsetSampler` in `tamer::mpu6050` (behind `Mpu6050::calibrate`).
+Both blocking methods are thin runners over the machine.
+The async runner is design-only; no async code exists yet.
 
 ## Alternatives Considered
 | Alternative                   | Pros                              | Cons                                            | Why Rejected                                  |

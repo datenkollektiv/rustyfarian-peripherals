@@ -194,3 +194,15 @@ required-features = ["esp32s3", "rt", "unstable", "embassy"]
 [[example]]
 name = "hal_s3_rotary"
 required-features = ["esp32s3", "rt", "unstable", "embassy"]
+
+[[example]]
+name = "hal_esp_rotary_isr"
+required-features = ["esp32", "rt", "unstable", "embassy"]
+
+[[example]]
+name = "hal_c3_rotary_isr"
+required-features = ["esp32c3", "rt", "unstable", "embassy"]
+
+[[example]]
+name = "hal_c6_rotary_isr"
+required-features = ["esp32c6", "rt", "unstable", "embassy"]

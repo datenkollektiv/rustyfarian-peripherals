@@ -343,7 +343,7 @@ pub struct AccelOffsets {
 /// // Subtract offsets.y / offsets.z from live readings via `apply_offsets`.
 /// assert_eq!(offsets.y, 55);
 /// ```
-#[derive(Debug, Clone, Copy, Default)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub struct AccelCalibration {
     sum_y: i32,
     sum_z: i32,
@@ -397,6 +397,147 @@ impl AccelCalibration {
             y: self.sum_y / count,
             z: self.sum_z / count - 16384,
         }
+    }
+}
+
+// ─── OffsetSampler (rung-3 action machine) ───────────────────────────────────
+
+/// Input fed to [`OffsetSampler::poll`]: the answer to the previous action.
+///
+/// The enum is exhaustive; adding a variant is a breaking change.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SamplerInput {
+    /// Begin the run. Valid only on a fresh machine.
+    Start,
+    /// The 14 bytes answering [`SamplerAction::ReadBurst`].
+    Burst([u8; 14]),
+    /// The pause requested by [`SamplerAction::Wait`] has elapsed.
+    Waited,
+}
+
+/// Action requested by [`OffsetSampler::poll`].
+///
+/// The enum is exhaustive; adding a variant is a breaking change.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SamplerAction {
+    /// Burst-read 14 bytes from [`REG_ACCEL_XOUT_H`] and answer with
+    /// [`SamplerInput::Burst`].
+    ReadBurst,
+    /// Pause `ms` milliseconds (possibly `0`), then answer with
+    /// [`SamplerInput::Waited`].
+    Wait {
+        /// Pause length in milliseconds.
+        ms: u32,
+    },
+    /// Terminal: the learned offsets.
+    Done(AccelOffsets),
+    /// No-op: the input did not fit the machine's phase.
+    /// Runners treat this as an error exit.
+    OutOfPhase,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum SamplerState {
+    Idle,
+    Reading,
+    Pausing,
+    Finished,
+}
+
+/// Sans-io action machine behind [`Mpu6050::calibrate`].
+///
+/// It requests `samples` burst reads separated by `samples - 1` waits of
+/// `interval_ms`, averages them with [`AccelCalibration`], and finishes with
+/// [`SamplerAction::Done`]. It never reads a clock and never touches a bus:
+/// a runner performs each action and feeds the answer back.
+/// A wait is emitted even when `interval_ms == 0`.
+///
+/// ```
+/// use tamer::mpu6050::{OffsetSampler, SamplerAction, SamplerInput};
+///
+/// let mut m = OffsetSampler::new(2, 10);
+/// assert_eq!(m.poll(SamplerInput::Start), SamplerAction::ReadBurst);
+/// let mut burst = [0u8; 14];
+/// burst[4] = 0x40; // Z = +1 g
+/// assert_eq!(m.poll(SamplerInput::Burst(burst)), SamplerAction::Wait { ms: 10 });
+/// assert_eq!(m.poll(SamplerInput::Waited), SamplerAction::ReadBurst);
+/// let SamplerAction::Done(off) = m.poll(SamplerInput::Burst(burst)) else { panic!() };
+/// assert_eq!((off.y, off.z), (0, 0));
+/// assert!(m.is_finished());
+/// ```
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct OffsetSampler {
+    state: SamplerState,
+    cal: AccelCalibration,
+    samples: u32,
+    left: u32,
+    interval_ms: u32,
+}
+
+impl OffsetSampler {
+    /// Creates a machine for `samples` readings `interval_ms` apart.
+    /// Does no work.
+    #[must_use]
+    pub const fn new(samples: u32, interval_ms: u32) -> Self {
+        Self {
+            state: SamplerState::Idle,
+            cal: AccelCalibration::new(),
+            samples,
+            left: samples,
+            interval_ms,
+        }
+    }
+
+    /// Advances the machine by one input and returns the next action.
+    ///
+    /// An input that does not fit the current phase yields
+    /// [`SamplerAction::OutOfPhase`] and leaves the machine unchanged.
+    /// After a terminal action every input yields `OutOfPhase`.
+    #[must_use]
+    pub fn poll(&mut self, input: SamplerInput) -> SamplerAction {
+        match (self.state, input) {
+            (SamplerState::Idle, SamplerInput::Start) => {
+                if self.left == 0 {
+                    self.state = SamplerState::Finished;
+                    SamplerAction::Done(self.cal.offsets())
+                } else {
+                    self.state = SamplerState::Reading;
+                    SamplerAction::ReadBurst
+                }
+            }
+            (SamplerState::Reading, SamplerInput::Burst(b)) => {
+                let r = parse_raw(&b);
+                self.cal.add_sample(r.accel_y(), r.accel_z());
+                self.left -= 1;
+                if self.left == 0 {
+                    self.state = SamplerState::Finished;
+                    SamplerAction::Done(self.cal.offsets())
+                } else {
+                    self.state = SamplerState::Pausing;
+                    SamplerAction::Wait {
+                        ms: self.interval_ms,
+                    }
+                }
+            }
+            (SamplerState::Pausing, SamplerInput::Waited) => {
+                self.state = SamplerState::Reading;
+                SamplerAction::ReadBurst
+            }
+            _ => SamplerAction::OutOfPhase,
+        }
+    }
+
+    /// Returns `true` once a terminal action has been emitted.
+    #[must_use]
+    pub const fn is_finished(&self) -> bool {
+        matches!(self.state, SamplerState::Finished)
+    }
+
+    /// Upper bound on the polls a complete run needs, for runner fuel.
+    /// Computed from the initial sample count, so it is valid at any point.
+    #[must_use]
+    pub const fn max_polls(&self) -> u64 {
+        2 * (self.samples as u64) + 2
     }
 }
 
@@ -532,20 +673,27 @@ impl<I2C: I2c> Mpu6050<I2C> {
         Ok(id[0])
     }
 
+    fn read_burst(&mut self) -> Result<[u8; 14], Error<I2C::Error>> {
+        let mut buf = [0u8; 14];
+        self.i2c
+            .write_read(self.address, &[REG_ACCEL_XOUT_H], &mut buf)
+            .map_err(Error::Bus)?;
+        Ok(buf)
+    }
+
     /// Burst-reads the 14 data bytes and parses them.
     ///
     /// # Errors
     ///
     /// Returns [`Error::Bus`] if the transfer fails.
     pub fn read_raw(&mut self) -> Result<RawReading, Error<I2C::Error>> {
-        let mut buf = [0u8; 14];
-        self.i2c
-            .write_read(self.address, &[REG_ACCEL_XOUT_H], &mut buf)
-            .map_err(Error::Bus)?;
-        Ok(parse_raw(&buf))
+        Ok(parse_raw(&self.read_burst()?))
     }
 
     /// Learns Y/Z offsets from `samples` readings taken `interval_ms` apart.
+    ///
+    /// A thin blocking runner over [`OffsetSampler`], the single source of the
+    /// read/pause sequence.
     ///
     /// The device must rest level with Z pointing up. The raw axes are fed to
     /// [`AccelCalibration`], which subtracts the 1 g reference itself.
@@ -561,15 +709,25 @@ impl<I2C: I2c> Mpu6050<I2C> {
         samples: u32,
         interval_ms: u32,
     ) -> Result<AccelOffsets, Error<I2C::Error>> {
-        let mut cal = AccelCalibration::new();
-        for i in 0..samples {
-            if i > 0 {
-                delay.delay_ms(interval_ms);
-            }
-            let r = self.read_raw()?;
-            cal.add_sample(r.accel_y(), r.accel_z());
+        let mut m = OffsetSampler::new(samples, interval_ms);
+        let mut input = SamplerInput::Start;
+        for _ in 0..m.max_polls() {
+            input = match m.poll(input) {
+                SamplerAction::ReadBurst => SamplerInput::Burst(self.read_burst()?),
+                SamplerAction::Wait { ms } => {
+                    delay.delay_ms(ms);
+                    SamplerInput::Waited
+                }
+                SamplerAction::Done(o) => return Ok(o),
+                SamplerAction::OutOfPhase => break,
+            };
         }
-        Ok(cal.offsets())
+        // Unreachable: each input is built from the action just received.
+        // No error variant exists for it (adding one would be breaking).
+        // Known risk: this is the only silent-success path in either runner;
+        // see the `Error::Sequence` follow-up in CHANGELOG.md.
+        debug_assert!(false, "OffsetSampler runner out of phase");
+        Ok(AccelOffsets::default())
     }
 
     /// Consumes the driver and returns the I2C bus.
@@ -1183,5 +1341,167 @@ mod tests {
             }
             assert!(last.abs() > 179.0);
         }
+    }
+}
+
+#[cfg(test)]
+mod sampler_tests {
+    extern crate std;
+    use super::*;
+    use std::vec::Vec;
+
+    fn burst(y: i16, z: i16) -> [u8; 14] {
+        let mut b = [0u8; 14];
+        b[2..4].copy_from_slice(&y.to_be_bytes());
+        b[4..6].copy_from_slice(&z.to_be_bytes());
+        b
+    }
+
+    /// Runs to a terminal action, answering reads with `burst(y, z)`.
+    fn drive(samples: u32, interval: u32) -> (Vec<SamplerAction>, AccelOffsets) {
+        let mut m = OffsetSampler::new(samples, interval);
+        let mut input = SamplerInput::Start;
+        let mut log = Vec::new();
+        for _ in 0..m.max_polls() {
+            let a = m.poll(input);
+            log.push(a);
+            input = match a {
+                SamplerAction::ReadBurst => SamplerInput::Burst(burst(20, 16534)),
+                SamplerAction::Wait { .. } => SamplerInput::Waited,
+                SamplerAction::Done(o) => return (log, o),
+                SamplerAction::OutOfPhase => panic!("out of phase"),
+            };
+        }
+        panic!("no terminal action within max_polls");
+    }
+
+    #[test]
+    fn zero_samples_is_default_without_io() {
+        let (log, o) = drive(0, 5);
+        assert_eq!(log, [SamplerAction::Done(AccelOffsets::default())]);
+        assert_eq!(o, AccelOffsets::default());
+    }
+
+    #[test]
+    fn one_sample_has_no_wait() {
+        let (log, o) = drive(1, 5);
+        assert_eq!(log.len(), 2);
+        assert_eq!(log[0], SamplerAction::ReadBurst);
+        assert_eq!(o, AccelOffsets { y: 20, z: 150 });
+    }
+
+    #[test]
+    fn n_samples_alternate_reads_and_waits() {
+        for n in 2..=5u32 {
+            let (log, o) = drive(n, 7);
+            let mut expect = Vec::new();
+            for i in 0..n {
+                if i > 0 {
+                    expect.push(SamplerAction::Wait { ms: 7 });
+                }
+                expect.push(SamplerAction::ReadBurst);
+            }
+            // Replace the final read-slot with the terminal action.
+            expect.push(SamplerAction::Done(o));
+            assert_eq!(log.len(), expect.len());
+            assert_eq!(&log[..log.len() - 1], &expect[..expect.len() - 1]);
+            let mut cal = AccelCalibration::new();
+            for _ in 0..n {
+                cal.add_sample(20, 16534);
+            }
+            assert_eq!(o, cal.offsets());
+            assert_eq!(o, AccelOffsets { y: 20, z: 150 });
+        }
+    }
+
+    #[test]
+    fn zero_interval_still_emits_wait() {
+        let (log, _) = drive(2, 0);
+        assert!(log.contains(&SamplerAction::Wait { ms: 0 }));
+    }
+
+    #[test]
+    fn four_samples_wait_three_intervals() {
+        let (log, _) = drive(4, 10);
+        let total: u32 = log
+            .iter()
+            .map(|a| match a {
+                SamplerAction::Wait { ms } => *ms,
+                _ => 0,
+            })
+            .sum();
+        assert_eq!(total, 30);
+        assert_eq!(
+            log.iter()
+                .filter(|a| matches!(a, SamplerAction::Wait { .. }))
+                .count(),
+            3
+        );
+    }
+
+    #[test]
+    fn out_of_phase_matrix_leaves_state_unchanged() {
+        let inputs = [
+            SamplerInput::Start,
+            SamplerInput::Burst([0; 14]),
+            SamplerInput::Waited,
+        ];
+        // Build one machine per non-terminal phase and its matching input.
+        let mut idle = OffsetSampler::new(3, 1);
+        let mut reading = OffsetSampler::new(3, 1);
+        let _ = reading.poll(SamplerInput::Start);
+        let mut pausing = reading;
+        let _ = pausing.poll(SamplerInput::Burst([0; 14]));
+        let cases = [
+            (&mut idle, SamplerInput::Start),
+            (&mut reading, SamplerInput::Burst([0; 14])),
+            (&mut pausing, SamplerInput::Waited),
+        ];
+        for (m, right) in cases {
+            for i in inputs {
+                if i == right {
+                    continue;
+                }
+                let before = *m;
+                assert_eq!(m.poll(i), SamplerAction::OutOfPhase);
+                assert_eq!(*m, before);
+            }
+            assert_ne!(m.poll(right), SamplerAction::OutOfPhase);
+        }
+    }
+
+    #[test]
+    fn terminal_is_sticky() {
+        for samples in [0, 1] {
+            let mut m = OffsetSampler::new(samples, 1);
+            let mut input = SamplerInput::Start;
+            loop {
+                match m.poll(input) {
+                    SamplerAction::ReadBurst => input = SamplerInput::Burst([0; 14]),
+                    SamplerAction::Done(_) => break,
+                    other => panic!("unexpected {other:?}"),
+                }
+            }
+            assert!(m.is_finished());
+            for i in [
+                SamplerInput::Start,
+                SamplerInput::Burst([0; 14]),
+                SamplerInput::Waited,
+            ] {
+                assert_eq!(m.poll(i), SamplerAction::OutOfPhase);
+            }
+            assert!(m.is_finished());
+        }
+    }
+
+    #[test]
+    fn max_samples_does_not_overflow_early() {
+        let mut m = OffsetSampler::new(u32::MAX, 3);
+        assert_eq!(m.poll(SamplerInput::Start), SamplerAction::ReadBurst);
+        assert_eq!(
+            m.poll(SamplerInput::Burst(burst(0, 16384))),
+            SamplerAction::Wait { ms: 3 }
+        );
+        assert_eq!(m.max_polls(), 2 * u64::from(u32::MAX) + 2);
     }
 }

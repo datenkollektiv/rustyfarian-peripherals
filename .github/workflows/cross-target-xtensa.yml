@@ -1,0 +1,95 @@
+name: Cross-target Xtensa
+
+# Gates the bare-metal esp-hal tier on the two Xtensa chips: classic ESP32 (WROOM-32 /
+# Feather V2) and ESP32-S3. Each chip runs `check` and `clippy -D warnings` on the library
+# through the same `just check-matrix-hal-chip` recipe a contributor runs locally.
+# This is the most expensive of the cross-target jobs — it installs the Xtensa Rust fork
+# via espup — hence the path filter and the toolchain cache.
+#
+# ROLE: a compile gate for *our source*, and a forward-compatibility canary for the
+# *toolchain*. The distinction matters when it goes red:
+#   - red after a change to this repo  -> treat as a normal blocking failure
+#   - red with no relevant source change -> upstream toolchain moved; investigate before
+#     assuming the PR is at fault, and consider pinning back.
+#
+# Toolchain pin: 1.95.0.0, the same `esp` toolchain the local `just check-matrix` runs on,
+# and the floor the esp-hal tier's `rust-version = "1.95"` requires. Keep the version in the
+# cache key below in lockstep with the toolchain install.
+
+# NOTE: the push and pull_request `paths:` lists below are duplicated and must stay in
+# sync. GitHub Actions does not support YAML anchors/aliases, so this cannot be factored out.
+on:
+  push:
+    branches: ["main"]
+    paths:
+      - "crates/rustyfarian-esp-hal-peripherals/**"
+      - "crates/tamer/**"
+      - "scripts/check-matrix.sh"
+      - "scripts/lib.sh"
+      - "scripts/xtensa-toolchain.sh"
+      - "Cargo.toml"
+      - "justfile"
+      - ".github/workflows/cross-target-xtensa.yml"
+  pull_request:
+    branches: ["main"]
+    paths:
+      - "crates/rustyfarian-esp-hal-peripherals/**"
+      - "crates/tamer/**"
+      - "scripts/check-matrix.sh"
+      - "scripts/lib.sh"
+      - "scripts/xtensa-toolchain.sh"
+      - "Cargo.toml"
+      - "justfile"
+      - ".github/workflows/cross-target-xtensa.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: cross-xtensa-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  xtensa:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      # The version string must stay in the cache key below — scripts/xtensa-toolchain.sh
+      # hard-fails when it finds more than one version under
+      # ~/.rustup/toolchains/esp/xtensa-esp-elf/*, which a version-less key would allow.
+      - name: Cache Xtensa toolchain
+        uses: actions/cache@v6
+        with:
+          path: ~/.rustup/toolchains/esp
+          key: xtensa-esp-${{ runner.os }}-1.95.0.0-esp32-esp32s3
+
+      # Installs the Xtensa Rust fork for esp32 and esp32s3 (not the RISC-V or S2 targets).
+      # rust-src comes with it, so -Z build-std=core,alloc needs no extra step.
+      - name: Install Rust toolchain for Xtensa
+        uses: esp-rs/xtensa-toolchain@v1.7.0
+        with:
+          default: false
+          buildtargets: esp32,esp32s3
+          version: "1.95.0.0"
+          ldproxy: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Setup just
+        uses: extractions/setup-just@v4
+
+      - name: Cache cargo artifacts
+        uses: Swatinem/rust-cache@v2
+
+      - name: Check and lint esp-hal driver (ESP32, Xtensa)
+        run: just check-matrix-hal-chip esp32
+
+      - name: Check and lint esp-hal driver (ESP32-S3, Xtensa)
+        run: just check-matrix-hal-chip esp32s3

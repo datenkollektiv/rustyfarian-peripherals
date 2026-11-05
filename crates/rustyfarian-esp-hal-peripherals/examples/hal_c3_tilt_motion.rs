@@ -65,6 +65,7 @@ use esp_hal::{
     time::Instant,
 };
 use esp_println::println;
+use tamer::burst::{BurstDetector, BurstEvent};
 use tamer::presence::{DigitalPresence, Polarity, Presence};
 
 const DEBOUNCE_MS: u64 = 8;
@@ -88,10 +89,7 @@ fn main() -> ! {
     );
 
     let mut detector = DigitalPresence::new(tilt.is_high(), Polarity::ActiveLow, DEBOUNCE_MS);
-    let mut window_started_ms = 0;
-    let mut transition_count: u8 = 0;
-    let mut last_transition_ms = 0;
-    let mut moving = false;
+    let mut motion = BurstDetector::new(MOTION_WINDOW_MS, MOTION_EDGE_THRESHOLD, QUIET_MS);
     let delay = Delay::new();
 
     println!("Tilt motion ready on GPIO 4 - shake or tap the sensor to test.");
@@ -99,36 +97,21 @@ fn main() -> ! {
     loop {
         let now_ms: u64 = Instant::now().duration_since_epoch().as_millis();
 
-        if let Some(state) = detector.update(tilt.is_high(), now_ms) {
-            if now_ms.saturating_sub(window_started_ms) > MOTION_WINDOW_MS {
-                window_started_ms = now_ms;
-                transition_count = 0;
-            }
+        let transition = detector.update(tilt.is_high(), now_ms);
 
-            transition_count = transition_count.saturating_add(1);
-            last_transition_ms = now_ms;
-
+        if let Some(state) = transition {
             let level = match state {
                 Presence::Present => "closed",
                 Presence::Absent => "open",
             };
 
-            println!(
-                "  t={} ms  transition={} count={}",
-                now_ms, level, transition_count
-            );
-
-            if !moving && transition_count >= MOTION_EDGE_THRESHOLD {
-                moving = true;
-                println!("  t={} ms  motion", now_ms);
-            }
+            println!("  t={} ms  transition={}", now_ms, level);
         }
 
-        if moving && now_ms.saturating_sub(last_transition_ms) >= QUIET_MS {
-            moving = false;
-            transition_count = 0;
-            window_started_ms = now_ms;
-            println!("  t={} ms  quiet", now_ms);
+        match motion.update(transition.is_some(), now_ms) {
+            Some(BurstEvent::Burst) => println!("  t={} ms  motion", now_ms),
+            Some(BurstEvent::Quiet) => println!("  t={} ms  quiet", now_ms),
+            None => {}
         }
 
         delay.delay_millis(1u32);

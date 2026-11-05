@@ -129,6 +129,30 @@ impl AnalogCalibration {
             _ => None,
         }
     }
+
+    /// Returns the observed range if it covers at least `min_span` counts,
+    /// otherwise `fallback`.
+    ///
+    /// Use [`range_with_min_span`](Self::range_with_min_span) instead when
+    /// the caller needs to know which case applied.
+    ///
+    /// ```
+    /// use tamer::analog::{AnalogCalibration, AnalogRange};
+    ///
+    /// let full = AnalogRange::zero_to(4095);
+    /// let mut cal = AnalogCalibration::from_sample(1000);
+    /// cal.observe(1010);
+    /// assert_eq!(cal.range_or(100, full), full);
+    /// cal.observe(2000);
+    /// assert_eq!(cal.range_or(100, full), AnalogRange::new(1000, 2000));
+    /// ```
+    #[must_use]
+    pub const fn range_or(self, min_span: u16, fallback: AnalogRange) -> AnalogRange {
+        match self.range_with_min_span(min_span) {
+            Some(range) => range,
+            None => fallback,
+        }
+    }
 }
 
 /// A raw ADC range used to normalize samples.
@@ -491,6 +515,30 @@ mod tests {
         assert_eq!(range.raw_delta_to_normalized(0), 0);
         assert_eq!(range.raw_delta_to_normalized(32), 512);
         assert_eq!(range.raw_delta_to_normalized(4095), ANALOG_FULL_SCALE);
+    }
+
+    #[test]
+    fn range_or_uses_observed_range_at_or_above_min_span() {
+        let fallback = AnalogRange::zero_to(4095);
+        let mut calibration = AnalogCalibration::from_sample(1000);
+        calibration.observe(1100);
+
+        assert_eq!(
+            calibration.range_or(100, fallback),
+            AnalogRange::new(1000, 1100)
+        );
+        assert_eq!(calibration.range_or(101, fallback), fallback);
+    }
+
+    #[test]
+    fn range_or_falls_back_when_nothing_or_one_value_observed() {
+        let fallback = AnalogRange::zero_to(4095);
+
+        assert_eq!(AnalogCalibration::new().range_or(0, fallback), fallback);
+        assert_eq!(
+            AnalogCalibration::from_sample(7).range_or(0, fallback),
+            fallback
+        );
     }
 
     #[test]

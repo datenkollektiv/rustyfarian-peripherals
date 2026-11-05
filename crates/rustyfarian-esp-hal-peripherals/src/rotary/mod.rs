@@ -38,7 +38,7 @@
 //! # Cancellation
 //!
 //! [`Encoder::wait_for_step`] is cancel-safe at the state level: all decoder
-//! state, the last-seen levels and the edge counter live in the [`Encoder`],
+//! state, including the last-seen levels and the edge counter, lives in the [`Encoder`],
 //! never in the future. Dropping the future mid-await (for example because the
 //! other arm of a `select` won) loses no transitions — the next call re-reads
 //! the pins and feeds the decoder any change it missed. Edges that arrive
@@ -213,9 +213,6 @@ pub struct Encoder<'d> {
     level_b: InputSignal<'d>,
     decoder: QuadratureDecoder,
     button_sm: ButtonDecoder,
-    /// Last (A, B) pair fed to the decoder.
-    last: (bool, bool),
-    edge_count: u32,
 }
 
 impl<'d> Encoder<'d> {
@@ -257,9 +254,10 @@ impl<'d> Encoder<'d> {
         button: impl InputPin + 'd,
         config: EncoderConfig,
     ) -> Result<Self, EncoderError> {
-        if config.steps_per_detent == 0 {
-            return Err(EncoderError::InvalidConfig);
-        }
+        // Validate before touching any pin; the live `try_new` below seeds
+        // the decoder from the actual levels.
+        QuadratureDecoder::try_new(true, true, config.steps_per_detent)
+            .map_err(|_| EncoderError::InvalidConfig)?;
 
         let input_config = InputConfig::default().with_pull(Pull::Up);
         let pin_a = Input::new(pin_a, input_config);
@@ -271,6 +269,8 @@ impl<'d> Encoder<'d> {
 
         let initial_a = pin_a.is_high();
         let initial_b = pin_b.is_high();
+        let decoder = QuadratureDecoder::try_new(initial_a, initial_b, config.steps_per_detent)
+            .map_err(|_| EncoderError::InvalidConfig)?;
         let button_pressed = button.is_low();
 
         Ok(Self {
@@ -279,15 +279,13 @@ impl<'d> Encoder<'d> {
             button,
             level_a,
             level_b,
-            decoder: QuadratureDecoder::new(initial_a, initial_b, config.steps_per_detent),
+            decoder,
             button_sm: ButtonDecoder::new(
                 button_pressed,
                 config.debounce_ms,
                 config.long_press_ms,
                 config.double_click_ms,
             ),
-            last: (initial_a, initial_b),
-            edge_count: 0,
         })
     }
 
@@ -306,27 +304,21 @@ impl<'d> Encoder<'d> {
             level_a,
             level_b,
             decoder,
-            last,
-            edge_count,
             ..
         } = self;
 
         loop {
             // 1. Read: feed any change to the decoder.
             let now = (level_a.is_input_high(), level_b.is_input_high());
-            if now != *last {
-                *last = now;
-                *edge_count = edge_count.wrapping_add(1);
-                if let Some(direction) = decoder.update(now.0, now.1) {
-                    return direction;
-                }
+            if let Some(direction) = decoder.update(now.0, now.1) {
+                return direction;
             }
 
             // 2. Arm both edge futures and wait for either.
             let mut wait_a = pin!(pin_a.wait_for_any_edge());
             let mut wait_b = pin!(pin_b.wait_for_any_edge());
             let mut first_poll = true;
-            let seen = *last;
+            let seen = now;
 
             poll_fn(|cx| {
                 let a_ready = wait_a.as_mut().poll(cx).is_ready();
@@ -396,7 +388,7 @@ impl<'d> Encoder<'d> {
     /// for motion.
     #[must_use]
     pub fn edge_count(&self) -> u32 {
-        self.edge_count
+        self.decoder.edge_count()
     }
 
     /// Number of samples that skipped a Gray-code state since construction.

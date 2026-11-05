@@ -156,6 +156,40 @@ impl ToneOutput {
         frequency_hz: 0,
         amplitude: 0,
     };
+
+    /// Converts this output to a PWM duty count for a square-wave buzzer.
+    ///
+    /// A silent output (`frequency_hz == 0` or `amplitude == 0`) yields `0`.
+    /// Otherwise the result is half of `max_duty` (a 50% square wave, the
+    /// loudest setting) scaled by `amplitude / 255`.
+    /// Scaling rounds to nearest (halves round up), the same idiom as
+    /// [`AnalogRange::normalize`](crate::analog::AnalogRange), and widens to
+    /// `u64` internally, so no `max_duty` can overflow.
+    /// The result is never greater than `max_duty / 2` rounded up, and is
+    /// always `<= max_duty`.
+    ///
+    /// `max_duty` is the timer's full-scale count (`1 << bits`, e.g. `256` at
+    /// 8 bits or `1024` at 10 bits).
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use tamer::tone::ToneOutput;
+    ///
+    /// let out = ToneOutput { frequency_hz: 440, amplitude: 255 };
+    /// assert_eq!(out.duty(1024), 512); // 50% of a 10-bit timer
+    /// assert_eq!(ToneOutput::SILENT.duty(1024), 0);
+    /// ```
+    #[must_use]
+    pub const fn duty(&self, max_duty: u32) -> u32 {
+        if self.frequency_hz == 0 || self.amplitude == 0 {
+            return 0;
+        }
+        // duty = round(max_duty / 2 * amplitude / 255) = (max_duty * amplitude + 255) / 510
+        let scaled = (max_duty as u64) * (self.amplitude as u64);
+        // Result <= (u32::MAX * 255 + 255) / 510 < u32::MAX, so the cast is lossless.
+        ((scaled + 255) / 510) as u32
+    }
 }
 
 /// An event returned by [`ToneSequencer::update`].
@@ -356,6 +390,65 @@ impl<'notes> ToneSequencer<'notes> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    // --- ToneOutput::duty ---
+
+    fn out(frequency_hz: u32, amplitude: u8) -> ToneOutput {
+        ToneOutput {
+            frequency_hz,
+            amplitude,
+        }
+    }
+
+    #[test]
+    fn duty_is_zero_for_rest_and_silence() {
+        assert_eq!(ToneOutput::SILENT.duty(1024), 0);
+        assert_eq!(out(0, 255).duty(1024), 0);
+        assert_eq!(out(440, 0).duty(1024), 0);
+    }
+
+    #[test]
+    fn duty_full_amplitude_is_half_max() {
+        assert_eq!(out(440, 255).duty(256), 128);
+        assert_eq!(out(440, 255).duty(1024), 512);
+    }
+
+    #[test]
+    fn duty_scales_for_8_and_10_bit() {
+        // 128 * 200 / 255 = 100.39 -> 100 ; 512 * 200 / 255 = 401.57 -> 402
+        assert_eq!(out(440, 200).duty(256), 100);
+        assert_eq!(out(440, 200).duty(1024), 402);
+    }
+
+    #[test]
+    fn duty_rounds_to_nearest_at_boundary() {
+        // max_duty 510 -> 255 * amp / 255 = amp exactly.
+        assert_eq!(out(1, 1).duty(510), 1);
+        // max_duty 2: 1 * amp / 255; amp 127 -> 0.498 -> 0, amp 128 -> 0.502 -> 1.
+        assert_eq!(out(1, 127).duty(2), 0);
+        assert_eq!(out(1, 128).duty(2), 1);
+        // Exact half rounds up: max_duty 255, amp 2 -> 127.5 * 2 / 255 = 1.0 (exact);
+        // max_duty 1, amp 255 -> 0.5 exactly -> 1.
+        assert_eq!(out(1, 255).duty(1), 1);
+    }
+
+    #[test]
+    fn duty_is_monotonic_in_amplitude() {
+        let mut prev = 0;
+        for amp in 0..=255u8 {
+            let d = out(440, amp).duty(1024);
+            assert!(d >= prev);
+            assert!(d <= 512);
+            prev = d;
+        }
+    }
+
+    #[test]
+    fn duty_max_values_do_not_overflow() {
+        assert_eq!(out(u32::MAX, 255).duty(u32::MAX), (u32::MAX / 2) + 1);
+        assert_eq!(out(1, 255).duty(0), 0);
+        assert!(out(1, 254).duty(u32::MAX) < u32::MAX / 2 + 1);
+    }
 
     // --- Note ---
 

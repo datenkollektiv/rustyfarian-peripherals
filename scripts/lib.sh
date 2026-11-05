@@ -61,12 +61,12 @@ resolve_example() {
             EX_PKG="rustyfarian-esp-hal-peripherals"
             EX_TARGET_DIR="$hal_dir"
             case "$EX_CHIP" in
-                c3) EX_TARGET="riscv32imc-unknown-none-elf"; EX_MCU="esp32c3" ;;
-                c6) EX_TARGET="riscv32imac-unknown-none-elf"; EX_MCU="esp32c6" ;;
+                c3|esp32c3) EX_TARGET="riscv32imc-unknown-none-elf"; EX_MCU="esp32c3" ;;
+                c6|esp32c6) EX_TARGET="riscv32imac-unknown-none-elf"; EX_MCU="esp32c6" ;;
                 esp|esp32) EX_TARGET="xtensa-esp32-none-elf"; EX_MCU="esp32"; EX_XTENSA=1 ;;
                 s3|esp32s3) EX_TARGET="xtensa-esp32s3-none-elf"; EX_MCU="esp32s3"; EX_XTENSA=1 ;;
                 *)
-                    printf 'Unknown chip "%s" in "%s" (expected c3|c6|esp|s3|esp32|esp32s3).\n' "$EX_CHIP" "$example" >&2
+                    printf 'Unknown chip "%s" in "%s" (expected c3|c6|esp|s3|esp32|esp32s3|esp32c3|esp32c6).\n' "$EX_CHIP" "$example" >&2
                     return 1
                     ;;
             esac
@@ -75,12 +75,12 @@ resolve_example() {
             EX_PKG="rustyfarian-esp-idf-peripherals"
             EX_TARGET_DIR="$idf_dir"
             case "$EX_CHIP" in
-                c3) EX_TARGET="riscv32imc-esp-espidf"; EX_MCU="esp32c3" ;;
-                c6) EX_TARGET="riscv32imac-esp-espidf"; EX_MCU="esp32c6" ;;
+                c3|esp32c3) EX_TARGET="riscv32imc-esp-espidf"; EX_MCU="esp32c3" ;;
+                c6|esp32c6) EX_TARGET="riscv32imac-esp-espidf"; EX_MCU="esp32c6" ;;
                 esp|esp32) EX_TARGET="xtensa-esp32-espidf"; EX_MCU="esp32"; EX_XTENSA=1 ;;
                 s3|esp32s3) EX_TARGET="xtensa-esp32s3-espidf"; EX_MCU="esp32s3"; EX_XTENSA=1 ;;
                 *)
-                    printf 'Unknown chip "%s" in "%s" (expected c3|c6|esp|s3|esp32|esp32s3).\n' "$EX_CHIP" "$example" >&2
+                    printf 'Unknown chip "%s" in "%s" (expected c3|c6|esp|s3|esp32|esp32s3|esp32c3|esp32c6).\n' "$EX_CHIP" "$example" >&2
                     return 1
                     ;;
             esac

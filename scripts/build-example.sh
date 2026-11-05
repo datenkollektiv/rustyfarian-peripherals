@@ -3,7 +3,7 @@ set -euo pipefail
 # build-example.sh — build a named example (no flash).
 # Usage: scripts/build-example.sh <example> [hal_dir [idf_dir]]
 #   example: hal_{chip}_{name} (bare-metal) | idf_{chip}_{name} (ESP-IDF)
-#   chip ∈ {c3, c6, esp32, esp32s3}
+#   chip ∈ {c3, c6, esp, s3} (long forms esp32c3, esp32c6, esp32, esp32s3 also accepted)
 #
 # Chip, crate, target triple, and required-features are derived from the name.
 # Bare-metal builds use the stable toolchain with the rustup target (RISC-V) or

@@ -1,0 +1,71 @@
+name: Cross-target RISC-V
+
+# Gates the bare-metal esp-hal tier on both RISC-V chips: ESP32-C3 (riscv32imc, no atomics)
+# and ESP32-C6 (riscv32imac, with atomics). Each chip runs `check` and `clippy -D warnings`
+# on the library, via the same `just check-matrix-hal-chip` recipe a contributor runs locally.
+# Stable toolchain only: RISC-V has a prebuilt core, so no espup and no nightly.
+# Path-filtered: only runs when the esp-hal tier, its `tamer` dependency, or the matrix
+# recipes change.
+
+# NOTE: the push and pull_request `paths:` lists below are duplicated and must stay in
+# sync. GitHub Actions does not support YAML anchors/aliases, so this cannot be factored out.
+on:
+  push:
+    branches: ["main"]
+    paths:
+      - "crates/rustyfarian-esp-hal-peripherals/**"
+      - "crates/tamer/**"
+      - "scripts/check-matrix.sh"
+      - "scripts/lib.sh"
+      - "Cargo.toml"
+      - "justfile"
+      - ".github/workflows/cross-target-riscv.yml"
+  pull_request:
+    branches: ["main"]
+    paths:
+      - "crates/rustyfarian-esp-hal-peripherals/**"
+      - "crates/tamer/**"
+      - "scripts/check-matrix.sh"
+      - "scripts/lib.sh"
+      - "Cargo.toml"
+      - "justfile"
+      - ".github/workflows/cross-target-riscv.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: cross-riscv-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  CARGO_TERM_COLOR: always
+  RUSTUP_TOOLCHAIN: stable
+
+jobs:
+  riscv:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      # The recipe runs `rustup target add` for the chip's triple, so no `targets:` here.
+      - name: Install Rust toolchain (stable + clippy)
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: stable
+          components: clippy
+
+      - name: Setup just
+        uses: extractions/setup-just@v4
+
+      - name: Cache cargo artifacts
+        uses: Swatinem/rust-cache@v2
+
+      - name: Check and lint esp-hal driver (ESP32-C3, riscv32imc)
+        run: just check-matrix-hal-chip esp32c3
+
+      - name: Check and lint esp-hal driver (ESP32-C6, riscv32imac)
+        run: just check-matrix-hal-chip esp32c6
