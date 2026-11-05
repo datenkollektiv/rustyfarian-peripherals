@@ -17,6 +17,8 @@ on:
       - "crates/tamer/**"
       - "scripts/check-matrix.sh"
       - "scripts/lib.sh"
+      - "scripts/build-example.sh"
+      - ".cargo/config.toml.dist"
       - "Cargo.toml"
       - "justfile"
       - ".github/workflows/cross-target-riscv.yml"
@@ -27,6 +29,8 @@ on:
       - "crates/tamer/**"
       - "scripts/check-matrix.sh"
       - "scripts/lib.sh"
+      - "scripts/build-example.sh"
+      - ".cargo/config.toml.dist"
       - "Cargo.toml"
       - "justfile"
       - ".github/workflows/cross-target-riscv.yml"
@@ -69,3 +73,13 @@ jobs:
 
       - name: Check and lint esp-hal driver (ESP32-C6, riscv32imac)
         run: just check-matrix-hal-chip esp32c6
+
+      # Link each chip's smoke example: `check` never links, so this is the link proof.
+      - name: Install device cargo config
+        run: just setup-cargo-config
+
+      - name: Build and link hal_c3_b3f (ESP32-C3)
+        run: just build-example hal_c3_b3f
+
+      - name: Build and link hal_c6_b3f (ESP32-C6)
+        run: just build-example hal_c6_b3f

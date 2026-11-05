@@ -46,7 +46,7 @@ Every tier compiles, lints and links on all four ESP32 chips, `tamer` links on A
 
 ## State
 - [x] Design approved
-- [x] `check-matrix`, `check-avr-target`, `setup-avr`, `build-avr-example` (and `-upstream`) recipes
+- [x] `check-matrix`, `build-matrix` (link proof), `check-avr-target`, `setup-avr`, `build-avr-example` (and `-upstream`) recipes
 - [x] `idf_{esp,c6,s3}_b3f`, the six rotary examples, and `examples/avr-nano-tamer`
 - [x] `cross-target-{riscv,xtensa,avr,avr-upstream}` workflows (written; first GitHub run pending)
 - [ ] Hardware pass on the bench boards

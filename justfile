@@ -120,14 +120,7 @@ check-matrix-hal:
     #!/usr/bin/env bash
     set -euo pipefail
     for chip in esp32 esp32c3 esp32c6 esp32s3; do
-        # stop before a chip build can fill the shared RAM disk; pruning stays a manual `just ramdisk prune`
-        if [ "{{ ramdisk_mounted }}" = true ]; then
-            free_kb=$(df -k "{{ ramdisk }}" | awk 'NR == 2 { print $4 }')
-            if [ "$free_kb" -lt 4194304 ]; then
-                printf 'error: less than 4 GiB free on %s before %s; run: just ramdisk prune\n' "{{ ramdisk }}" "$chip" >&2
-                exit 1
-            fi
-        fi
+        scripts/ramdisk-guard.sh "{{ ramdisk }}" "{{ ramdisk_mounted }}" "$chip"
         scripts/check-matrix.sh hal "$chip" "{{ hal_dir }}" "{{ idf_dir }}"
     done
 
@@ -136,15 +129,29 @@ check-matrix-idf:
     #!/usr/bin/env bash
     set -euo pipefail
     for chip in esp32 esp32c3 esp32c6 esp32s3; do
-        # stop before a chip build can fill the shared RAM disk; pruning stays a manual `just ramdisk prune`
-        if [ "{{ ramdisk_mounted }}" = true ]; then
-            free_kb=$(df -k "{{ ramdisk }}" | awk 'NR == 2 { print $4 }')
-            if [ "$free_kb" -lt 4194304 ]; then
-                printf 'error: less than 4 GiB free on %s before %s; run: just ramdisk prune\n' "{{ ramdisk }}" "$chip" >&2
-                exit 1
-            fi
-        fi
+        scripts/ramdisk-guard.sh "{{ ramdisk }}" "{{ ramdisk_mounted }}" "$chip"
         scripts/check-matrix.sh idf "$chip" "{{ hal_dir }}" "{{ idf_dir }}"
+    done
+
+# build and link the b3f smoke example for every chip on both tiers (the matrix's link proof)
+build-matrix: build-matrix-hal build-matrix-idf
+
+# build and link hal_{esp,c3,c6,s3}_b3f, one chip at a time
+build-matrix-hal:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    for chip in esp c3 c6 s3; do
+        scripts/ramdisk-guard.sh "{{ ramdisk }}" "{{ ramdisk_mounted }}" "hal_${chip}_b3f"
+        scripts/build-example.sh "hal_${chip}_b3f" "{{ hal_dir }}" "{{ idf_dir }}"
+    done
+
+# build and link idf_{esp,c3,c6,s3}_b3f, one chip at a time (requires espup)
+build-matrix-idf:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    for chip in esp c3 c6 s3; do
+        scripts/ramdisk-guard.sh "{{ ramdisk }}" "{{ ramdisk_mounted }}" "idf_${chip}_b3f"
+        scripts/build-example.sh "idf_${chip}_b3f" "{{ hal_dir }}" "{{ idf_dir }}"
     done
 
 # check and clippy the esp-hal library for one chip: esp32 | esp32c3 | esp32c6 | esp32s3

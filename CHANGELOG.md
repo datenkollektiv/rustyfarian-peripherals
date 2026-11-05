@@ -53,6 +53,8 @@ This project follows [Semantic Versioning](https://semver.org/) (pre-1.0: minor 
 - `just check-matrix`, with `check-matrix-hal` and `check-matrix-idf` and the per-chip forms `check-matrix-hal-chip <chip>` / `check-matrix-idf-chip <chip>`: check and clippy both tier libraries on ESP32, C3, C6 and S3, one chip at a time; not part of `just verify`.
 - `just setup-avr`, `just check-avr-target`, `just build-avr-example` and `just build-avr-example-upstream`: install the pinned AVR nightly, check `tamer --features hal` on `avr-none`, build the AVR example, and run a throwaway build against avr-hal `main`.
 - `examples/avr-nano-tamer`: excluded from the workspace, an Arduino Nano demo that debounces a button on D2 through `tamer::ButtonInput`, toggles D13 on each click and prints events at 57600 baud.
+- `just build-matrix` (with `build-matrix-hal` / `build-matrix-idf`): builds and links `{hal,idf}_{esp,c3,c6,s3}_b3f`, because `check-matrix` never links; the RISC-V and Xtensa CI jobs link their chips' `hal_*_b3f` the same way.
+- `scripts/ramdisk-guard.sh`: shared check that stops the matrix loops below 4 GiB free on the RAM disk; it never prunes.
 - `scripts/check-matrix.sh` and `scripts/build-avr-example-upstream.sh`; `scripts/lib.sh` accepts the `esp32c3` and `esp32c6` chip tokens.
 - CI workflows `cross-target-riscv.yml`, `cross-target-xtensa.yml`, `cross-target-avr.yml` and `cross-target-avr-upstream.yml`: path-filtered PR gates for the esp-hal chips and the AVR link, plus a weekly upstream AVR canary; each job runs `just` recipes.
 - `hal_esp_rotary_isr`, `hal_c3_rotary_isr` and `hal_c6_rotary_isr`: ISR-decoded rotary examples for ESP32, C3 and C6 (esp-hal).

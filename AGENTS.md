@@ -51,6 +51,7 @@ behaviour cannot drift. Host work needs only `rustc`, `cargo`, and `just`.
 | `just check-hal` / `just check-idf` | Check a hardware tier on device targets (`check-hal`: C3 + S3; `check-idf`: C3) |
 | `just check-matrix` | Check and clippy both tier libraries on all four ESP32 chips, one at a time (slow, needs `espup`; not part of `verify`) |
 | `just check-matrix-hal-chip <chip>` / `just check-matrix-idf-chip <chip>` | One chip of the matrix; `<chip>` is `esp32`, `esp32c3`, `esp32c6` or `esp32s3` |
+| `just build-matrix` | Build and link the `b3f` smoke example for every chip on both tiers (`-hal` / `-idf` forms); `check-matrix` never links |
 | `just setup-avr` | Install the pinned AVR nightly (`nightly-2025-04-27`) with `rust-src` via `rustup` |
 | `just check-avr-target` | Check `tamer --features hal` on `avr-none` (needs `setup-avr` and `avr-gcc`) |
 | `just build-avr-example` / `just build-avr-example-upstream` | Build every bin of `examples/avr-nano-tamer` with `--locked`; the upstream form builds a throwaway copy against avr-hal `main` (weekly canary) |

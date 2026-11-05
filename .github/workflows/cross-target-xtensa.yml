@@ -26,6 +26,8 @@ on:
       - "crates/tamer/**"
       - "scripts/check-matrix.sh"
       - "scripts/lib.sh"
+      - "scripts/build-example.sh"
+      - ".cargo/config.toml.dist"
       - "scripts/xtensa-toolchain.sh"
       - "Cargo.toml"
       - "justfile"
@@ -37,6 +39,8 @@ on:
       - "crates/tamer/**"
       - "scripts/check-matrix.sh"
       - "scripts/lib.sh"
+      - "scripts/build-example.sh"
+      - ".cargo/config.toml.dist"
       - "scripts/xtensa-toolchain.sh"
       - "Cargo.toml"
       - "justfile"
@@ -93,3 +97,13 @@ jobs:
 
       - name: Check and lint esp-hal driver (ESP32-S3, Xtensa)
         run: just check-matrix-hal-chip esp32s3
+
+      # Link each chip's smoke example: `check` never links, so this is the link proof.
+      - name: Install device cargo config
+        run: just setup-cargo-config
+
+      - name: Build and link hal_esp_b3f (ESP32)
+        run: just build-example hal_esp_b3f
+
+      - name: Build and link hal_s3_b3f (ESP32-S3)
+        run: just build-example hal_s3_b3f
