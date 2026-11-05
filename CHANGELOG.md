@@ -11,6 +11,8 @@ This project follows [Semantic Versioning](https://semver.org/) (pre-1.0: minor 
 
 ### Added
 
+- Examples `hal_c3_bme680`, `idf_c3_bme680` and embassy `hal_c3_bme680_async` (esp-hal `I2c` in `Async` mode, `Bme680::measure_async`): temperature, pressure, humidity and gas on the ADR-004 bus (GPIO4/GPIO5, 100 kHz); `docs/hardware-setup.md` gains the shared I2C pogo header wiring (BME680, I2C OLED, MPU6050 on one 4-pin header).
+- `tamer` feature `hal-async` (implies `hal`, not default; adds the `embedded-hal-async` dependency): `Bme680::measure_async` and `Mpu6050::calibrate_async`, async runners over the same `ForcedConversion` / `OffsetSampler` machines with identical bus traffic, error mapping (including `Error::Sequence`) and poll-fuel bound; dropping the future mid-measure leaves the sensor converting and the next call's sleep-mode recovery handles it; `embedded_hal_async::i2c::I2c` for `MockI2c` and async `DelayNs` for `NoopDelay` under the same feature; parity tests need no executor.
 - `tamer::mpu6050::OffsetSampler` (`new`, `poll`, `is_finished`, `max_polls`), `SamplerInput` and `SamplerAction`: sans-io rung-3 action machine for accelerometer offset calibration (ADR-010); available without `hal`; the enums are exhaustive, so adding a variant is breaking; `AccelCalibration` now also derives `PartialEq, Eq`.
 - `tamer::bme680::ForcedConversion` (`new`, `poll`, `is_finished`, `required_ms`, `ambient_c`, `max_polls`), `ConversionInput`, `ConversionAction`, `ConversionError` and `required_ms(..)`: sans-io rung-3 action machine for one forced-mode conversion (ADR-010); compiles with `bme680` alone, no `hal`; the enums are exhaustive, so adding a variant is breaking; `impl From<ConversionError> for bme680::Error<E>` under `hal`.
 - `tamer::analog::AnalogCalibration::range_or(min_span, fallback)`: observed range if it spans at least `min_span` counts, otherwise the fallback; the poti and poti-LED examples (hal and idf) use it.
@@ -64,8 +66,8 @@ This project follows [Semantic Versioning](https://semver.org/) (pre-1.0: minor 
 - ESP-IDF `rotary::Encoder::new`: a turn during construction no longer shifts the first detent.
 
 ### Changed
+- BREAKING: `bme680::Error` and `mpu6050::Error` gain a `Sequence` variant (the driver and its state machine fell out of step; a library bug). `Bme680::measure` and `Mpu6050::calibrate` return `Err(Error::Sequence)` when the machine answers `OutOfPhase` or the poll fuel runs out, replacing the `Timeout` and zero-offset `Ok` fallbacks; the `debug_assert!` is removed. `is_nack()` is false for it. Exhaustive matches on either `Error` must add an arm.
 - `Mpu6050::calibrate` now runs as a bounded blocking runner over `OffsetSampler`; signature, errors, I2C transactions and delay calls are unchanged.
-- Known risk: if `OffsetSampler` ever reports `OutOfPhase` or the runner fuel runs out in a release build, `Mpu6050::calibrate` returns `Ok` with zero offsets (the only silent-success path in either runner); a dedicated `Error::Sequence` variant is a follow-up because adding it is a breaking change.
 - `tamer::bme680::Bme680::measure` now runs as a thin blocking runner over `ForcedConversion`; signature, errors, I2C transaction order and `DelayNs` calls are unchanged.
 - `idf_c3_passive_buzzer_arpeggio` now uses 10-bit LEDC resolution (was 8-bit) to match the hal twins and shares `ToneOutput::duty`; the documented ~77 Hz lower bound is computed, not yet verified on a device.
 - `hal_c3_tilt_motion` / `idf_c3_tilt_motion` examples use `tamer::burst::BurstDetector` instead of a hand-written burst detector; the per-transition `count=` field is dropped from the log line.

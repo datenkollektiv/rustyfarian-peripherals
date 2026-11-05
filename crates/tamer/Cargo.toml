@@ -19,6 +19,12 @@ default = []
 # optional, so the pure core has zero hardware dependencies and stays buildable
 # on any host. See README "Architecture" for the seam.
 hal = ["dep:embedded-hal"]
+# `hal-async`: opt-in async runners (`Bme680::measure_async`,
+# `Mpu6050::calibrate_async`) over `embedded-hal-async` `I2c` + `DelayNs`,
+# plus the matching async impls on `tamer::mock`. Implies `hal`; not default.
+# The runners drive the same state machines as the blocking ones (ADR-010)
+# and need no executor dependency.
+hal-async = ["hal", "dep:embedded-hal-async"]
 # `tilt`: opt-in `atan2`-based tilt-angle trigonometry (`tamer::tilt`). Kept
 # optional so the default build stays dependency-free — only this feature
 # pulls in `micromath`, `tamer`'s first floating-point dependency.
@@ -31,6 +37,7 @@ bme680 = []
 
 [dependencies]
 embedded-hal = { workspace = true, optional = true }
+embedded-hal-async = { workspace = true, optional = true }
 micromath = { workspace = true, optional = true }
 
 [package.metadata.docs.rs]

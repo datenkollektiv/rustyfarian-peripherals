@@ -24,15 +24,16 @@ Three workspace members under `crates/`:
 
 | Crate | Role | Target |
 |:------|:-----|:-------|
-| `tamer` | Pure logic behind traits with `Noop*` mocks: `debounce`, `presence`, `rotary`, `button`, `analog`, `range_map`, `smoothing`, `hall`, `tilt`, `mpu6050`, `tone`, `morse`, `touch` | `no_std` |
+| `tamer` | Pure logic behind traits with `Noop*` mocks: `debounce`, `presence`, `rotary`, `button`, `analog`, `range_map`, `smoothing`, `hall`, `tilt`, `mpu6050`, `bme680`, `tone`, `morse`, `touch` | `no_std` |
 | `rustyfarian-esp-hal-peripherals` | Bare-metal esp-hal drivers — ships async `rotary::Encoder` (edge futures; `embassy` feature for examples) + device examples; re-exports `tamer` | `no_std` |
 | `rustyfarian-esp-idf-peripherals` | ESP-IDF (std) drivers — ships `rotary::Encoder` (interrupt-driven, persistent raw-FFI); re-exports `tamer` | `std` (ESP-IDF) |
 
 The pure logic in `tamer` is the contract; the hardware crates are thin wrappers
 that delegate all decoding/rendering to it. `embedded-hal`'s `InputPin` (and the
 relevant output/bus traits) is the seam, behind `tamer`'s optional `hal` feature.
-`tamer` has two features: `hal` (embedded-hal adapters) and `tilt` (`atan2` trig
-via `micromath`); the default build is dependency-free.
+`tamer` has four opt-in features: `hal` (embedded-hal adapters), `hal-async`
+(implies `hal`; async runners over `embedded-hal-async`), `bme680` (BME680
+register map and compensation), and `tilt` (`atan2` trig via `micromath`); the default build is dependency-free.
 
 ## Development Workflow
 
@@ -46,7 +47,7 @@ behaviour cannot drift. Host work needs only `rustc`, `cargo`, and `just`.
 | `just verify` | Non-modifying gate: fmt-check + check + clippy + test |
 | `just pre-commit` | Same, but auto-formats (modifies files) |
 | `just ci` | CI-equivalent: fmt-check + deny + check + clippy + test (the workflows call these recipes individually, plus `audit`) |
-| `just test-all-features` / `just clippy-all-features` | Exercise the `hal` + `tilt` features |
+| `just test-all-features` / `just clippy-all-features` | Exercise the `hal`, `hal-async`, `bme680` + `tilt` features |
 | `just check-hal` / `just check-idf` | Check a hardware tier on device targets (`check-hal`: C3 + S3; `check-idf`: C3) |
 | `just check-matrix` | Check and clippy both tier libraries on all four ESP32 chips, one at a time (slow, needs `espup`; not part of `verify`) |
 | `just check-matrix-hal-chip <chip>` / `just check-matrix-idf-chip <chip>` | One chip of the matrix; `<chip>` is `esp32`, `esp32c3`, `esp32c6` or `esp32s3` |

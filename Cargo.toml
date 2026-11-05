@@ -25,6 +25,9 @@ tamer = { path = "crates/tamer", version = "0.1.0", default-features = false }
 # device crates implement against the same traits. Kept at a caret range while
 # pure; the esp-* stacks below switch to exact pins once they are wired.
 embedded-hal = { version = "1.0", default-features = false }
+# Async twin of `embedded-hal`, behind `tamer`'s opt-in `hal-async` feature
+# (ADR-010 rung-3 async runners, for embassy on esp-hal).
+embedded-hal-async = { version = "1.0", default-features = false }
 nb = { version = "1.1", default-features = false }
 # `no_std`/`f32` CORDIC trig (atan2 etc.) for `tamer::tilt`, gated behind the
 # `tilt` feature — purpose-built for small no_std code size, not a full libm.

@@ -26,6 +26,7 @@ timeline
     title rustyfarian-peripherals Roadmap
 
     Ready     : MPU6050 hardware example twin — repo's first I2C example (hal/idf c3, tamer driver → tilt) (merged; hardware checks in the release pass)
+              : Chip matrix — ESP32/C3/C6/S3 on both tiers + AVR link check of tamer (feature-doc) (code landed; bench pass pending)
               : BME680 environmental sensor — pure core + first I2C driver in tamer, after the MPU6050 twin (feature-doc) (in progress — core + driver landed, examples pending)
 
     Near term : Docs-sync — align README / AGENTS framing with VISION input+output scope
@@ -62,6 +63,12 @@ timeline
 **Goal:** the repo's first I2C example on both tiers, feeding `tamer::mpu6050` burst reads into `tilt`.
 Code merged in `eb14976` (driver in `tamer` per ADR-009, examples are bus setup + printing); remaining: close the feature doc; hardware checks run in the final hardware pass (`release-plan.md`).
 See [Feature: MPU6050 v1](features/mpu6050-imu-v1.md).
+
+## Ready — Chip matrix
+
+**Goal:** every tier compiles, lints and links on ESP32, C3, C6 and S3, `tamer` links on AVR, and chip-sensitive behaviour passes on the bench.
+Recipes, CI, AVR package and the rotary / `b3f` examples are in; remaining: the bench pass on all four boards.
+See [Feature: Chip matrix v1](features/chip-matrix-v1.md).
 
 ## Ready — BME680 environmental sensor
 

@@ -44,7 +44,8 @@ Tick each item with the board, port, and date; record new gotchas in `docs/proje
 - [ ] `idf_c3_passive_buzzer_arpeggio` at 10-bit LEDC (was 8-bit) still plays the full melody; the ~77 Hz floor is computed, not measured.
 - [ ] Rotary `edge_count()` / `skipped_count()` move under turning on both tiers (the counting now lives in `QuadratureDecoder`).
 - [ ] MPU6050: `idf_c3_mpu6050_tilt` on the C3 rig; a ±90° reading; a deliberate NACK (wrong address) prints the AD0 hint.
-- [ ] BME680 (needs `hal_c3_bme680` / `idf_c3_bme680` written first): readings on the ADR-004 bus, incl. `heat_stab_r` at the fixed heater profile.
+- [ ] BME680: `hal_c3_bme680` and `idf_c3_bme680` on the ADR-004 bus, incl. `heat_stab_r` at the fixed heater profile.
+- [ ] BME680: `hal_c3_bme680_async` under embassy (esp-hal `I2c` in `Async` mode): same readings as the blocking twin, other tasks keep running during the conversion wait.
 - [ ] BME680: `new_data` is clear after drain + trigger; then drop `PENDING(hardware)` from the drain mock script.
 - [ ] BME680: plain `ctrl_gas_0` write (`0x00` / `0x08`) and the `meas_status_0` bits `0x20` / `0x40` behave as the poll assumes.
 - [ ] BME680: capture a real register dump for the test fixture.

@@ -40,7 +40,7 @@ log = { workspace = true }
 [dev-dependencies]
 # Dev-dependency features apply only to examples/tests under resolver 2, so the
 # library itself stays pure and unaffected by `tamer`'s `hal`/`tilt` features.
-tamer = { workspace = true, features = ["hal", "tilt"] }
+tamer = { workspace = true, features = ["hal", "tilt", "bme680"] }
 
 [[example]]
 name = "idf_c3_active_buzzer_morse"
@@ -59,6 +59,9 @@ name = "idf_s3_b3f"
 
 [[example]]
 name = "idf_c3_blink"
+
+[[example]]
+name = "idf_c3_bme680"
 
 [[example]]
 name = "idf_c3_mpu6050_tilt"

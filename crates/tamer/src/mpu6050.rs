@@ -558,6 +558,12 @@ pub enum Error<E> {
         /// The value read from [`REG_WHO_AM_I`].
         found: u8,
     },
+    /// The driver and its state machine fell out of step.
+    ///
+    /// Returned by `calibrate` and `calibrate_async` when the machine
+    /// answers [`SamplerAction::OutOfPhase`] or the poll fuel runs out.
+    /// This is a library bug, never a device or bus condition.
+    Sequence,
 }
 
 #[cfg(feature = "hal")]
@@ -573,7 +579,7 @@ impl<E: embedded_hal::i2c::Error> Error<E> {
     pub fn is_nack(&self) -> bool {
         match self {
             Self::Bus(e) => matches!(e.kind(), ErrorKind::NoAcknowledge(_)),
-            Self::WrongIdentity { .. } => false,
+            Self::WrongIdentity { .. } | Self::Sequence => false,
         }
     }
 }
@@ -591,6 +597,11 @@ impl<E: core::fmt::Debug> core::fmt::Display for Error<E> {
                 f,
                 "unexpected WHO_AM_I {found:#04x}: expected {WHO_AM_I_VALUE:#04x} \
                  — a different device answers at this address"
+            ),
+            Self::Sequence => write!(
+                f,
+                "the driver and its state machine fell out of step; \
+                 this is a library bug - please report"
             ),
         }
     }
@@ -703,6 +714,8 @@ impl<I2C: I2c> Mpu6050<I2C> {
     ///
     /// Returns [`Error::Bus`] on the first failed read; calibration is aborted
     /// and the caller decides whether to retry.
+    /// Returns [`Error::Sequence`] if the state machine answers
+    /// [`SamplerAction::OutOfPhase`] or the poll fuel runs out (a library bug).
     pub fn calibrate<D: DelayNs>(
         &mut self,
         delay: &mut D,
@@ -723,17 +736,68 @@ impl<I2C: I2c> Mpu6050<I2C> {
             };
         }
         // Unreachable: each input is built from the action just received.
-        // No error variant exists for it (adding one would be breaking).
-        // Known risk: this is the only silent-success path in either runner;
-        // see the `Error::Sequence` follow-up in CHANGELOG.md.
-        debug_assert!(false, "OffsetSampler runner out of phase");
-        Ok(AccelOffsets::default())
+        Err(Error::Sequence)
     }
 
     /// Consumes the driver and returns the I2C bus.
     #[must_use]
     pub fn release(self) -> I2C {
         self.i2c
+    }
+}
+
+/// Async runner (feature `hal-async`), for executors such as embassy.
+#[cfg(feature = "hal-async")]
+impl<I2C: embedded_hal_async::i2c::I2c> Mpu6050<I2C> {
+    /// Async twin of [`calibrate`](Self::calibrate): the same sampling over
+    /// `embedded-hal-async` `I2c` and `DelayNs`.
+    ///
+    /// It drives the same [`OffsetSampler`] with the same error mapping,
+    /// including [`Error::Sequence`] and the poll-fuel bound.
+    ///
+    /// # Cancellation
+    ///
+    /// Dropping the future mid-calibration discards the partial sums and
+    /// leaves the sensor untouched; the next call starts afresh.
+    ///
+    /// # Errors
+    ///
+    /// The same as [`calibrate`](Self::calibrate): [`Error::Bus`] on the first
+    /// failed read, [`Error::Sequence`] on a library bug.
+    pub async fn calibrate_async<D: embedded_hal_async::delay::DelayNs>(
+        &mut self,
+        delay: &mut D,
+        samples: u32,
+        interval_ms: u32,
+    ) -> Result<AccelOffsets, Error<I2C::Error>> {
+        use embedded_hal_async::i2c::I2c as AsyncI2c;
+
+        let mut m = OffsetSampler::new(samples, interval_ms);
+        let mut input = SamplerInput::Start;
+        for _ in 0..m.max_polls() {
+            input = match m.poll(input) {
+                SamplerAction::ReadBurst => {
+                    let mut buf = [0u8; 14];
+                    AsyncI2c::write_read(
+                        &mut self.i2c,
+                        self.address,
+                        &[REG_ACCEL_XOUT_H],
+                        &mut buf,
+                    )
+                    .await
+                    .map_err(Error::Bus)?;
+                    SamplerInput::Burst(buf)
+                }
+                SamplerAction::Wait { ms } => {
+                    embedded_hal_async::delay::DelayNs::delay_ms(delay, ms).await;
+                    SamplerInput::Waited
+                }
+                SamplerAction::Done(o) => return Ok(o),
+                SamplerAction::OutOfPhase => break,
+            };
+        }
+        // Unreachable, as in the blocking runner.
+        Err(Error::Sequence)
     }
 }
 
@@ -1248,6 +1312,10 @@ mod tests {
             assert!(!wrong.contains("0x69") && !wrong.contains("AD0"));
             let bus = Error::Bus(MockI2cError::bus()).to_string();
             assert!(bus.contains("I2C bus error"));
+            let seq = Error::<MockI2cError>::Sequence;
+            assert!(seq.to_string().contains("fell out of step"));
+            assert!(seq.to_string().contains("library bug"));
+            assert!(!seq.is_nack());
         }
 
         #[test]
@@ -1294,6 +1362,94 @@ mod tests {
             assert_eq!(delay.total_ns, 3 * 10 * 1_000_000);
             assert!(delay.calls >= 3);
             imu.release().done();
+        }
+    }
+
+    // ── Async runner parity ─────────────────────────────────────────────
+
+    #[cfg(feature = "hal-async")]
+    mod parity {
+        use super::*;
+        use crate::mock::{block_on, MockI2c, MockI2cError, Transaction};
+
+        const A: u8 = I2C_ADDR;
+
+        /// Counts time through both the blocking and the async `DelayNs`.
+        struct BothDelay {
+            total_ns: u64,
+        }
+
+        impl embedded_hal_async::delay::DelayNs for BothDelay {
+            async fn delay_ns(&mut self, ns: u32) {
+                self.total_ns += u64::from(ns);
+            }
+        }
+
+        impl embedded_hal::delay::DelayNs for BothDelay {
+            fn delay_ns(&mut self, ns: u32) {
+                self.total_ns += u64::from(ns);
+            }
+        }
+
+        fn burst(ay: i16, az: i16) -> [u8; 14] {
+            let mut b = [0u8; 14];
+            b[2..4].copy_from_slice(&ay.to_be_bytes());
+            b[4..6].copy_from_slice(&az.to_be_bytes());
+            b
+        }
+
+        /// Runs `script` through both runners (each must consume it in full)
+        /// and returns the shared result.
+        fn both(
+            script: &[Transaction<'_>],
+            samples: u32,
+            interval_ms: u32,
+        ) -> Result<AccelOffsets, Error<MockI2cError>> {
+            let mut blocking = Mpu6050::new(MockI2c::new(script), A);
+            let mut bd = BothDelay { total_ns: 0 };
+            let sync = blocking.calibrate(&mut bd, samples, interval_ms);
+            blocking.release().done();
+
+            let mut asynch = Mpu6050::new(MockI2c::new(script), A);
+            let mut ad = BothDelay { total_ns: 0 };
+            let a = block_on(asynch.calibrate_async(&mut ad, samples, interval_ms));
+            asynch.release().done();
+
+            assert_eq!(sync, a);
+            assert_eq!(bd.total_ns, ad.total_ns);
+            a
+        }
+
+        #[test]
+        fn calibrate_happy_path() {
+            let b = burst(10, 16384 + 20);
+            let read = || Transaction::WriteRead {
+                address: A,
+                write: &[REG_ACCEL_XOUT_H],
+                response: &b,
+            };
+            let script = [read(), read(), read()];
+            let o = both(&script, 3, 10).unwrap();
+            assert_eq!(o, AccelOffsets { y: 10, z: 20 });
+        }
+
+        #[test]
+        fn calibrate_zero_samples() {
+            assert_eq!(both(&[], 0, 10).unwrap(), AccelOffsets::default());
+        }
+
+        #[test]
+        fn calibrate_bus_error_mid_run() {
+            let b = burst(0, 16384);
+            let script = [
+                Transaction::WriteRead {
+                    address: A,
+                    write: &[REG_ACCEL_XOUT_H],
+                    response: &b,
+                },
+                Transaction::Error(MockI2cError::bus()),
+            ];
+            assert!(matches!(both(&script, 4, 10), Err(Error::Bus(_))));
         }
     }
 

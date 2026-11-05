@@ -1237,6 +1237,12 @@ pub enum Error<E> {
         /// The minimum `timeout_ms` for the requested settings, in milliseconds.
         required_ms: u32,
     },
+    /// The driver and its state machine fell out of step.
+    ///
+    /// Returned by the runners (`measure` and `measure_async`) when the machine
+    /// answers [`ConversionAction::OutOfPhase`] or the poll fuel runs out.
+    /// This is a library bug, never a device or bus condition.
+    Sequence,
 }
 
 #[cfg(feature = "hal")]
@@ -1275,6 +1281,11 @@ impl<E: core::fmt::Debug> core::fmt::Display for Error<E> {
                     "timeout budget too short: need at least {required_ms} ms"
                 )
             }
+            Self::Sequence => write!(
+                f,
+                "the driver and its state machine fell out of step; \
+                 this is a library bug - please report"
+            ),
         }
     }
 }
@@ -1440,7 +1451,9 @@ impl<I2C: I2c> Bme680<I2C> {
     /// any bus write), [`Error::Timeout`] if the sensor is not ready when the
     /// remaining budget (`timeout_ms - required_ms`) is spent (while waiting
     /// for sleep mode or for the data), or
-    /// [`Error::Bus`] if a transfer fails.
+    /// [`Error::Bus`] if a transfer fails, or [`Error::Sequence`] if the state
+    /// machine answers [`ConversionAction::OutOfPhase`] or the poll fuel runs
+    /// out (a library bug).
     #[allow(clippy::too_many_arguments)] // mirrors the Measurement contract in the feature doc
     pub fn measure<D: DelayNs>(
         &mut self,
@@ -1490,10 +1503,8 @@ impl<I2C: I2c> Bme680<I2C> {
             };
         }
         // Unreachable: the runner answers every action with the matching input
-        // and `max_polls` bounds every flow. No error variant exists for it
-        // (behaviour preservation), so report the closest one.
-        debug_assert!(false, "ForcedConversion out of phase");
-        Err(Error::Timeout)
+        // and `max_polls` bounds every flow.
+        Err(Error::Sequence)
     }
 
     fn write_reg(&mut self, reg: u8, value: u8) -> Result<(), Error<I2C::Error>> {
@@ -1514,6 +1525,98 @@ impl<I2C: I2c> Bme680<I2C> {
     #[must_use]
     pub fn release(self) -> I2C {
         self.i2c
+    }
+}
+
+/// Async runner (features `bme680` and `hal-async`), for executors such as embassy.
+#[cfg(feature = "hal-async")]
+impl<I2C: embedded_hal_async::i2c::I2c> Bme680<I2C> {
+    /// Async twin of [`measure`](Self::measure): the same conversion over
+    /// `embedded-hal-async` `I2c` and `DelayNs`.
+    ///
+    /// It drives the same [`ForcedConversion`] machine with the same error
+    /// mapping, including [`Error::Sequence`] and the poll-fuel bound, so the
+    /// bus traffic and the result match the blocking runner exactly.
+    /// `timeout_ms` budgets only the driver's own delays, as in `measure`.
+    ///
+    /// # Cancellation
+    ///
+    /// Dropping the future mid-measure leaves the sensor converting.
+    /// Nothing is corrupted: the next measure call starts with sleep-mode
+    /// recovery (step 0 of [`measure`](Self::measure)), which forces the
+    /// sensor back to sleep before any configuration write.
+    /// The gas heater may complete its current profile after the drop.
+    /// The cached ambient temperature is only updated on success.
+    ///
+    /// # Errors
+    ///
+    /// The same as [`measure`](Self::measure): [`Error::BudgetTooShort`],
+    /// [`Error::Timeout`], [`Error::Bus`] and [`Error::Sequence`].
+    #[allow(clippy::too_many_arguments)] // mirrors `measure`
+    pub async fn measure_async<D: embedded_hal_async::delay::DelayNs>(
+        &mut self,
+        delay: &mut D,
+        osrs_t: Oversampling,
+        osrs_p: Oversampling,
+        osrs_h: Oversampling,
+        filter: IirFilter,
+        read_gas: bool,
+        timeout_ms: u32,
+    ) -> Result<Reading, Error<I2C::Error>> {
+        use embedded_hal_async::i2c::I2c as AsyncI2c;
+
+        let mut m = ForcedConversion::new(
+            self.calib,
+            self.ambient_c,
+            osrs_t,
+            osrs_p,
+            osrs_h,
+            filter,
+            read_gas,
+            timeout_ms,
+        );
+        let mut input = ConversionInput::Start;
+        for _ in 0..m.max_polls() {
+            input = match m.poll(input) {
+                ConversionAction::Write { reg, value } => {
+                    AsyncI2c::write(&mut self.i2c, self.address, &[reg, value])
+                        .await
+                        .map_err(Error::Bus)?;
+                    ConversionInput::Written
+                }
+                ConversionAction::ReadByte { reg } => {
+                    let mut b = [0u8; 1];
+                    AsyncI2c::write_read(&mut self.i2c, self.address, &[reg], &mut b)
+                        .await
+                        .map_err(Error::Bus)?;
+                    ConversionInput::Byte(b[0])
+                }
+                ConversionAction::ReadData => {
+                    let mut buf = [0u8; DATA_LEN];
+                    AsyncI2c::write_read(
+                        &mut self.i2c,
+                        self.address,
+                        &[REG_MEAS_STATUS_0],
+                        &mut buf,
+                    )
+                    .await
+                    .map_err(Error::Bus)?;
+                    ConversionInput::Data(buf)
+                }
+                ConversionAction::Wait { ms } => {
+                    embedded_hal_async::delay::DelayNs::delay_ms(delay, ms).await;
+                    ConversionInput::Waited
+                }
+                ConversionAction::Done(r) => {
+                    self.ambient_c = m.ambient_c();
+                    return Ok(r);
+                }
+                ConversionAction::Fail(e) => return Err(e.into()),
+                ConversionAction::OutOfPhase => break,
+            };
+        }
+        // Unreachable, as in the blocking runner.
+        Err(Error::Sequence)
     }
 }
 
@@ -2450,6 +2553,153 @@ mod tests {
             assert!(e.to_string().contains("0x60"));
             let e: Error<MockI2cError> = Error::UnsupportedVariant { found: 0x01 };
             assert!(e.to_string().contains("0x01"));
+            let e: Error<MockI2cError> = Error::Sequence;
+            assert!(e.to_string().contains("fell out of step"));
+            assert!(e.to_string().contains("library bug"));
+            assert!(!e.is_nack());
+        }
+
+        /// The async runner must produce the blocking runner's bus traffic
+        /// (one script, consumed in full by each), result and delay total.
+        #[cfg(feature = "hal-async")]
+        mod parity {
+            use super::*;
+            use crate::mock::block_on;
+
+            /// Counts time through both the blocking and the async `DelayNs`.
+            struct BothDelay {
+                total_ns: u64,
+            }
+
+            impl embedded_hal_async::delay::DelayNs for BothDelay {
+                async fn delay_ns(&mut self, ns: u32) {
+                    self.total_ns += u64::from(ns);
+                }
+            }
+
+            impl DelayNs for BothDelay {
+                fn delay_ns(&mut self, ns: u32) {
+                    self.total_ns += u64::from(ns);
+                }
+            }
+
+            /// Runs `script` through both runners and returns the shared result.
+            fn both(
+                script: &[Transaction<'_>],
+                read_gas: bool,
+                budget: u32,
+            ) -> Result<Reading, Error<MockI2cError>> {
+                let mut blocking = open(script);
+                let mut bd = BothDelay { total_ns: 0 };
+                let sync = blocking.measure(&mut bd, T, P, H, F, read_gas, budget);
+                blocking.release().done();
+
+                let mut asynch = open(script);
+                let mut ad = BothDelay { total_ns: 0 };
+                let a = block_on(asynch.measure_async(&mut ad, T, P, H, F, read_gas, budget));
+                asynch.release().done();
+
+                assert_eq!(sync, a);
+                assert_eq!(bd.total_ns, ad.total_ns);
+                a
+            }
+
+            #[test]
+            fn no_gas_happy_path() {
+                let script = script!(
+                    sleep_ok(),
+                    w(&[REG_CONFIG, 0x08]),
+                    w(&[REG_CTRL_HUM, 0x01]),
+                    w(&[REG_CTRL_GAS_0, 0x08]),
+                    w(&[REG_CTRL_GAS_1, 0x00]),
+                    rd(&STATUS, &[0u8; 15]),
+                    w(&[REG_CTRL_MEAS, 0x55]),
+                    rd(&STATUS, &[0x80]),
+                    rd(&STATUS, &DATA),
+                );
+                let r = both(&script, false, REQ).unwrap();
+                assert_eq!(r.gas_resistance_ohm(), None);
+            }
+
+            #[test]
+            fn gas_happy_path() {
+                let script = script!(
+                    sleep_ok(),
+                    w(&[REG_CONFIG, 0x08]),
+                    w(&[REG_CTRL_HUM, 0x01]),
+                    w(&[REG_RES_HEAT_0, 142]),
+                    w(&[REG_GAS_WAIT_0, 0x65]),
+                    w(&[REG_CTRL_GAS_0, 0x00]),
+                    w(&[REG_CTRL_GAS_1, 0x10]),
+                    rd(&STATUS, &[0u8; 15]),
+                    w(&[REG_CTRL_MEAS, 0x55]),
+                    rd(&STATUS, &[0x80 | 0x40]),
+                    rd(&STATUS, &[0x80]),
+                    rd(&STATUS, &DATA),
+                );
+                assert_eq!(both(&script, true, REQ_GAS + 1).unwrap(), expected());
+            }
+
+            #[test]
+            fn sleep_recovery() {
+                let busy = rd(&CTRL, &[0x55]);
+                let script = script!(
+                    busy,
+                    w(&[REG_CTRL_MEAS, 0x54]),
+                    busy,
+                    sleep_ok(),
+                    w(&[REG_CONFIG, 0x08]),
+                    w(&[REG_CTRL_HUM, 0x01]),
+                    w(&[REG_CTRL_GAS_0, 0x08]),
+                    w(&[REG_CTRL_GAS_1, 0x00]),
+                    rd(&STATUS, &[0u8; 15]),
+                    w(&[REG_CTRL_MEAS, 0x55]),
+                    rd(&STATUS, &[0x80]),
+                    rd(&STATUS, &DATA),
+                );
+                assert!(both(&script, false, REQ + 1).is_ok());
+            }
+
+            #[test]
+            fn timeout() {
+                let idle = rd(&STATUS, &[0x00]);
+                let script = script!(
+                    sleep_ok(),
+                    w(&[REG_CONFIG, 0x08]),
+                    w(&[REG_CTRL_HUM, 0x01]),
+                    w(&[REG_CTRL_GAS_0, 0x08]),
+                    w(&[REG_CTRL_GAS_1, 0x00]),
+                    rd(&STATUS, &[0u8; 15]),
+                    w(&[REG_CTRL_MEAS, 0x55]),
+                    idle,
+                    idle,
+                    idle,
+                    idle,
+                );
+                assert_eq!(both(&script, false, REQ + 3), Err(Error::Timeout));
+            }
+
+            #[test]
+            fn budget_too_short() {
+                let script = script!();
+                assert_eq!(
+                    both(&script, true, REQ_GAS - 1),
+                    Err(Error::BudgetTooShort {
+                        required_ms: REQ_GAS
+                    })
+                );
+            }
+
+            #[test]
+            fn bus_error_mid_flow() {
+                let script = script!(
+                    sleep_ok(),
+                    w(&[REG_CONFIG, 0x08]),
+                    Transaction::Error(MockI2cError::nack()),
+                );
+                let e = both(&script, false, REQ).unwrap_err();
+                assert!(e.is_nack());
+            }
         }
     }
 

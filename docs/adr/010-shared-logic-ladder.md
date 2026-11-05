@@ -52,7 +52,7 @@ Constraints:
 
 The first rung-3 implementations are `ForcedConversion` in `tamer::bme680` (behind `Bme680::measure`) and `OffsetSampler` in `tamer::mpu6050` (behind `Mpu6050::calibrate`).
 Both blocking methods are thin runners over the machine.
-The async runner is design-only; no async code exists yet.
+The async runners now exist: `Bme680::measure_async` and `Mpu6050::calibrate_async` (feature `hal-async`) drive the same machines.
 
 ## Alternatives Considered
 | Alternative                   | Pros                              | Cons                                            | Why Rejected                                  |

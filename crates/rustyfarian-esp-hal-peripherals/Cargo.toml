@@ -109,7 +109,7 @@ esp-println = { workspace = true, features = ["auto"] }
 nb = { workspace = true }
 # Dev-dependency features only apply to examples/tests under resolver 2, so the
 # library itself keeps the pure `tamer` (no `hal`/`tilt`).
-tamer = { workspace = true, features = ["hal", "tilt"] }
+tamer = { workspace = true, features = ["hal", "hal-async", "tilt", "bme680"] }
 
 [[example]]
 name = "hal_c3_active_buzzer_morse"
@@ -122,6 +122,14 @@ required-features = ["esp32c3", "rt", "unstable"]
 [[example]]
 name = "hal_c3_blink"
 required-features = ["esp32c3", "rt", "unstable"]
+
+[[example]]
+name = "hal_c3_bme680"
+required-features = ["esp32c3", "rt", "unstable"]
+
+[[example]]
+name = "hal_c3_bme680_async"
+required-features = ["esp32c3", "rt", "unstable", "embassy"]
 
 [[example]]
 name = "hal_c3_mpu6050_tilt"

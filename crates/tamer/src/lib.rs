@@ -32,6 +32,10 @@
 //!   plus the `embedded_hal::i2c::I2c` / `embedded_hal::delay::DelayNs`
 //!   sensor drivers such as [`Mpu6050`]; the default build pulls in nothing
 //!   hardware-related.
+//! - **`hal-async` adds opt-in async runners.** It implies `hal` and pulls in
+//!   `embedded-hal-async`; `Bme680::measure_async` and `Mpu6050::calibrate_async`
+//!   drive the same sans-io machines as their blocking twins, for executors
+//!   such as embassy. It is not a default feature.
 //!
 //! The thin, chip-specific glue lives in the companion hardware crates
 //! (`rustyfarian-esp-hal-peripherals` for bare-metal esp-hal, and

@@ -292,6 +292,39 @@ impl DelayNs for NoopDelay {
     fn delay_ns(&mut self, _ns: u32) {}
 }
 
+/// Async `I2c` for [`MockI2c`]: delegates to the scripted blocking behaviour,
+/// so a script replays identically through either runner.
+#[cfg(feature = "hal-async")]
+impl embedded_hal_async::i2c::I2c<SevenBitAddress> for MockI2c<'_> {
+    async fn transaction(
+        &mut self,
+        address: SevenBitAddress,
+        operations: &mut [Operation<'_>],
+    ) -> Result<(), Self::Error> {
+        <Self as I2c<SevenBitAddress>>::transaction(self, address, operations)
+    }
+}
+
+/// Async `DelayNs` for [`NoopDelay`]: completes immediately.
+#[cfg(feature = "hal-async")]
+impl embedded_hal_async::delay::DelayNs for NoopDelay {
+    async fn delay_ns(&mut self, _ns: u32) {}
+}
+
+/// Polls `fut` to completion on the host without an executor.
+///
+/// The mocks never return `Pending`, so a single-threaded poll loop with a
+/// no-op waker is enough. Test-only; panics if a future stays pending.
+#[cfg(all(test, feature = "hal-async"))]
+pub(crate) fn block_on<F: core::future::Future>(fut: F) -> F::Output {
+    let mut fut = core::pin::pin!(fut);
+    let mut cx = core::task::Context::from_waker(core::task::Waker::noop());
+    match fut.as_mut().poll(&mut cx) {
+        core::task::Poll::Ready(v) => v,
+        core::task::Poll::Pending => panic!("block_on: mock future returned Pending"),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

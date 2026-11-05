@@ -11,13 +11,13 @@ Add new sections per input/output type and board, using the table formats shown 
 ESP32 (RISC-V and Xtensa), via the esp-hal (bare-metal) and esp-idf (std) tiers.
 Specific dev boards are listed here as examples target them.
 
-| Board                       | Chip             | Tier(s)          | Status                                                                                                                                                                                                                                                               |
-|:----------------------------|:-----------------|:-----------------|:---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| CrowPanel 1.28" HMI         | ESP32-S3         | esp-hal, esp-idf | button (hal_s3_b3f, idf_s3_b3f); rotary encoder (hal_s3_rotary, idf_s3_rotary)                                                                                                                                                                                       |
-| ESP32-C3 SuperMini          | ESP32-C3         | esp-hal, esp-idf | passive arpeggio (hal_c3_passive_buzzer_arpeggio, idf_c3_passive_buzzer_arpeggio); active Morse (hal_c3_active_buzzer_morse, idf_c3_active_buzzer_morse); MPU6050 tilt (hal_c3_mpu6050_tilt, idf_c3_mpu6050_tilt); rotary encoder (hal_c3_rotary_isr, idf_c3_rotary) |
-| ESP32-C6-DevKitC-1          | ESP32-C6         | esp-hal, esp-idf | button (hal_c6_b3f, idf_c6_b3f); passive arpeggio (hal_c6_passive_buzzer_arpeggio); rotary encoder (hal_c6_rotary_isr, idf_c6_rotary)                                                                                                                                |
-| ESP32 WROOM-32 / Feather V2 | ESP32            | esp-hal, esp-idf | button (hal_esp_b3f, idf_esp_b3f); rotary encoder (hal_esp_rotary_isr, idf_esp_rotary)                                                                                                                                                                               |
-| Arduino Nano                | ATmega328P (AVR) | tamer only       | debounced button on D2 (`examples/avr-nano-tamer`); no tier crate                                                                                                                                                                                                    |
+| Board                       | Chip             | Tier(s)          | Status                                                                                                                                                                                                                                                                                                                           |
+|:----------------------------|:-----------------|:-----------------|:---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| CrowPanel 1.28" HMI         | ESP32-S3         | esp-hal, esp-idf | button (hal_s3_b3f, idf_s3_b3f); rotary encoder (hal_s3_rotary, idf_s3_rotary)                                                                                                                                                                                                                                                   |
+| ESP32-C3 SuperMini          | ESP32-C3         | esp-hal, esp-idf | passive arpeggio (hal_c3_passive_buzzer_arpeggio, idf_c3_passive_buzzer_arpeggio); active Morse (hal_c3_active_buzzer_morse, idf_c3_active_buzzer_morse); BME680 (hal_c3_bme680, hal_c3_bme680_async, idf_c3_bme680); MPU6050 tilt (hal_c3_mpu6050_tilt, idf_c3_mpu6050_tilt); rotary encoder (hal_c3_rotary_isr, idf_c3_rotary) |
+| ESP32-C6-DevKitC-1          | ESP32-C6         | esp-hal, esp-idf | button (hal_c6_b3f, idf_c6_b3f); passive arpeggio (hal_c6_passive_buzzer_arpeggio); rotary encoder (hal_c6_rotary_isr, idf_c6_rotary)                                                                                                                                                                                            |
+| ESP32 WROOM-32 / Feather V2 | ESP32            | esp-hal, esp-idf | button (hal_esp_b3f, idf_esp_b3f); rotary encoder (hal_esp_rotary_isr, idf_esp_rotary)                                                                                                                                                                                                                                           |
+| Arduino Nano                | ATmega328P (AVR) | tamer only       | debounced button on D2 (`examples/avr-nano-tamer`); no tier crate                                                                                                                                                                                                                                                                |
 
 ---
 
@@ -170,6 +170,38 @@ For a much larger or lower-impedance buzzer beyond that margin, drive it through
 Some TMB12A03 datasheets list acoustic response times up to 50 ms at the lowest operating voltage.
 A 60 ms dot leaves little margin, especially with 5 ms polling.
 Keep `Relaxed` (100 ms dot, ~12 WPM) as the default and verify `Standard` on your exact unit before relying on it in production.
+
+---
+
+## Wiring — shared I2C pogo header (ESP32-C3 SuperMini)
+
+One 4-pin header on the ADR-004 bus lets a BME680, an I2C OLED display and an MPU6050 be plugged in alone or together, e.g. through pogo pins for debugging.
+Pin order follows the Qwiic / STEMMA QT convention.
+
+| Header pin | Signal | ESP32-C3 GPIO | Notes                                         |
+|:-----------|:-------|:--------------|:----------------------------------------------|
+| 1          | GND    | GND           | ground                                        |
+| 2          | 3V3    | 3V3           | 3.3 V supply                                  |
+| 3          | SDA    | GPIO 4        | I2C0 data; 3.3 V logic, never connect to 5 V  |
+| 4          | SCL    | GPIO 5        | I2C0 clock at 100 kHz; 3.3 V logic            |
+
+Devices on the header and their default addresses:
+
+| Device                | Address        | Alternate address (strap)     | Examples                                                |
+|:----------------------|:---------------|:------------------------------|:--------------------------------------------------------|
+| BME680                | 0x76 (SDO low) | 0x77 (SDO high)               | `hal_c3_bme680`, `hal_c3_bme680_async`, `idf_c3_bme680` |
+| SSD1306 / SH1106 OLED | 0x3C           | 0x3D (SA0 / address resistor) | none yet                                                |
+| MPU6050 (GY-521)      | 0x68 (AD0 low) | 0x69 (AD0 high)               | `hal_c3_mpu6050_tilt`, `idf_c3_mpu6050_tilt`            |
+
+The default addresses are distinct, so all three can share the bus without a conflict.
+Run `hal_c3_i2c_scan` to confirm what answers.
+
+Electrical notes:
+
+- Each breakout normally carries its own SDA/SCL pull-ups, and they add in parallel.
+  Two or three boards are fine at 100 kHz; with more, remove pull-ups from all but one board.
+- Plug and unplug with the power off, or reset the board afterwards: hot-plugging can leave a device holding SDA low or latch up a brown-out.
+- SPI displays cannot use this header; they need MOSI, SCK, CS and DC pins instead of SDA/SCL.
 
 ---
 
