@@ -1,0 +1,38 @@
+# MPU6050 (GY-521, AD0 low = 0x68) on the shared I2C pogo header: calibration, then tilt about the X axis, both tiers.
+# A wrong address (AD0 high without I2C_ADDR_ALT) prints the AD0 hint instead; that needs a rebuild, see README.md.
+examples = ["hal_c3_mpu6050_tilt", "idf_c3_mpu6050_tilt"]
+
+[[step]]
+say = "Wait for the banner and the calibration (keep the board still and level, Z up)"
+expect = ['MPU6050 WHO_AM_I OK \(0x68\) at address 0x68', 'calibrating', 'offsets:']
+reject = 'no MPU6050|bus fault|calibration failed|PANIC'
+timeout = 60
+arm = false
+
+[[step]]
+say = "Keep it level: the tilt reads about 0 degrees"
+expect = 'tilt: -?[0-4]\.\d°'
+reject = 'read failed|PANIC'
+timeout = 15
+
+[[step]]
+say = "Tip the board about the X axis to the side that reads positive, about +90 degrees, and hold"
+attended = true
+expect = 'tilt: [7-9]\d\.\d°'
+reject = 'read failed|PANIC'
+timeout = 30
+
+[[step]]
+say = "Tip it to the other side, about -90 degrees, and hold"
+attended = true
+expect = 'tilt: -[7-9]\d\.\d°'
+reject = 'read failed|PANIC'
+timeout = 30
+
+[[step]]
+say = "Put it back level and keep it still for 5 s"
+attended = true
+expect = 'tilt: -?[0-4]\.\d°'
+reject = 'read failed|PANIC'
+timeout = 20
+settle = 5

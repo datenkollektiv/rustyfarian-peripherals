@@ -1,0 +1,22 @@
+# Bench definition for rustyfarian-bench (`just bench <target>`).
+# Scenarios live in bench/<board>/*.toml; see bench/README.md.
+
+[commands]
+build = ["just", "build-example", "{example}"]
+flash = ["just", "flash", "{example}", "{port}"]
+
+[boards.s3]
+chip = "esp32s3"
+name = "CrowPanel 1.28\" HMI (ESP32-S3)"
+
+[boards.c3]
+chip = "esp32c3"
+name = "ESP32-C3 SuperMini"
+
+[boards.c6]
+chip = "esp32c6"
+name = "ESP32-C6-DevKitC-1"
+
+[boards.esp32]
+chip = "esp32"
+name = "ESP32 WROOM-32 / Feather V2"

@@ -1,0 +1,45 @@
+# Potentiometer wiper on ADC1 GPIO 4: 5 s end-to-end calibration, then normalized readings, both tiers.
+# Lines look like `raw=2048 normalized=512 percent=50%` and appear only when the value moves past the deadband.
+examples = ["hal_c3_poti", "idf_c3_poti"]
+
+[[step]]
+say = "Wait for the first sample and the calibration prompt"
+expect = ['Waiting for first ADC sample on GPIO 4', 'Calibration: turn the potentiometer']
+reject = 'ADC read failed|PANIC'
+timeout = 15
+optional = true
+arm = false
+
+[[step]]
+say = "Turn the potentiometer end-to-end, back and forth, during the 5 s calibration"
+attended = true
+expect = 'Calibration accepted; using calibrated range'
+reject = 'falling back|ADC read failed|PANIC'
+timeout = 20
+
+[[step]]
+say = "Wait for the ready line"
+attended = true
+expect = 'Potentiometer ready on GPIO 4: raw=\d+ normalized=\d+ percent=\d+%'
+timeout = 10
+
+[[step]]
+say = "Turn the potentiometer to the end where it reads about 0 percent"
+attended = true
+expect = 'percent=[0-4]%'
+reject = 'ADC read failed|PANIC'
+timeout = 20
+
+[[step]]
+say = "Turn the potentiometer to the other end, about 100 percent"
+attended = true
+expect = 'percent=(?:9[6-9]|100)%'
+reject = 'ADC read failed|PANIC'
+timeout = 20
+
+[[step]]
+say = "Turn it to about the middle"
+attended = true
+expect = 'percent=(?:4[0-9]|5[0-9]|6[0-5])%'
+reject = 'ADC read failed|PANIC'
+timeout = 20

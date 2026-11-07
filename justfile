@@ -46,6 +46,11 @@ avr_dir := if ramdisk_mounted == "true" { ramdisk + "/targets/avr/" + file_name(
 # resolve under the example, not the repo root).
 avr_abs_dir := if ramdisk_mounted == "true" { ramdisk + "/targets/avr/" + file_name(justfile_directory()) } else { justfile_directory() + "/target/avr" }
 
+# Guided bench runner: a local rustyfarian-bench checkout if RUSTYFARIAN_BENCH points at one,
+# otherwise the pinned release from GitHub.
+bench_dir := env("RUSTYFARIAN_BENCH", "")
+bench := if bench_dir != "" { 'uv run --project "' + bench_dir + '" rustyfarian-bench' } else { "uvx --from git+https://github.com/datenkollektiv/rustyfarian-bench@v0.3.0 rustyfarian-bench" }
+
 # list available recipes (default)
 _default:
     @just --list
@@ -356,9 +361,9 @@ examples:
 build-example example:
     scripts/build-example.sh "{{ example }}" "{{ hal_dir }}" "{{ idf_dir }}"
 
-# build and flash a named example to a connected board
-flash example:
-    scripts/flash.sh "{{ example }}" "{{ hal_dir }}" "{{ idf_dir }}"
+# build and flash a named example to a connected board (optional explicit port)
+flash example port="":
+    scripts/flash.sh "{{ example }}" "{{ hal_dir }}" "{{ idf_dir }}" "{{ port }}"
 
 # build, flash, then open the serial monitor
 run example:
@@ -372,6 +377,18 @@ monitor:
 # reset the board and record its serial output to a file (non-interactive)
 capture seconds logfile port="":
     scripts/capture.sh "{{ seconds }}" "{{ logfile }}" "{{ port }}"
+
+# guided hardware check: `just bench s3 b3f`, `just bench hal_s3_b3f`, `just bench s3` (see bench/README.md)
+bench target *args:
+    {{ bench }} --repo . run "{{ target }}" {{ args }}
+
+# list the bench scenarios
+bench-list:
+    {{ bench }} --repo . list
+
+# probe the connected boards (chip and MAC per port)
+bench-detect:
+    {{ bench }} detect
 
 # --- Setup ----------------------------------------------------------------
 

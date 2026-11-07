@@ -61,6 +61,13 @@ behaviour cannot drift. Host work needs only `rustc`, `cargo`, and `just`.
 The `esp` toolchain (`just setup-toolchain`, via espup) and device target config
 (`just setup-cargo-config`) are needed only for the hardware crates and examples.
 
+### On-device checks
+
+`just bench <board> [check]` runs a guided on-device check from `bench/<board>/`, builds and flashes it, and judges each step; `bench/README.md` lists the boards and checks.
+`just bench-list` lists every scenario, and `just bench-detect` shows the chip and MAC of each connected board.
+The runner is `rustyfarian-bench`; `RUSTYFARIAN_BENCH=<path>` points the recipes at a local checkout instead of the pinned `v0.3.0` release (ADR-011 records the pin and the bench layout).
+Bench logs and `results.jsonl` are git-ignored, because they record board MACs.
+
 ### Chip matrix
 
 Every tier's library is checked and linted on all four ESP32 chips, and `tamer` links on AVR.
@@ -109,6 +116,17 @@ goes above. ADRs follow the Michael Nygard format under
 
 **Example naming.** `{hal|idf}_{chip}_{name}` (chip ∈ `c3|c6|esp|s3`, where `esp` is the classic ESP32; `scripts/lib.sh` also accepts `esp32` and `esp32s3`),
 e.g. `hal_c3_passive_buzzer_arpeggio`, `idf_s3_rotary`, `hal_esp_rotary_isr`.
+
+## Shared-logic ladder (ADR-010)
+
+Shared tier logic takes the lowest rung that fits, as `docs/adr/010-shared-logic-ladder.md` records.
+The rungs and the review rule match `rustyfarian-network` ADR-023, `rustyfarian-power` ADR-004 and `rustyfarian-ws2812` ADR-012.
+
+- **Rung 1, generic driver (default):** `bme680::Bme680` and `mpu6050::Mpu6050` in `tamer`, generic over `embedded-hal` traits.
+- **Rung 2, event machine:** `update(sample, now) -> Option<Event>`, for example `rotary::QuadratureDecoder`, `button::ButtonDecoder`, `touch::TouchTracker` and `presence::PresenceSession`.
+- **Rung 3, action machine:** `poll(input) -> Action` with a thin loop per tier, for example `bme680::ForcedConversion` and `mpu6050::OffsetSampler`.
+- **Review rule:** a branch in a tier adapter that is not an error or event mapping is logic and moves into `tamer`.
+- **Time is an input:** a machine never reads a clock; the caller passes `now`.
 
 ## Coding Principles
 

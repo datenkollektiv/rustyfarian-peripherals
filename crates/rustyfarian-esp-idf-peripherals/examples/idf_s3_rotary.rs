@@ -90,8 +90,12 @@ fn main() -> anyhow::Result<()> {
 
         let pos = encoder.position();
         if pos != last_pos {
-            let dir = if pos > last_pos { "CW " } else { "CCW" };
-            info!("rotated {dir}  position: {last_pos} -> {pos}");
+            let dir = if pos > last_pos { "CW" } else { "CCW" };
+            info!(
+                "rotated {dir} position {pos} (edges {}, skipped {})",
+                encoder.edge_count(),
+                encoder.skipped_count()
+            );
             last_pos = pos;
         }
 

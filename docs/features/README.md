@@ -28,6 +28,6 @@ what has landed.
 | Feature                                                                                           | Status                                 |
 |:--------------------------------------------------------------------------------------------------|:---------------------------------------|
 | [MPU6050 accelerometer / IMU](mpu6050-imu-v1.md) — sans-IO parse, calibration, feature-gated tilt | Merged; hardware in release pass       |
-| [BME680 environmental sensor](bme680-v1.md) — pure core + first I2C driver in `tamer` (ADR-009)   | Core + driver landed; examples pending |
-| [Chip matrix](chip-matrix-v1.md) — ESP32/C3/C6/S3 on both tiers, AVR link check of `tamer`        | Designed; bench pass pending           |
+| [BME680 environmental sensor](bme680-v1.md) — pure core + first I2C driver in `tamer` (ADR-009)   | Core, driver and examples landed; hardware pass pending |
+| [Chip matrix](chip-matrix-v1.md) — ESP32/C3/C6/S3 on both tiers, AVR link check of `tamer`        | Compile and link evidence recorded; hardware pass mostly `not run` (one cell passed) |
 | [IRAM-safe ISR](iram-safe-isr-v1.md) — run the encoder ISR from SRAM for flash-cache-off safety   | Scoped (skeleton)                      |

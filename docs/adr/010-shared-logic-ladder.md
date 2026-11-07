@@ -4,6 +4,8 @@
 Accepted (2026-11-04).
 Adopts the ladder of `rustyfarian-power` ADR-004 (shared-logic ladder); both adapt `rustyfarian-network` ADR-022 decision 10.
 Resolves the VISION open question "Interrupt vs. polling boundary".
+Amended (2026-11-07): the sibling ladders are `rustyfarian-network` ADR-023 and `rustyfarian-ws2812` ADR-012, which adopt the same rungs and review rule; the instances, the retrofit and a correction to the Consequences below are dated notes in this ADR.
+The hardware pass for this ladder runs through the bench of ADR-011.
 
 ## Context
 Where both tiers sequence the same flow, each re-implements the order of the steps, and the two copies drift.
@@ -37,6 +39,8 @@ The open gap is a flow that blocks: `Bme680::measure` waits over 150 ms in `Dela
 ## Consequences
 Positive:
 - Rungs 1 and 2 already cover every shipped driver, so no existing code changes.
+  *Correction (2026-11-07):* this did not hold for the tier adapters and the examples, which the retrofit below changed.
+  The drivers' signatures, errors and bus traffic stayed the same, but `Bme680::measure` and `Mpu6050::calibrate` now run over rung-3 machines, so their internals did change.
 - The review rule gives `code-reviewer` a concrete check for the sans-IO boundary.
 - A blocking flow has a defined path to non-blocking use without a second copy of the sequence.
 
@@ -53,6 +57,77 @@ Constraints:
 The first rung-3 implementations are `ForcedConversion` in `tamer::bme680` (behind `Bme680::measure`) and `OffsetSampler` in `tamer::mpu6050` (behind `Mpu6050::calibrate`).
 Both blocking methods are thin runners over the machine.
 The async runners now exist: `Bme680::measure_async` and `Mpu6050::calibrate_async` (feature `hal-async`) drive the same machines.
+
+## Instances
+
+Dated 2026-11-07.
+Paths are module paths in `tamer`; the feature in brackets gates the type.
+
+- **Rung 1 — generic driver.**
+  - `bme680::Bme680<I2C>` [`bme680`, `hal`] and `mpu6050::Mpu6050<I2C>` [`hal`], generic over `embedded_hal::i2c::I2c` and `DelayNs`.
+  - The `InputPin` adapters `debounce::DebouncedInput`, `rotary::QuadratureInput`, `button::ButtonInput` and `presence::DigitalPresenceInput` [`hal`]; each wraps a rung-2 decoder, which rung 1 allows (the rung-1 driver may contain a rung-2 decoder, as `rustyfarian-ws2812` ADR-012 decision 1 notes).
+- **Rung 2 — event machine** (`update(sample, now) -> Option<Event>` or a close variant):
+  - `rotary::QuadratureDecoder::update(a, b)`, fed by the esp-hal GPIO hook, the ESP-IDF ISR and `QuadratureInput`.
+  - `button::ButtonDecoder::update(pressed, now)`.
+  - `debounce::Debouncer::update(raw, now)` and `debounce::EdgeDetector::update(raw, now)`.
+  - `touch::TouchTracker::update(touch, now)`.
+  - `presence::PresenceSession::update(level, now)`, with `snapshot` and `restore` to resume across a deep-sleep reset.
+  - `burst::BurstDetector::update(transition, now_ms)`.
+  - `hotplug::Hotplug::observe(ok, now)`.
+  - `tone::ToneSequencer::update(now)` and `morse::MorseKeyer::update(now)` take time as their only input.
+- **Flat logic, no rung.**
+  These are pure functions or stateful helpers with no sample input, so a machine would be ceremony.
+  `latch::OnceLatch` (`trip`, `rearm`), `hall::HallSensor::pole` with `Pole`, `tone::ToneOutput::duty`, `analog::AnalogCalibration::range_or`, `bme680::compensate` and `res_heat`, `mpu6050::parse_raw`, and `range_map::RangeMap`.
+- **Rung 3 — action machine.**
+  - `bme680::ForcedConversion` (`poll(ConversionInput) -> ConversionAction`), run by `Bme680::measure` and `Bme680::measure_async` [`hal-async`].
+  - `mpu6050::OffsetSampler` (`poll(SamplerInput) -> SamplerAction`), run by `Mpu6050::calibrate` and `Mpu6050::calibrate_async` [`hal-async`].
+  - Both machines answer out-of-phase input with an explicit `Error::Sequence`, and both action enums are exhaustive, so a new variant is a breaking change.
+
+## Retrofit
+
+Dated 2026-11-07.
+The code extraction ran in the 2026-11-07 retrofit, and its hardware evidence is the final hardware pass in `release-plan.md`, which blocks the next release.
+The user-visible side of each change is in the CHANGELOG `[Unreleased]` section.
+
+### Moved into `tamer`
+
+Each item was a branch or a constant that an example or a tier adapter held, and now lives in `tamer`.
+
+- `tone::ToneOutput::duty`: the square-wave duty rule moved out of the passive-buzzer arpeggio examples, and both tiers now use the same 10-bit timer.
+- `analog::AnalogCalibration::range_or`: the observed-range fallback moved out of the poti examples.
+- `latch::OnceLatch`: the report-once logic moved out of the poti, poti-LED and linear Hall examples.
+- `hall::HallSensor::pole` and `Pole`: the pole classification moved out of the linear Hall examples, which now only print it.
+- `burst::BurstDetector`: replaces the hand-written burst detector in the tilt-motion examples.
+- `rotary::QuadratureDecoder::try_new` and `DetentStepsError`: the zero-detent check moved out of both encoder tiers, and each tier only maps the error to `EncoderError::InvalidConfig`.
+- `rotary::QuadratureDecoder::edge_count`: the esp-hal `Encoder` and `InterruptEncoder` no longer keep their own edge counter, and the ESP-IDF encoder passes the count through.
+
+### Restructured inside `tamer`
+
+- `Bme680::measure` and `Mpu6050::calibrate` are thin blocking runners over `ForcedConversion` and `OffsetSampler`.
+  Their signatures, I2C transactions and delay calls are unchanged; the only visible change is the `Error::Sequence` variant for an out-of-phase machine answer.
+
+### Deliberately left in the adapters
+
+Each item is tier I/O or a shape decision, and the reason is given.
+
+- **Rotary ISR arming and teardown** (esp-hal `on_gpio_interrupt` and the `InterruptEncoder` drop, ESP-IDF `gpio_isr_handler_add` and `gpio_intr_enable`).
+  Interrupt registers, ISR safety and teardown order are tier facts (decision 9); the decoder is shared, the wiring is not.
+- **ISR critical section.**
+  The ESP-IDF tier uses esp-idf-hal's `IsrCriticalSection`, and the esp-hal tier uses its own primitive.
+  Which primitive is ISR-safe is a platform fact (decision 9).
+- **IRAM placement** of the ESP-IDF encoder ISR trampoline, and the choice of `ESP_INTR_FLAG_IRAM`.
+  Section placement and interrupt-service flags are linker and runtime facts, so `tamer` cannot own them.
+- **LEDC timer and channel setup, and the duty writes.**
+  These are register I/O in each example (decision 9).
+  The buzzer's resolution is no longer a tier difference, because `ToneOutput::duty` takes `max_duty` and both tiers run 10-bit.
+  The poti-LED keeps 8-bit resolution to match `RangeMap`'s `u8` output, a per-example constant and not a tier difference.
+- **`EncoderConfig`** (both tiers, `Default` for EC11) stays in the tier crates.
+  Constructors in `tamer` stay positional, as ADR-007 decided for the family, so `tamer` gains no config struct; the tier type is public API of the tier crate, not a branch to move.
+
+### Hardware validation
+
+The hardware pass for this retrofit is the final hardware pass in `release-plan.md`, and the bench of ADR-011 runs the checks that have a scenario.
+Host tests prove the order of the steps and the state transitions, not the waveforms or the interrupt timing.
 
 ## Alternatives Considered
 | Alternative                   | Pros                              | Cons                                            | Why Rejected                                  |

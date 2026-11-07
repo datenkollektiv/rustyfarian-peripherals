@@ -74,6 +74,22 @@ Fix: use `just capture <seconds> <logfile>`, which hard-resets with `espflash re
 The port re-enumerates on reset, so the capture waits briefly for it to return, and the boot banner is still lost; print measurements periodically, not only at boot.
 Confirmed on the CrowPanel 1.28" ESP32-S3 (`/dev/cu.usbmodem2101`), espflash 4.6.0.
 
+**An ESP32-S3 on native USB Serial/JTAG can get stuck in a download state that survives every chip reset — RTS pulse, `espflash`/`esptool` hard reset, watchdog reset — and only a power cycle clears it.**
+Symptom: every reset prints `rst:0x15 (USB_UART_CHIP_RESET),boot:0x10 (DOWNLOAD(USB/UART0)) … waiting for download`, while `RTC_CNTL_OPTION1` (force-download bit, `0x6000812C`) reads 0 and GPIO0 reads high in `GPIO_IN` — so it is neither the documented force-download flag nor the BOOT strap, and clearing that bit (what esptool's S3 `hard_reset` does) cannot help.
+Fix: unplug and replug the board (no BOOT); afterwards `just flash`, the bench reader's open-reset and RTS pulse, `espflash board-info` and `just capture` all boot the app and arm nothing — it is not a bug in the reset code.
+Trigger unconfirmed; prime suspect is two processes toggling DTR/RTS on the same port (an `espflash reset` while a pyserial reader was attached).
+To tell ROM from app without resetting, open the port raw (macOS raises DTR+RTS on open, which does not reset) and write a SLIP `SYNC` frame: only the ROM answers (`07 07 12 20`); see `../rustyfarian-bench/tmp/pulse.py`.
+`espflash reset --after watchdog-reset` is a silent no-op on the S3 in this state (`can_rtc_wdt_reset` fails on the strap bit).
+Confirmed on the CrowPanel 1.28" ESP32-S3, espflash 4.6.0, macOS, 2026-11-06.
+
+**On native USB Serial/JTAG, a formatted `esp_println::println!` line can stay stuck in the chip's TX FIFO until the next print — seconds late, not lost.**
+`println!` emits one `write_str` per format segment and `esp-println` 0.18 sets `WR_DONE` after each, and the S3 sometimes ignores the last of those back-to-back flushes.
+Symptom: the device timestamp in the line is correct, but the host receives it together with the next line; a `released` line waits for the next press.
+It broke `just bench s3 b3f` step 2: the step hung on the missing `released`, and the operator's extra press then failed the settle window.
+Repro (pressed, 160 ms, released, 1.5 s idle): segmented `println!` delayed 8 of 23 `released` lines by ~1.5 s, while one buffered `Printer::write_bytes` per line delayed 0 of 40 (max 55 ms).
+Fix: format each line into a stack buffer and emit it with a single write; scenarios where a follow-up line arrives soon after (e.g. `rustyfarian-knob`'s `event: Click`) only mask it.
+Confirmed on the CrowPanel 1.28" ESP32-S3, esp-println 0.18.0, macOS, 2026-11-07.
+
 ## ESP-IDF — interrupt subscriptions vs. persistent interrupts
 
 **`PinDriver::subscribe` + `enable_interrupt` (HAL pattern) is one-shot and unsuitable for edge-dense inputs like rotary encoders.**

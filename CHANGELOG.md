@@ -11,6 +11,7 @@ This project follows [Semantic Versioning](https://semver.org/) (pre-1.0: minor 
 
 ### Added
 
+- ADR-010 adopted: shared logic follows the three-rung ladder (a generic `embedded-hal` driver first, an event machine next, and a sans-IO action machine only on a trigger), and the `Bme680` and `Mpu6050` runners now sit over the `ForcedConversion` and `OffsetSampler` machines; the hardware re-runs that the adoption needs are gated in `release-plan.md` § Final hardware pass.
 - Examples `hal_c3_bme680`, `idf_c3_bme680` and embassy `hal_c3_bme680_async` (esp-hal `I2c` in `Async` mode, `Bme680::measure_async`): temperature, pressure, humidity and gas on the ADR-004 bus (GPIO4/GPIO5, 100 kHz); `docs/hardware-setup.md` gains the shared I2C pogo header wiring (BME680, I2C OLED, MPU6050 on one 4-pin header).
 - `tamer` feature `hal-async` (implies `hal`, not default; adds the `embedded-hal-async` dependency): `Bme680::measure_async` and `Mpu6050::calibrate_async`, async runners over the same `ForcedConversion` / `OffsetSampler` machines with identical bus traffic, error mapping (including `Error::Sequence`) and poll-fuel bound; dropping the future mid-measure leaves the sensor converting and the next call's sleep-mode recovery handles it; `embedded_hal_async::i2c::I2c` for `MockI2c` and async `DelayNs` for `NoopDelay` under the same feature; parity tests need no executor.
 - `tamer::mpu6050::OffsetSampler` (`new`, `poll`, `is_finished`, `max_polls`), `SamplerInput` and `SamplerAction`: sans-io rung-3 action machine for accelerometer offset calibration (ADR-010); available without `hal`; the enums are exhaustive, so adding a variant is breaking; `AccelCalibration` now also derives `PartialEq, Eq`.
@@ -60,6 +61,10 @@ This project follows [Semantic Versioning](https://semver.org/) (pre-1.0: minor 
 - `hal_esp_rotary_isr`, `hal_c3_rotary_isr` and `hal_c6_rotary_isr`: ISR-decoded rotary examples for ESP32, C3 and C6 (esp-hal).
 - `idf_esp_rotary`, `idf_c3_rotary` and `idf_c6_rotary`: ISR-decoded rotary examples for ESP32, C3 and C6 (ESP-IDF), printing the same event lines as the esp-hal twins.
 - `idf_esp_b3f`, `idf_c6_b3f` and `idf_s3_b3f`: button smoke examples on ESP32, C6 and S3 (ESP-IDF), matching the esp-hal `b3f` examples.
+- `just bench <board> [check] [flags]`, `just bench <example>`, `just bench-list` and `just bench-detect`: guided, rerunnable hardware checks that build, flash, reset and judge each step with an automatic verdict; see `bench/README.md` and ADR-011.
+- `bench/` layout (ADR-011): one directory per board, one TOML scenario per check (`<board>/<check>.toml`), `bench/bench.toml` for build, flash and board settings, and git-ignored `results.jsonl` and logs; the `s3` board is in progress, and the `c3`, `c6` and `esp32` scenarios are written but not run.
+- Bench scenarios: `c3` (`b3f`, `rotary`, `bme680`, `bme680-async`, `mpu6050`, `buzzer`, `hall-linear`, `poti`), `c6` and `esp32` (`b3f`, `rotary`); `s3` keeps `b3f`, `rotary` and `rotary-isr`, and on `c3`, `c6` and `esp32` the `rotary` scenario runs the hal ISR example and its idf twin.
+- Compile-time tier conformance guards in both tier crates: the esp-hal and ESP-IDF rotary `Encoder` must keep `edge_count()` and `skipped_count()` in parity, and both crates must keep re-exporting the shared `tamer` types.
 
 ### Fixed
 
@@ -79,6 +84,10 @@ This project follows [Semantic Versioning](https://semver.org/) (pre-1.0: minor 
 - `tamer::presence`: `PresenceSession::restore` / `snapshot` keep `last_onset_age` exact when the restored age exceeds the restore tick, instead of collapsing it to `now`.
   `last_onset()` still saturates at `0` in that case.
 - Docs: the ESP-IDF `rotary::Encoder` IRAM caveat (README, rustdoc, ROADMAP) now states the verified behaviour — edges during a flash write are deferred and coalesced (a dropped detent), and the device crashes only if the GPIO ISR service is installed with `ESP_INTR_FLAG_IRAM` elsewhere. No code change.
+- `scripts/flash.sh` port handling: an optional fourth argument names the serial port, which is passed to `espflash` as `--port` with `--non-interactive`; with no port, `espflash` picks or asks for the board as before.
+- The rotary examples on both tiers (`idf_{esp,c3,c6,s3}_rotary`, `hal_{esp,c3,c6}_rotary_isr`, `hal_s3_rotary`) print one line format, `rotated CW position 3 (edges 12, skipped 0)`, read from `edge_count()` and `skipped_count()`, so one bench pattern covers both tiers.
+- The `just bench` recipes run the `rustyfarian-bench` runner pinned to `v0.3.0` (`uvx --from git+https://github.com/datenkollektiv/rustyfarian-bench@v0.3.0`); `RUSTYFARIAN_BENCH=/path/to/rustyfarian-bench` selects a local checkout instead.
+- Bench scenarios mark the steps that need a person with `attended = true`, so `just bench <board> --unattended` and `--attended` split a board pass; every `b3f` and `rotary` check starts with a hands-off 5 s no-panic watch, and the `s3/rotary` and `s3/rotary-isr` banner steps read the reset backlog (`arm = false`).
 
 ## [0.1.0] - 2026-09-26
 

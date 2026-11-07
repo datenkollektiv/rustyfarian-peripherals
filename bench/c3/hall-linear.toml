@@ -1,0 +1,43 @@
+# 49E linear Hall sensor (HW-477) on ADC1 GPIO 4: calibration, then pole detection, both tiers.
+# Lines look like `raw=2048  avg=2047  mid=2048  dev=-1    ---`; the tag is SOUTH, NORTH or `---` (absent).
+# No `$` anchors: idf log lines end in an ANSI colour reset.
+examples = ["hal_c3_hall_linear", "idf_c3_hall_linear"]
+
+[[step]]
+say = "Wait for the calibration (keep the magnet away)"
+expect = ['Calibrating', 'Calibrated: midpoint=\d+, threshold=\d+']
+reject = 'Calibration error|ADC read failed|PANIC'
+timeout = 20
+arm = false
+
+[[step]]
+say = "Keep the magnet away: the tag stays absent"
+expect = 'raw=\d+\s+avg=\d+\s+mid=\d+\s+dev=-?\d+\s+---'
+reject = 'SOUTH|NORTH|ADC read failed|PANIC'
+timeout = 10
+settle = 2
+
+[[step]]
+say = "Bring one pole of the magnet close to the sensor and hold"
+attended = true
+expect = 'dev=-?\d+\s+(?:SOUTH|NORTH)'
+reject = 'ADC read failed|PANIC'
+timeout = 20
+
+[[step]]
+say = "Take the magnet away, flip it, and bring the other pole close"
+attended = true
+expect = ['dev=-?\d+\s+---', 'dev=-?\d+\s+(?:SOUTH|NORTH)']
+reject = 'ADC read failed|PANIC'
+timeout = 20
+
+[[step]]
+say = "Check the poles"
+confirm = "Did the tag change between SOUTH and NORTH when you flipped the magnet?"
+
+[[step]]
+say = "Take the magnet away again"
+attended = true
+expect = 'dev=-?\d+\s+---'
+reject = 'ADC read failed|PANIC'
+timeout = 15

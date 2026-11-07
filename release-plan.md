@@ -38,20 +38,34 @@ The hardware tiers cannot dry-run publish until `tamer` of the same version is l
 ### Final hardware pass
 
 Hardware checks are collected here, not gated per feature, and run once before the release.
-Tick each item with the board, port, and date; record new gotchas in `docs/project-lore.md`.
+Each item has a gate id, `<board>/<check>`, and the bench command that produces its evidence: `just bench <board> <check>`.
+Items without a bench scenario keep a manual note and are ticked by hand.
+Every tick records the commit hash and the board (the ELF SHA-256 is optional) and the date; record new gotchas in `docs/project-lore.md`.
+A change to `tamer` or to a touched tier invalidates the prior ticks of every flow that runs through it.
+Bench results are local and git-ignored (`bench/*/results.jsonl`), so the tick itself must carry the commit and the date.
+Run each board twice: `just bench <board> --unattended` (walk away), then `just bench <board> --attended`; a gate is ticked only when both modes pass on the same commit.
 
-- [ ] Every example touched by the ADR-010 alignment runs on both tiers: `tilt_motion`, `hall_linear`, `poti`, `poti_led`, `passive_buzzer_arpeggio` (C3 twins, plus `hal_c6_passive_buzzer_arpeggio`).
-- [ ] `idf_c3_passive_buzzer_arpeggio` at 10-bit LEDC (was 8-bit) still plays the full melody; the ~77 Hz floor is computed, not measured.
-- [ ] Rotary `edge_count()` / `skipped_count()` move under turning on both tiers (the counting now lives in `QuadratureDecoder`).
-- [ ] MPU6050: `idf_c3_mpu6050_tilt` on the C3 rig; a ±90° reading; a deliberate NACK (wrong address) prints the AD0 hint.
-- [ ] BME680: `hal_c3_bme680` and `idf_c3_bme680` on the ADR-004 bus, incl. `heat_stab_r` at the fixed heater profile.
-- [ ] BME680: `hal_c3_bme680_async` under embassy (esp-hal `I2c` in `Async` mode): same readings as the blocking twin, other tasks keep running during the conversion wait.
-- [ ] BME680: `new_data` is clear after drain + trigger; then drop `PENDING(hardware)` from the drain mock script.
-- [ ] BME680: plain `ctrl_gas_0` write (`0x00` / `0x08`) and the `meas_status_0` bits `0x20` / `0x40` behave as the poll assumes.
-- [ ] BME680: capture a real register dump for the test fixture.
-- [ ] Hall linear: `hal_c3_hall_linear` / `idf_c3_hall_linear` with a 49E sensor.
-- [ ] Chip matrix hardware pass on ESP32, C3, C6 and S3 (`docs/features/chip-matrix-v1.md`), incl. the ESP-IDF rotary `Encoder` on C3 and C6.
-- [ ] Optional: `hal_c6_passive_buzzer_arpeggio` pitch (suspected one octave high from the C6 LEDC clock).
+Board scenarios: `c3` (`b3f`, `rotary`, `bme680`, `bme680-async`, `mpu6050`, `buzzer`, `hall-linear`, `poti`), `c6` and `esp32` (`b3f`, `rotary`), `s3` (`b3f`, `rotary`, `rotary-isr`).
+The chip-matrix cells are in `docs/features/chip-matrix-v1.md` § Hardware pass.
+
+- [ ] Gate `c3/buzzer` (`just bench c3 buzzer`): the C3 passive-buzzer arpeggio on both tiers; `idf_c3_passive_buzzer_arpeggio` at 10-bit LEDC (was 8-bit) still plays the full melody; the ~77 Hz floor is computed, not measured.
+- [ ] Gate `c3/poti` (`just bench c3 poti`): the `poti` example on the C3 rig; `poti_led` is a manual note until a scenario covers it.
+- [ ] Gate `c3/mpu6050` (`just bench c3 mpu6050`): `idf_c3_mpu6050_tilt` on the C3 rig with a ±90° reading; the deliberate NACK (wrong address) that prints the AD0 hint is a manual note until the scenario prompts for it.
+- [ ] Gate `c3/hall-linear` (`just bench c3 hall-linear`): `hal_c3_hall_linear` / `idf_c3_hall_linear` with a 49E sensor.
+- [ ] Gate `c3/bme680` (`just bench c3 bme680`): `hal_c3_bme680` and `idf_c3_bme680` on the ADR-004 bus, incl. `heat_stab_r` at the fixed heater profile.
+- [ ] Gate `c3/bme680-async` (`just bench c3 bme680-async`): `hal_c3_bme680_async` under embassy (esp-hal `I2c` in `Async` mode): same readings as the blocking twin, other tasks keep running during the conversion wait.
+- [ ] BME680 manual: `new_data` is clear after drain + trigger; then drop `PENDING(hardware)` from the drain mock script.
+- [ ] BME680 manual: plain `ctrl_gas_0` write (`0x00` / `0x08`) and the `meas_status_0` bits `0x20` / `0x40` behave as the poll assumes.
+- [ ] BME680 manual: capture a real register dump for the test fixture.
+- [ ] Gate `c3/rotary` (`just bench c3 rotary`): `hal_c3_rotary_isr` and `idf_c3_rotary` move `edge_count()` / `skipped_count()` under turning (the counting lives in `QuadratureDecoder`).
+- [ ] Gate `c6/rotary` (`just bench c6 rotary`): `hal_c6_rotary_isr` and `idf_c6_rotary`, the same counts under turning.
+- [ ] Gate `esp32/rotary` (`just bench esp32 rotary`): `hal_esp_rotary_isr` and `idf_esp_rotary`, the same counts under turning.
+- [ ] Gate `s3/rotary` (`just bench s3 rotary`): `hal_s3_rotary` and `idf_s3_rotary` on the CrowPanel S3.
+- [ ] Gate `s3/rotary-isr` (`just bench s3 rotary-isr`): `hal_s3_rotary_isr` under load; there is no ESP-IDF twin.
+- [ ] Gate `s3/b3f` (`just bench s3 b3f`): hal passed on 2026-11-06 on the CrowPanel S3; the tick stays open until the commit is recorded, and the idf twin `idf_s3_b3f` is not run.
+- [ ] Gate `c3/b3f`, `c6/b3f` and `esp32/b3f` (`just bench <board> b3f`): the `b3f` smoke on each board and tier, not run.
+- [ ] Chip matrix rollup: every cell of `docs/features/chip-matrix-v1.md` § Hardware pass reads `pass (...)` or `n/a (...)`; the gate items above tick the cells.
+- [ ] Optional manual: `hal_c6_passive_buzzer_arpeggio` pitch (suspected one octave high from the C6 LEDC clock); no bench scenario covers it.
 
 ## Version Bump
 

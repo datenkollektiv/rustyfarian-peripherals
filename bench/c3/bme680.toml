@@ -1,0 +1,26 @@
+# BME680 on the shared I2C pogo header (SDA GPIO 4, SCL GPIO 5, address 0x76), blocking driver, both tiers.
+# Prints `T: 23.4 degC  P: 1013.2 hPa  RH: 41.5 %  gas: 52310 ohm`; gas reads `not valid` until the heater is stable.
+examples = ["hal_c3_bme680", "idf_c3_bme680"]
+
+[[step]]
+say = "Wait for the banner"
+expect = 'BME680 OK at address 0x76'
+timeout = 15
+optional = true
+arm = false
+
+[[step]]
+say = "Leave the sensor alone: two plausible readings (10-39 degC, 900-1100 hPa)"
+expect = ['T: [1-3]\d\.\d degC  P: (?:9|10)\d\d\.\d hPa  RH: \d+\.\d %', 'T: [1-3]\d\.\d degC  P: (?:9|10)\d\d\.\d hPa  RH: \d+\.\d %']
+reject = 'no BME680|bus fault|measurement failed|PANIC'
+timeout = 30
+
+[[step]]
+say = "Wait for a valid gas reading (heater stable, heat_stab_r)"
+expect = 'gas: \d+ ohm'
+reject = 'no BME680|bus fault|measurement failed|PANIC'
+timeout = 90
+
+[[step]]
+say = "Breathe gently on the sensor for a few seconds"
+confirm = "Did the relative humidity (RH) rise noticeably and the gas value drop?"

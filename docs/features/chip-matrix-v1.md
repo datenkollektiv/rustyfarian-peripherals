@@ -21,14 +21,45 @@ Every tier compiles, lints and links on all four ESP32 chips, `tamer` links on A
 | CI like ws2812: path-filtered `cross-target-{riscv,xtensa,avr}`, plus weekly AVR upstream canary | Per-PR gate for esp-hal chips and AVR link; the pinned rev hides upstream breakage | Local-only matrix; no canary                                  |
 |                                                   ESP-IDF chips stay in the local `check-matrix` | ws2812 has no IDF CI job; esp-idf-sys is heavy                                     | IDF jobs per PR                                               |
 |                 Rotary examples per chip: `hal_{esp,c3,c6}_rotary_isr`, `idf_{esp,c3,c6}_rotary` | The ISR is the chip-sensitive code                                                 | Rotary on S3 only                                             |
+|                     A chip x tier cell is covered only by its own bench run; build results never tick it | Build and link evidence is not hardware evidence; C3 does not stand in for C6      | Inherit coverage across chips or tiers                        |
+
+## Compile and link evidence
+
+Recorded 2026-11-05: `just check-matrix` (check and clippy `-D warnings`) and `just build-matrix` (link proof of `hal_*_b3f` and `idf_*_b3f`) ran green on all eight cells.
+These rows show build status only and never tick a hardware cell.
+
+| Chip            | hal check + clippy | idf check + clippy | hal build-matrix (link) | idf build-matrix (link) |
+|:----------------|:------------------:|:------------------:|:-----------------------:|:-----------------------:|
+| ESP32           | pass               | pass               | pass                    | pass                    |
+| ESP32-C3        | pass               | pass               | pass                    | pass                    |
+| ESP32-C6        | pass               | pass               | pass                    | pass                    |
+| ESP32-S3        | pass               | pass               | pass                    | pass                    |
+
+The AVR link of `tamer` (`just check-avr-target`, `just build-avr-example`) is not part of this table.
 
 ## Hardware pass
-| Behaviour (both tiers)                            | ESP32 | C3 | C6 | S3 |
-|:--------------------------------------------------|:-----:|:--:|:--:|:--:|
-| `b3f` smoke: GPIO input + console                 |  ✓   | ✓ | ✓ | ✓ |
-| Rotary ISR decode, `edge_count` / `skipped_count` |  ✓   | ✓ | ✓ | ✓ |
-| LEDC buzzer pitch                                 |       | ✓ | ✓ |    |
-| I2C sensors, ADC (`release-plan.md` list)         |       | ✓ |    |    |
+
+A cell reads `pass (date, commit, board)` only once its own bench run has passed, and the commit is recorded with it.
+The bench runs are guided by `just bench <board> <check>` (see [`bench/README.md`](../../bench/README.md)); each tick is recorded in [`release-plan.md`](../../release-plan.md) § Final hardware pass.
+
+| Chip                         | Tier | `b3f`                                 | `rotary`                 | Other scenarios                                        |
+|:-----------------------------|:----:|:--------------------------------------|:-------------------------|:-------------------------------------------------------|
+| ESP32 WROOM-32 / Feather V2  | hal  | not run                               | not run                  | n/a (no scenario written)                              |
+| ESP32 WROOM-32 / Feather V2  | idf  | not run                               | not run                  | n/a (no scenario written)                              |
+| ESP32-C3 SuperMini           | hal  | not run                               | not run                  | not run (sensor and buzzer scenarios in `bench/c3/`)   |
+| ESP32-C3 SuperMini           | idf  | not run                               | not run                  | not run (sensor and buzzer scenarios in `bench/c3/`)   |
+| ESP32-C6-DevKitC-1           | hal  | not run                               | not run                  | n/a (no scenario written)                              |
+| ESP32-C6-DevKitC-1           | idf  | not run                               | not run                  | n/a (no scenario written)                              |
+| CrowPanel 1.28" (S3)         | hal  | pass (2026-11-06, commit TBD, CrowPanel S3) | not run (`rotary`, `rotary-isr`) | n/a (no scenario written)                    |
+| CrowPanel 1.28" (S3)         | idf  | not run                               | not run (`rotary`)       | n/a (`rotary-isr` is hal-only)                         |
+
+The S3 `b3f` pass is the only recorded hardware pass; its commit is not yet recorded and must be filled in before the cell counts toward a release.
+
+## Known tier gaps
+
+- `hal_c3_hall_switch` has no ESP-IDF twin by decision; see the Decisions table in [`docs/features/archive/hall-sensing-v1.md`](archive/hall-sensing-v1.md).
+- `hal_c6_passive_buzzer_arpeggio` is a C6 LEDC pitch probe, suspected one octave high; feature examples stay on their reference chip, and the probe is optional in `release-plan.md`.
+- `hal_c3_bme680_async` and `hal_s3_rotary` exist only on esp-hal (async), so they have no ESP-IDF twin to compare against.
 
 ## Rotary pins (A / B / button, internal pull-ups, active-low)
 | Board                       | A  | B  | Button | Why                                                                                    |
@@ -49,10 +80,11 @@ Every tier compiles, lints and links on all four ESP32 chips, `tamer` links on A
 - [x] `check-matrix`, `build-matrix` (link proof), `check-avr-target`, `setup-avr`, `build-avr-example` (and `-upstream`) recipes
 - [x] `idf_{esp,c6,s3}_b3f`, the six rotary examples, and `examples/avr-nano-tamer`
 - [x] `cross-target-{riscv,xtensa,avr,avr-upstream}` workflows (written; first GitHub run pending)
-- [ ] Hardware pass on the bench boards
+- [ ] Hardware pass: one cell passed (hal S3 `b3f`, 2026-11-06); every other cell in the table is `not run`
 - [x] Documentation updated (AGENTS.md matrix, hardware-setup, CHANGELOG)
 
 ## Session Log
 - 2026-11-04 — Feature doc created via /feature from the chip-matrix and ws2812 AVR review.
 - 2026-11-04 — Updated: CI like ws2812, AVR `default` + `hal`, rotary pins chosen for ESP32/C3/C6.
 - 2026-11-04 — Infra, examples and AVR landed; `just verify` blocked by an out-of-scope fmt diff; docs updated, hardware pass open.
+- 2026-11-07 — Split the compile and link evidence from the hardware pass table, added the known tier gaps and the decision that build results never tick a cell, and recorded the 2026-11-06 hal S3 `b3f` pass (commit to be filled in).

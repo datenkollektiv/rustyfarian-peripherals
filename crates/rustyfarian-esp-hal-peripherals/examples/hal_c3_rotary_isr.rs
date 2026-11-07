@@ -114,11 +114,10 @@ async fn main(_spawner: Spawner) -> ! {
 
         let pos = encoder.position();
         if pos != last_pos {
-            let dir = if pos > last_pos { "CW " } else { "CCW" };
+            let dir = if pos > last_pos { "CW" } else { "CCW" };
             println!(
-                "rotated {}  position: {} -> {}  edges={} skipped={}",
+                "rotated {} position {} (edges {}, skipped {})",
                 dir,
-                last_pos,
                 pos,
                 encoder.edge_count(),
                 encoder.skipped_count()

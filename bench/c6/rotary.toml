@@ -1,0 +1,54 @@
+# Rotary encoder (A=GPIO18 B=GPIO19 button=GPIO20): ISR decode on hal, GPIO-interrupt Encoder on idf.
+# The edge counters must move and `skipped` must stay 0 on both tiers.
+# Both tiers print `rotated CW position 3 (edges 12, skipped 0)`.
+examples = ["hal_c6_rotary_isr", "idf_c6_rotary"]
+
+[[step]]
+say = "Wait for the banner"
+expect = 'ready \(A=GPIO18 B=GPIO19 BTN=GPIO20\)'
+timeout = 10
+optional = true
+arm = false
+
+[[step]]
+say = "Hands off: the firmware keeps running for 5 s"
+duration = 5
+reject = 'PANIC|panicked at|Guru Meditation|abort\(\) was called'
+arm = false
+
+[[step]]
+say = "Turn the knob 3 detents clockwise, slowly"
+attended = true
+expect = ['rotated CW\b', 'rotated CW\b', 'rotated CW\b.*edges [1-9]\d*']
+reject = 'rotated CCW|skipped [1-9]|PANIC'
+
+[[step]]
+say = "Turn it 3 detents back counter-clockwise"
+attended = true
+expect = ['rotated CCW', 'rotated CCW', 'rotated CCW position 0 ']
+reject = 'rotated CW\b|skipped [1-9]|PANIC'
+
+[[step]]
+say = "Spin the knob fast (about one turn, any direction), then hands off for 2 s"
+attended = true
+expect = 'rotated (?:CW|CCW)\b.*skipped 0\b'
+reject = 'skipped [1-9]|PANIC'
+settle = 2
+
+[[step]]
+say = "Click the knob button once"
+attended = true
+expect = 'button: Click\b'
+reject = 'DoubleClick|PANIC'
+
+[[step]]
+say = "Double-click the knob button"
+attended = true
+expect = 'button: DoubleClick'
+reject = "PANIC"
+
+[[step]]
+say = "Long-press the knob button (hold ~1 s)"
+attended = true
+expect = 'button: LongPress'
+reject = "PANIC"

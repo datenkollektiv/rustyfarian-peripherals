@@ -61,5 +61,19 @@ const _: () = {
     assert_impl::<rotary::Encoder<'static>>();
 };
 
+// Conformance guard: pins what the `RotaryEncoder` trait does not enforce.
+// The inherent diagnostics counters keep identical signatures on both tiers,
+// and no local item shadows the glob-re-exported tamer `RotaryEncoder` /
+// `NoopRotaryEncoder`. Zero cost; never called.
+const _: fn() = || {
+    type Tier = rotary::Encoder<'static>;
+    let _: fn(&Tier) -> u32 = Tier::edge_count;
+    let _: fn(&Tier) -> u32 = Tier::skipped_count;
+    let _: core::marker::PhantomData<tamer::rotary::NoopRotaryEncoder> =
+        core::marker::PhantomData::<crate::NoopRotaryEncoder>;
+    fn same_trait<T: crate::RotaryEncoder>() {}
+    same_trait::<tamer::rotary::NoopRotaryEncoder>();
+};
+
 #[doc(inline)]
 pub use tamer::*;

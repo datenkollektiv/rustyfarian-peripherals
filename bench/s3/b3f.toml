@@ -1,0 +1,46 @@
+# b3f smoke: debounced GPIO 41 input (the knob's push button) + console, both tiers.
+# The examples also print one `knob cw|ccw` line per detent, so rotation is observable.
+examples = ["hal_s3_b3f", "idf_s3_b3f"]
+
+[[step]]
+say = "Wait for the banner"
+expect = "B3F button ready on GPIO 41"
+timeout = 10
+optional = true   # can be printed before the port reopens after reset
+arm = false       # must read the backlog from the reset
+
+[[step]]
+say = "Hands off: the firmware keeps running for 5 s"
+duration = 5
+reject = 'PANIC|panicked at|Guru Meditation|abort\(\) was called'
+arm = false
+
+[[step]]
+say = "Press the knob button 3 times, then keep your hands off for 2 s"
+attended = true
+expect = ["pressed", "released", "pressed", "released", "pressed", "released"]
+reject = "pressed|released|knob|PANIC"
+settle = 2
+
+[[step]]
+say = "Press and hold the knob button for 2 s, release, then hands off for 1 s"
+attended = true
+expect = ["pressed", "released"]
+reject = "pressed|released|knob|PANIC"
+settle = 1
+
+[[step]]
+say = "Turn the knob clockwise a few detents, then hands off for 2 s"
+attended = true
+expect = 'knob cw'
+reject = "pressed|released|PANIC"
+timeout = 15
+settle = 2
+
+[[step]]
+say = "Turn the knob counter-clockwise a few detents, then hands off for 2 s"
+attended = true
+expect = 'knob ccw'
+reject = "pressed|released|PANIC"
+timeout = 15
+settle = 2

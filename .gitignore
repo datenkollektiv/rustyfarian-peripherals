@@ -23,3 +23,7 @@ audit/
 
 # Temporary scratch files — local only
 tmp/
+
+# bench run artefacts (rustyfarian-bench): per-run serial logs
+bench/*/logs/
+bench/*/results.jsonl

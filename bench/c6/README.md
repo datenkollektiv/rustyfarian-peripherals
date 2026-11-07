@@ -1,0 +1,54 @@
+# Bench — ESP32-C6-DevKitC-1
+
+## Wiring
+
+| Check  | Signal                   | GPIO         | Notes                                                |
+|:-------|:-------------------------|:-------------|:-----------------------------------------------------|
+| b3f    | B3F button to GND        | 4            | internal pull-up, active-low                         |
+| rotary | EC11 A / B / button      | 18 / 19 / 20 | adjacent on J3; internal pull-ups, common to GND|
+
+## Checks
+
+| Check  | Examples                                | Verdict |
+|:-------|:----------------------------------------|:--------|
+| b3f    | `hal_c6_b3f`, `idf_c6_b3f`              | not run |
+| rotary | `hal_c6_rotary_isr`, `idf_c6_rotary`    | not run |
+
+## Commands
+
+Each step waits for Enter before it starts timing; read the instruction, press Enter, then act.
+
+Builds, flashes and guides the button check (3 presses, a hold) on hal, then offers idf:
+
+```sh
+just bench c6 b3f
+```
+
+Runs the rotary check (direction, round trip, spin with `skipped` staying 0, click, double click, long press) on hal, then offers idf:
+
+```sh
+just bench c6 rotary
+```
+
+Runs every C6 check in turn:
+
+```sh
+just bench c6
+```
+
+Same as above for one check, but skips the build when nothing changed:
+
+```sh
+just bench c6 rotary --no-build
+```
+
+Shows the chip and MAC on each connected port:
+
+```sh
+just bench-detect
+```
+
+## If it hangs
+
+- No port at all: the board is in deep sleep or in download mode; replug it, holding BOOT only if it is truly stuck.
+- Ctrl-C ends a run; it is recorded as `aborted`.

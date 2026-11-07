@@ -25,6 +25,7 @@ So the same generic code runs on either tier, and a mock bus can test it on the 
 - The ESP tiers add no driver code, only hardware examples and, if wanted, feature passthrough.
 - Devices that need nothing beyond a buffer decoder stay transport-free, as `mpu6050` does.
   *Note (2026-10-30):* `mpu6050` now also has a driver under `hal` (`Mpu6050<I2C>`), the first implementation of the sequence pattern above; its decode-only API (`parse_raw`, `RawReading`, calibration, registers) is unchanged.
+  *Note (2026-11-07):* Rung 1 of the shared-logic ladder in [ADR-010](010-shared-logic-ladder.md) is the pattern this ADR sets: `Bme680<I2C>` and `Mpu6050<I2C>` are the rung-1 drivers, and their sequences run over the rung-3 machines `ForcedConversion` and `OffsetSampler`.
 - A device joins this pattern only after confirming it speaks I2C; HX711, a clocked GPIO protocol, needs its own decision.
 
 ## Consequences

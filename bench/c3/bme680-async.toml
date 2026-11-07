@@ -1,0 +1,30 @@
+# BME680 under embassy: esp-hal I2c in Async mode, same readings as the blocking twin (hal only, no idf twin).
+examples = ["hal_c3_bme680_async"]
+
+[[step]]
+say = "Wait for the banner"
+expect = 'BME680 OK at address 0x76'
+timeout = 15
+optional = true
+arm = false
+
+[[step]]
+say = "Leave the sensor alone: two plausible readings (10-39 degC, 900-1100 hPa)"
+expect = ['T: [1-3]\d\.\d degC  P: (?:9|10)\d\d\.\d hPa  RH: \d+\.\d %', 'T: [1-3]\d\.\d degC  P: (?:9|10)\d\d\.\d hPa  RH: \d+\.\d %']
+reject = 'no BME680|bus fault|measurement failed|PANIC'
+timeout = 30
+
+[[step]]
+say = "Wait for a valid gas reading (heater stable)"
+expect = 'gas: \d+ ohm'
+reject = 'no BME680|bus fault|measurement failed|PANIC'
+timeout = 90
+
+[[step]]
+say = "Let it run for 20 s: readings keep arriving every few seconds without errors"
+duration = 20
+reject = 'no BME680|bus fault|measurement failed|PANIC'
+
+[[step]]
+say = "Compare with the blocking twin"
+confirm = "Do the temperature, pressure and humidity match what hal_c3_bme680 reported?"

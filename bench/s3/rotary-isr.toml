@@ -1,0 +1,38 @@
+# ISR decode under a 90 ms blocking redraw (hal only); IDF decodes in its ISR already (rotary.toml).
+# A window closes 1.5 s after the last detent:
+# `WINDOW 1 isr work_ms=90 cw=10 ccw=0 delta=10 pos=10 edges=40 skipped=0 isrs=.. redraws=..`
+examples = ["hal_s3_rotary_isr"]
+
+[[step]]
+say = "Wait for the banner"
+expect = "ISR encoder work_ms=90"
+timeout = 10
+optional = true
+arm = false
+
+[[step]]
+say = "Turn 10 detents clockwise, then stop for 2 s"
+attended = true
+expect = 'WINDOW \d+ .*delta=10 pos=10 edges=40 skipped=0 '
+reject = 'skipped=[1-9]|PANIC'
+timeout = 60
+
+[[step]]
+say = "Turn 10 detents back counter-clockwise, then stop for 2 s"
+attended = true
+expect = 'WINDOW \d+ .*delta=-10 pos=0 edges=40 skipped=0 '
+reject = 'skipped=[1-9]|PANIC'
+timeout = 60
+
+[[step]]
+say = "Spin fast (about one turn, any direction), then stop for 2 s"
+attended = true
+expect = 'WINDOW \d+ .*skipped=0 '
+reject = 'skipped=[1-9]|PANIC'
+timeout = 60
+
+[[step]]
+say = "Leave the knob alone until the 10 s heartbeat"
+expect = 'HB pos=-?\d+ edges=\d+ skipped=0 '
+reject = 'WINDOW|skipped=[1-9]|PANIC'
+timeout = 15

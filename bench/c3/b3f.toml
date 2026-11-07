@@ -1,0 +1,29 @@
+# b3f smoke: debounced GPIO 4 input (a B3F button to GND) + console, both tiers.
+examples = ["hal_c3_b3f", "idf_c3_b3f"]
+
+[[step]]
+say = "Wait for the banner"
+expect = "B3F button ready on GPIO 4"
+timeout = 10
+optional = true   # can be printed before the port reopens after reset
+arm = false       # must read the backlog from the reset
+
+[[step]]
+say = "Hands off: the firmware keeps running for 5 s"
+duration = 5
+reject = 'PANIC|panicked at|Guru Meditation|abort\(\) was called'
+arm = false
+
+[[step]]
+say = "Press the button 3 times, then keep your hands off for 2 s"
+attended = true
+expect = ["pressed", "released", "pressed", "released", "pressed", "released"]
+reject = "pressed|released|PANIC"
+settle = 2
+
+[[step]]
+say = "Press and hold the button for 2 s, release, then hands off for 1 s"
+attended = true
+expect = ["pressed", "released"]
+reject = "pressed|released|PANIC"
+settle = 1

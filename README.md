@@ -90,6 +90,7 @@ in embedded Rust.
 
 The core logic in `tamer` can be fully unit-tested on your laptop without an
 ESP32 or ESP toolchain.
+How shared tier logic is split across the rungs of the ladder is recorded in [ADR-010](docs/adr/010-shared-logic-ladder.md).
 
 ## Crates
 
