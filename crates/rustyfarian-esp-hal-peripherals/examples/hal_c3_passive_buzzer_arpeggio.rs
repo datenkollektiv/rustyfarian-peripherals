@@ -26,11 +26,11 @@
 //! ```text
 //! Piezo buzzer       ESP32-C3
 //! ─────────────      ────────
-//! + (signal)          GPIO 6
+//! + (signal)          GPIO 10
 //! − (ground)          GND
 //! ```
 //!
-//! GPIO 6 is not a strapping pin (2/8/9), not the on-board WS2812 (8), not
+//! GPIO 10 is not a strapping pin (2/8/9), not the on-board WS2812 (8), not
 //! USB (18/19), not the UART console (20/21), and not in-package SPI flash
 //! (11-17) — a safe general-purpose PWM output on common ESP32-C3 boards.
 //!
@@ -130,14 +130,14 @@ fn main() -> ! {
     // Owned outside the note loop: each note gets a fresh short-lived
     // `pin.reborrow()` rather than moving the pin itself (which `Channel`
     // would consume for good). See the "Caveats" doc section above.
-    let mut pin = peripherals.GPIO6.degrade();
+    let mut pin = peripherals.GPIO10.degrade();
     let delay = Delay::new();
 
     let mut sequencer = ToneSequencer::new(&MELODY, SequenceMode::Loop);
     let now0_ms: u64 = Instant::now().duration_since_epoch().as_millis();
     sequencer.start(now0_ms);
 
-    println!("Buzzer ready on GPIO 6 — power-on arpeggio looping.");
+    println!("Buzzer ready on GPIO 10 — power-on arpeggio looping.");
 
     let mut last: Option<ToneOutput> = None;
 

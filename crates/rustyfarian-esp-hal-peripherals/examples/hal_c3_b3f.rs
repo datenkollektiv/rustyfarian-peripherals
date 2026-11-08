@@ -25,15 +25,15 @@
 //! ```text
 //! B3F leg     ESP32-C3
 //! ───────     ────────
-//! one leg     GPIO 4
+//! one leg     GPIO 3
 //! other leg   GND
 //! ```
 //!
-//! The internal pull-up keeps GPIO 4 HIGH at rest. Pressing the button shorts
+//! The internal pull-up keeps GPIO 3 HIGH at rest. Pressing the button shorts
 //! the line to GND, pulling it LOW.
 //!
-//! GPIO 4 is a convenient non-strapping general-purpose pin on common ESP32-C3
-//! dev boards (DevKitM-1, SuperMini); adjust the pin for your board if needed.
+//! GPIO 3 is the C3 pin-map button pin (ADR-012): non-strapping and wake-capable on ESP32-C3
+//! boards (DevKitM-1, SuperMini); adjust the pin for your board if needed.
 //! Avoid GPIO 8 / GPIO 9 (strapping / BOOT) and any pins used by your board
 //! console or USB-UART bridge.
 //!
@@ -76,7 +76,7 @@ fn main() -> ! {
     let peripherals = esp_hal::init(esp_hal::Config::default());
 
     let button = Input::new(
-        peripherals.GPIO4,
+        peripherals.GPIO3,
         InputConfig::default().with_pull(Pull::Up),
     );
 
@@ -85,7 +85,7 @@ fn main() -> ! {
     let delay = Delay::new();
     let mut press_count: u32 = 0;
 
-    println!("B3F button ready on GPIO 4 — press to test.");
+    println!("B3F button ready on GPIO 3 — press to test.");
 
     loop {
         let now_ms: u64 = Instant::now().duration_since_epoch().as_millis();

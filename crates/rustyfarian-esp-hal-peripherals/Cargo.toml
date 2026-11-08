@@ -111,6 +111,9 @@ esp-println = { workspace = true, features = ["auto"] }
 # Dev-dependency features only apply to examples/tests under resolver 2, so the
 # library itself keeps the pure `tamer` (no `hal`/`tilt`).
 tamer = { workspace = true, features = ["hal", "hal-async", "tilt", "bme680"] }
+# OLED examples only (`hal_c3_oled`): SSD1306/SH1106 driver and its draw API.
+signwriter = { workspace = true }
+embedded-graphics = { workspace = true }
 
 [[example]]
 name = "hal_c3_active_buzzer_morse"

@@ -2,18 +2,23 @@
 
 ## Wiring
 
-| Check        | Signal                      | GPIO         | Notes                                                    |
-|:-------------|:----------------------------|:-------------|:---------------------------------------------------------|
-| b3f          | B3F button to GND           | 4            | internal pull-up, active-low                             |
-| rotary       | EC11 A / B / button         | 0 / 1 / 10   | internal pull-ups; 2/8/9 are strapping pins              |
-| bme680       | BME680 SDA / SCL            | 4 / 5        | I2C pogo header, address 0x76 (SDO to GND), 3V3 only     |
-| mpu6050      | MPU6050 SDA / SCL           | 4 / 5        | same header, address 0x68 (AD0 to GND)                   |
-| buzzer       | passive piezo + to GND      | 6            | direct drive for a small piezo, NPN for a loud one       |
-| hall-linear  | 49E (HW-477) OUT            | 4            | ADC1; VCC to 3V3 (OUT rests ~1.65 V), never 5 V |
-| poti         | potentiometer wiper         | 4            | ADC1; outer legs to 3V3 and GND                          |
+The C3 bench rig follows the ESP32-C3 pin map (ADR-012); every C3 example uses the same pins.
 
-GPIO 4 is shared: wire only one of b3f, hall-linear, poti or the I2C header at a time.
-See `docs/hardware-setup.md` for the I2C pogo header pin order (GND, 3V3, SDA, SCL) and the buzzer wiring.
+| Check        | Signal                      | GPIO         | Notes                                                        |
+|:-------------|:----------------------------|:-------------|:-------------------------------------------------------------|
+| b3f          | B3F button to GND           | 3            | internal pull-up, active-low                                 |
+| rotary       | EC11 A / B / button         | 0 / 1 / 5    | internal pull-ups; not on the rig                            |
+| bme680       | BME680 SDA / SCL            | 6 / 7        | 4-pin I2C pogo, address 0x76 (SDO to GND), 3V3 only          |
+| mpu6050      | MPU6050 SDA / SCL           | 6 / 7        | same pogo, address 0x68 (AD0 to GND)                         |
+| oled         | SSD1306 128x64 SDA / SCL    | 6 / 7        | same pogo, address 0x3C; SSD1306 or SH1106, attach or swap any time   |
+| buzzer       | passive piezo via NPN       | 10           | LEDC tone                                                    |
+| hall-linear  | 49E (HW-477) OUT            | 4            | 3-pin pogo, ADC1; VCC to 3V3 (OUT rests ~1.65 V), never 5 V  |
+| poti         | potentiometer wiper         | 4            | 3-pin pogo, ADC1; outer legs to 3V3 and GND                  |
+| rig          | the whole rig               | 3, 4, 6/7, 10 | attach/detach each part, press the button, confirm the buzzer |
+
+The button (3), the 3-pin pogo (4) and the 4-pin I2C pogo (6/7) are wired at the same time on their own pins; the rig lets you reach only one of them at a time.
+The rig's LED sits on GPIO 8, active-low.
+See `docs/hardware-setup.md` § C3 bench rig for the connector pin orders and the I2C pull-ups.
 
 ## Checks
 
@@ -25,8 +30,10 @@ See `docs/hardware-setup.md` for the I2C pogo header pin order (GND, 3V3, SDA, S
 | bme680-async | `hal_c3_bme680_async`                                              | not run |
 | mpu6050      | `hal_c3_mpu6050_tilt`, `idf_c3_mpu6050_tilt`                       | not run |
 | buzzer       | `hal_c3_passive_buzzer_arpeggio`, `idf_c3_passive_buzzer_arpeggio` | not run |
-| hall-linear  | `hal_c3_hall_linear`, `idf_c3_hall_linear`                         | not run |
-| poti         | `hal_c3_poti`, `idf_c3_poti`                                       | not run |
+| hall-linear  | `hal_c3_hall_linear`, `idf_c3_hall_linear`                         | pass (2026-11-08, 9430069) |
+| poti         | `hal_c3_poti`, `idf_c3_poti`                                       | pass (2026-11-08, 9430069) |
+| oled         | `hal_c3_oled`, `idf_c3_oled`                                       | pass (2026-11-08, 2d04fbd) |
+| rig          | `hal_c3_rig_check` (hal only, diagnostic)                          | not run |
 
 ## Commands
 
@@ -54,6 +61,12 @@ Checks the blocking BME680 readings, a valid gas value and a breath test on hal,
 
 ```sh
 just bench c3 bme680
+```
+
+Waits for the OLED, then checks it initialises, keeps refreshing and shows the test picture, and notices the detach, on hal, then offers idf:
+
+```sh
+just bench c3 oled
 ```
 
 Checks the embassy-async BME680 readings against the blocking twin (hal only):
@@ -86,6 +99,12 @@ Checks the calibration sweep reaches both rails (raw ≤ 199 and ≥ 3900), then
 just bench c3 poti
 ```
 
+Checks every connector of the C3 bench rig against the pin map: attach and detach the I2C device and the pogo part, press the button, then press again when the tone sounds:
+
+```sh
+just bench c3 rig
+```
+
 Runs every C3 check in turn (the wiring changes between checks, so prefer one at a time):
 
 ```sh
@@ -108,6 +127,15 @@ Runs only the steps that need a person, skipping the build:
 
 ```sh
 just bench c3 hall-linear --attended --no-build
+```
+
+## Spike: OLED identify
+
+Not a gate: flashes `hal_c3_oled_identify`, which prints how the plugged OLED answers status and RAM read-back probes, so SSD1306 and SH1106 can be told apart.
+Plug the SSD1306, wait for `IDENTIFY done`, unplug it, plug the SH1106, wait again, then the SSD1306 once more; Ctrl-C ends it:
+
+```sh
+just run hal_c3_oled_identify
 ```
 
 ## Not covered here

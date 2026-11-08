@@ -1,6 +1,8 @@
-//! ESP32-C3 — Blink a single LED on GPIO7 (ESP-IDF / `std`)
+//! ESP32-C3 — Blink a single LED on GPIO 8 (ESP-IDF / `std`)
 //!
-//! Drives an external active-high LED on for one second and off for one second.
+//! Drives an external active-low LED on for one second and off for one second.
+//! GPIO 8 is a strapping pin sampled at reset; it is only driven after boot,
+//! and the on-board LED on many boards mirrors it (ADR-012).
 //!
 //! ## Components
 //!
@@ -13,8 +15,8 @@
 //! ```text
 //! LED                 ESP32-C3
 //! ───                 ────────
-//! anode (+)           GPIO 7 through 330 Ω resistor
-//! cathode (-)         GND
+//! anode (+)           3V3 through 330 Ω resistor
+//! cathode (-)         GPIO 8 (active-low: LOW = on)
 //! ```
 //!
 //! ## Build and flash
@@ -32,13 +34,13 @@ fn main() -> anyhow::Result<()> {
     esp_idf_hal::sys::link_patches();
 
     let peripherals = Peripherals::take()?;
-    let mut led = PinDriver::output(peripherals.pins.gpio7)?;
-    led.set_low()?;
+    let mut led = PinDriver::output(peripherals.pins.gpio8)?;
+    led.set_high()?; // off (active-low)
 
     loop {
-        led.set_high()?;
-        FreeRtos::delay_ms(BLINK_INTERVAL_MS);
         led.set_low()?;
+        FreeRtos::delay_ms(BLINK_INTERVAL_MS);
+        led.set_high()?;
         FreeRtos::delay_ms(BLINK_INTERVAL_MS);
     }
 }

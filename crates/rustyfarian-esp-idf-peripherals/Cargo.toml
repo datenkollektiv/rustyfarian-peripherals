@@ -41,6 +41,9 @@ log = { workspace = true }
 # Dev-dependency features apply only to examples/tests under resolver 2, so the
 # library itself stays pure and unaffected by `tamer`'s `hal`/`tilt` features.
 tamer = { workspace = true, features = ["hal", "tilt", "bme680"] }
+# OLED examples only (`idf_c3_oled`): SSD1306/SH1106 driver and its draw API.
+signwriter = { workspace = true }
+embedded-graphics = { workspace = true }
 
 [[example]]
 name = "idf_c3_active_buzzer_morse"

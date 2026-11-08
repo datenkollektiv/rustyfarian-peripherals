@@ -33,11 +33,12 @@
 //! ------        --------
 //! VCC           3V3
 //! GND           GND
-//! SDA           GPIO 4
-//! SCL           GPIO 5
+//! SDA           GPIO 6
+//! SCL           GPIO 7
 //! SDO           GND (address 0x76) or 3V3 (address 0x77)
 //! ```
 //!
+//! Pins per ADR-012; add 4.7 kΩ pull-ups to 3V3 on SDA/SCL if the module lacks them.
 //! The same four pins also serve an I2C OLED display or an MPU6050; see
 //! `docs/hardware-setup.md`, "Wiring — shared I2C pogo header".
 //! With SDO high, set `ADDRESS` to `bme680::I2C_ADDR_ALT`.
@@ -88,8 +89,8 @@ fn main() -> anyhow::Result<()> {
     let config = Config::new().baudrate(100.kHz().into());
     let i2c = match I2cDriver::new(
         peripherals.i2c0,
-        peripherals.pins.gpio4,
-        peripherals.pins.gpio5,
+        peripherals.pins.gpio6,
+        peripherals.pins.gpio7,
         &config,
     ) {
         Ok(i2c) => i2c,
@@ -108,7 +109,7 @@ fn main() -> anyhow::Result<()> {
         Err((e, _i2c)) => {
             if e.is_nack() {
                 log::warn!(
-                    "no BME680 answered at 0x{:02X}: check VCC/GND, SDA=GPIO4, SCL=GPIO5 \
+                    "no BME680 answered at 0x{:02X}: check VCC/GND, SDA=GPIO6, SCL=GPIO7 \
                      and SDO (SDO high means address 0x{:02X}: try I2C_ADDR_ALT)",
                     ADDRESS,
                     I2C_ADDR_ALT

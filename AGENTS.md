@@ -13,18 +13,19 @@ lives in a `no_std` crate with no hardware dependency, and two thin hardware
 tiers (esp-hal, ESP-IDF) provide the GPIO glue. Target hardware: ESP32 (RISC-V
 C3/C6 and Xtensa ESP32/S3).
 `tamer` also links on 8-bit AVR (ATmega328P, Arduino Nano); there is no AVR tier crate.
-MSRV is `1.88` for `tamer`; the two hardware tiers
+MSRV is `1.88` for `tamer` and `signwriter`; the two hardware tiers
 declare `1.95` (required by `esp-hal 1.2`; the ESP-IDF tier matches by policy). It is the peripheral layer of the
 rustyfarian family; LED output lives in the separate `rustyfarian-ws2812` repo,
 which this repo never depends on.
 
 ## Architecture
 
-Three workspace members under `crates/`:
+Four workspace members under `crates/`:
 
 | Crate | Role | Target |
 |:------|:-----|:-------|
-| `tamer` | Pure logic behind traits with `Noop*` mocks: `debounce`, `presence`, `rotary`, `button`, `analog`, `range_map`, `smoothing`, `hall`, `tilt`, `mpu6050`, `bme680`, `tone`, `morse`, `touch` | `no_std` |
+| `tamer` | Pure logic behind traits with `Noop*` mocks: `debounce`, `presence`, `rotary`, `button`, `analog`, `range_map`, `smoothing`, `hall`, `tilt`, `mpu6050`, `bme680`, `tone`, `morse`, `touch`, `hotplug` | `no_std` |
+| `signwriter` | Graphics-side driver for 128x64 I2C OLEDs (SSD1306 and SH1106) behind `embedded-graphics` `DrawTarget`, with hot-plug through `tamer::hotplug`; see [ADR-013](docs/adr/013-signwriter.md) | `no_std` |
 | `rustyfarian-esp-hal-peripherals` | Bare-metal esp-hal drivers — ships async `rotary::Encoder` (edge futures; `embassy` feature for examples) + device examples; re-exports `tamer` | `no_std` |
 | `rustyfarian-esp-idf-peripherals` | ESP-IDF (std) drivers — ships `rotary::Encoder` (interrupt-driven, persistent raw-FFI); re-exports `tamer` | `std` (ESP-IDF) |
 
@@ -35,6 +36,9 @@ relevant output/bus traits) is the seam, behind `tamer`'s optional `hal` feature
 (implies `hal`; async runners over `embedded-hal-async`), `bme680` (BME680
 register map and compensation), and `tilt` (`atan2` trig via `micromath`); the default build is dependency-free.
 
+`signwriter` is the graphics side of the workspace: it owns the OLED driver and the `embedded-graphics` `DrawTarget`, and it depends on `tamer` only for `hotplug`.
+`tamer` never depends on `signwriter` or on `embedded-graphics` ([ADR-008](docs/adr/008-display-scope.md), [ADR-013](docs/adr/013-signwriter.md)).
+
 ## Development Workflow
 
 `just` is the canonical interface — CI calls the same recipes, so local and CI
@@ -42,7 +46,7 @@ behaviour cannot drift. Host work needs only `rustc`, `cargo`, and `just`.
 
 | Command | Purpose |
 |:--------|:--------|
-| `just check` / `just test` | Check / host-test the pure core (`-p tamer`) |
+| `just check` / `just test` | Check / host-test the pure core (`-p tamer`) and `signwriter` (`-p signwriter`) |
 | `just clippy` | Clippy, warnings denied |
 | `just verify` | Non-modifying gate: fmt-check + check + clippy + test |
 | `just pre-commit` | Same, but auto-formats (modifies files) |

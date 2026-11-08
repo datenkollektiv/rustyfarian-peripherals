@@ -46,8 +46,8 @@ The bench runs are guided by `just bench <board> <check>` (see [`bench/README.md
 |:-----------------------------|:----:|:--------------------------------------|:-------------------------|:-------------------------------------------------------|
 | ESP32 WROOM-32 / Feather V2  | hal  | not run                               | not run                  | n/a (no scenario written)                              |
 | ESP32 WROOM-32 / Feather V2  | idf  | not run                               | not run                  | n/a (no scenario written)                              |
-| ESP32-C3 SuperMini           | hal  | not run                               | not run                  | `hall-linear`, `poti` pass (2026-11-08, 5a11564, C3 SuperMini); others not run |
-| ESP32-C3 SuperMini           | idf  | not run                               | not run                  | `hall-linear`, `poti` pass (2026-11-08, 5a11564, C3 SuperMini); others not run |
+| ESP32-C3 SuperMini           | hal  | not run                               | not run                  | `hall-linear`, `poti` pass (2026-11-08, 9430069, C3 SuperMini); `oled` pass (2026-11-08, 2d04fbd, C3 bench rig); others not run |
+| ESP32-C3 SuperMini           | idf  | not run                               | not run                  | `hall-linear`, `poti` pass (2026-11-08, 9430069, C3 SuperMini); `oled` pass (2026-11-08, 2d04fbd, C3 bench rig); others not run |
 | ESP32-C6-DevKitC-1           | hal  | not run                               | not run                  | n/a (no scenario written)                              |
 | ESP32-C6-DevKitC-1           | idf  | not run                               | not run                  | n/a (no scenario written)                              |
 | CrowPanel 1.28" (S3)         | hal  | pass (2026-11-06, commit TBD, CrowPanel S3) | not run (`rotary`, `rotary-isr`) | n/a (no scenario written)                    |
@@ -60,12 +60,13 @@ The S3 `b3f` pass still lacks its commit, which must be filled in before the cel
 - `hal_c3_hall_switch` has no ESP-IDF twin by decision; see the Decisions table in [`docs/features/archive/hall-sensing-v1.md`](archive/hall-sensing-v1.md).
 - `hal_c6_passive_buzzer_arpeggio` is a C6 LEDC pitch probe, suspected one octave high; feature examples stay on their reference chip, and the probe is optional in `release-plan.md`.
 - `hal_c3_bme680_async` and `hal_s3_rotary` exist only on esp-hal (async), so they have no ESP-IDF twin to compare against.
+- `hal_c3_rig_check` is a hal-only diagnostic for the C3 bench rig; it has no ESP-IDF twin by design.
 
 ## Rotary pins (A / B / button, internal pull-ups, active-low)
 | Board                       | A  | B  | Button | Why                                                                                    |
 |:----------------------------|:--:|:--:|:------:|:---------------------------------------------------------------------------------------|
 | ESP32 WROOM-32 / Feather V2 | 32 | 33 |   27   | A/B in bank 1, button in bank 0; 34–39 lack pull-ups; check the Feather V2 pinout card |
-| ESP32-C3 SuperMini          | 0  | 1  |   10   | 4–7 used, 2/8/9 strapping, 18–21 USB/UART                                              |
+| ESP32-C3 SuperMini          | 0  | 1  |   5    | Click on 5 (wake-capable); 10 is the buzzer; 2/8/9 strapping, 18–21 USB/UART                   |
 | ESP32-C6-DevKitC-1          | 18 | 19 |   20   | Adjacent on J3; clear of strapping, USB, UART                                          |
 | CrowPanel 1.28" (S3)        | 45 | 42 |   41   | Board-wired encoder, unchanged                                                         |
 
@@ -80,7 +81,7 @@ The S3 `b3f` pass still lacks its commit, which must be filled in before the cel
 - [x] `check-matrix`, `build-matrix` (link proof), `check-avr-target`, `setup-avr`, `build-avr-example` (and `-upstream`) recipes
 - [x] `idf_{esp,c6,s3}_b3f`, the six rotary examples, and `examples/avr-nano-tamer`
 - [x] `cross-target-{riscv,xtensa,avr,avr-upstream}` workflows (written; first GitHub run pending)
-- [ ] Hardware pass: hal S3 `b3f` (2026-11-06) and C3 `hall-linear` and `poti` on both tiers (2026-11-08) passed; every other cell is `not run`
+- [ ] Hardware pass: hal S3 `b3f` (2026-11-06) and C3 `hall-linear`, `poti` and `oled` on both tiers (2026-11-08) passed; every other cell is `not run`
 - [x] Documentation updated (AGENTS.md matrix, hardware-setup, CHANGELOG)
 
 ## Session Log

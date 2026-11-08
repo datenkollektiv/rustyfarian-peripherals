@@ -1,0 +1,23 @@
+[package]
+name = "signwriter"
+# Own version, not the lockstep workspace version: signwriter is released after
+# `tamer` 0.2.0 (see `release-plan.md`).
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "no_std driver for 128x64 I2C OLEDs: tells an SSD1306 from an SH1106 at runtime, survives hot-plug, and draws through embedded-graphics"
+documentation = "https://docs.rs/signwriter"
+readme = "README.md"
+keywords = ["embedded", "no-std", "oled", "ssd1306", "sh1106"]
+categories = ["embedded", "no-std", "hardware-support"]
+
+[dependencies]
+embedded-hal = { workspace = true }
+embedded-graphics-core = { workspace = true }
+tamer = { workspace = true }
+
+[dev-dependencies]
+tamer = { workspace = true, features = ["hal"] }

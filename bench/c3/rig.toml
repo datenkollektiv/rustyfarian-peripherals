@@ -1,0 +1,63 @@
+# Rig check for the C3 bench rig: verifies the ADR-012 pin map one connector at a time.
+# The firmware keeps watching and reports only changes, so each step is "act, then see the line".
+# No `$` anchors: idf lines end in an ANSI colour reset (hal-only here, kept for consistency).
+examples = ["hal_c3_rig_check"]
+
+[[step]]
+say = "Wait for the rig check to start (nothing attached)"
+expect = 'RIG ready \(button=3 pogo=4 i2c=6/7 buzzer=10\)'
+reject = 'PANIC'
+timeout = 15
+arm = false
+
+# The detach step asks for the very address the attach step saw.
+[[step]]
+say = "Attach the I2C device to the 4-pin pogo"
+attended = true
+expect = 'I2C attached sda=6 scl=7 addr=0x(?P<i2c>[0-9A-F]{2})'
+reject = 'PANIC'
+timeout = 30
+
+[[step]]
+say = "Detach the I2C device"
+attended = true
+expect = 'I2C detached sda=6 scl=7 addr=0x(?P=i2c)'
+reject = 'PANIC'
+timeout = 30
+
+# A driven part (poti wiper, 49E) wins over the internal pulls; WS2812 data-in cannot be sensed.
+[[step]]
+say = "Attach the poti or the 49E to the 3-pin pogo"
+attended = true
+expect = 'POGO attached GPIO4 raw=\d+'
+reject = 'PANIC'
+timeout = 30
+
+[[step]]
+say = "Detach the poti or the 49E"
+attended = true
+expect = 'POGO detached GPIO4'
+reject = 'PANIC'
+timeout = 30
+
+# The press must start a fresh tone round, so a bump during the earlier steps cannot
+# leave the buzzer step out of step; a retry after 30 s always works.
+[[step]]
+say = "Press the button"
+attended = true
+expect = ['BUTTON GPIO3 pressed', 'Listen now']
+reject = 'PANIC'
+timeout = 30
+
+[[step]]
+say = "Press the button again as soon as you hear a tone (no tone? press once to restart them)"
+attended = true
+expect = 'BUZZER GPIO10 confirmed'
+reject = 'PANIC'
+timeout = 45
+
+[[step]]
+say = "Hands off: the firmware keeps running for 5 s"
+duration = 5
+reject = 'PANIC|panicked at'
+arm = false

@@ -31,6 +31,7 @@ timeline
 
     Near term : Docs-sync — align README / AGENTS framing with VISION input+output scope
               : Hall linear examples — hardware check moved to the final hardware pass (release-plan.md)
+              : OLED plug-and-play — `signwriter` crate for SSD1306 and SH1106 with hot-plug, released with `tamer` 0.2.0 (feature-doc, ADR-013)
 
     Mid term  : IRAM-safe encoder ISR — run from SRAM for OTA / flash-cache-off safety
 
@@ -77,6 +78,13 @@ Ported from donated source, with two calibration bugs fixed; follows the MPU6050
 The core, the driver and the examples `hal_c3_bme680`, `idf_c3_bme680` and `hal_c3_bme680_async` are landed; the hardware checks run in the final hardware pass.
 SHT3x follows the same placement ([ADR-009](adr/009-i2c-sensor-drivers-in-tamer.md)); HX711 is not I2C and needs its own decision.
 See [Feature: BME680 v1](features/bme680-v1.md).
+
+## Near term — OLED plug-and-play (`signwriter`)
+
+**Goal:** firmware drives whichever 128x64 I2C OLED is fitted, an SSD1306 or an SH1106, and the module can be swapped while the device runs.
+The new graphics-side crate `signwriter` exposes an `embedded-graphics` `DrawTarget` and hot-plug events from `tamer::hotplug`, and it releases together with `tamer` 0.2.0 (`tamer` first, then `signwriter`, both 0.2.0).
+The C3 examples `hal_c3_oled` and `idf_c3_oled` move onto it, and the other chips follow in a separate plan.
+See [Feature: signwriter v1](features/signwriter-v1.md) and [ADR-013](adr/013-signwriter.md).
 
 ## Mid term — IRAM-safe interrupt handler
 

@@ -1,7 +1,7 @@
 # ADR-004: I2C bus pattern and bring-up diagnostics
 
 ## Status
-Accepted
+Accepted; pin choice amended by ADR-012
 
 ## Context
 
@@ -32,6 +32,9 @@ Two intertwined decisions needed resolution:
 ## Decision
 
 ### I2C Bus Pattern
+
+> **Amended by [ADR-012](012-esp32-c3-pin-map.md):** the C3 bus now sits on **SDA = GPIO 6, SCL = GPIO 7**, with 4.7 kΩ pull-ups on the bench rig.
+> The text below records the original GPIO 4/5 choice; the probe methodology and the diagnostic exemption still stand.
 
 - **SDA = GPIO 4, SCL = GPIO 5** (`100 kHz` default). These are non-strapping,
   non-USB/UART pins on common ESP32-C3 development boards, suitable for both

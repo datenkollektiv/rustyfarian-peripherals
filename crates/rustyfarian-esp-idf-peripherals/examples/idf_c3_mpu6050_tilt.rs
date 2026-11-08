@@ -3,7 +3,7 @@
 //! Reads an MPU6050 over I2C and logs the tilt angle about the X axis at
 //! roughly 5 Hz.
 //! This is not the ball tilt switch of the `idf_c3_tilt_*` examples: it is a
-//! 6-axis IMU driven through the shared bus pattern of ADR-004.
+//! 6-axis IMU driven through the shared bus pattern of ADR-004 (pins: ADR-012).
 //!
 //! `tamer` owns everything with logic in it: the wake-up and configuration
 //! sequence ([`Mpu6050::init`]), the `WHO_AM_I` identity check, the
@@ -41,11 +41,12 @@
 //! -------       --------
 //! VCC           3V3
 //! GND           GND
-//! SDA           GPIO 4
-//! SCL           GPIO 5
+//! SDA           GPIO 6
+//! SCL           GPIO 7
 //! AD0           GND (address 0x68) or 3V3 (address 0x69)
 //! ```
 //!
+//! Pins per ADR-012.
 //! Most breakout boards already carry SDA/SCL pull-ups; if using a bare sensor
 //! IC, add external 4.7 kΩ pull-ups to 3V3.
 //! With AD0 high, set `I2C_ADDR` to `mpu6050::I2C_ADDR_ALT`.
@@ -99,8 +100,8 @@ fn main() -> anyhow::Result<()> {
     let config = Config::new().baudrate(100.kHz().into());
     let i2c = match I2cDriver::new(
         peripherals.i2c0,
-        peripherals.pins.gpio4,
-        peripherals.pins.gpio5,
+        peripherals.pins.gpio6,
+        peripherals.pins.gpio7,
         &config,
     ) {
         Ok(i2c) => i2c,
@@ -120,7 +121,7 @@ fn main() -> anyhow::Result<()> {
         ),
         Err(e) if e.is_nack() => {
             log::warn!(
-                "no MPU6050 answered at 0x{:02X}: check VCC/GND, SDA=GPIO4, SCL=GPIO5 \
+                "no MPU6050 answered at 0x{:02X}: check VCC/GND, SDA=GPIO6, SCL=GPIO7 \
                  and AD0 (AD0 high means address 0x{:02X}: try I2C_ADDR_ALT)",
                 I2C_ADDR,
                 I2C_ADDR_ALT

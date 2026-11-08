@@ -24,12 +24,13 @@
 //! ────────      ────────
 //! A / CLK       GPIO 0
 //! B / DT        GPIO 1
-//! Button / SW   GPIO 10
+//! Button / SW   GPIO 5
 //! +             3V3
 //! -             GND
 //! ```
 //!
 //! All pins use internal pull-ups and are active-low.
+//! GPIO 5 for the click is non-strapping and wake-capable (ADR-012).
 //!
 //! ## Build
 //!
@@ -84,9 +85,9 @@ async fn main(_spawner: Spawner) -> ! {
     io.set_interrupt_handler(gpio_handler);
 
     let mut encoder = match InterruptEncoder::new(
-        peripherals.GPIO0,  // A / CLK
-        peripherals.GPIO1,  // B / DT
-        peripherals.GPIO10, // Button / SW
+        peripherals.GPIO0, // A / CLK
+        peripherals.GPIO1, // B / DT
+        peripherals.GPIO5, // Button / SW
     ) {
         Ok(encoder) => encoder,
         Err(e) => {
@@ -96,7 +97,7 @@ async fn main(_spawner: Spawner) -> ! {
             }
         }
     };
-    println!("encoder ready (A=GPIO0 B=GPIO1 BTN=GPIO10)");
+    println!("encoder ready (A=GPIO0 B=GPIO1 BTN=GPIO5)");
 
     let mut last_pos = encoder.position();
 

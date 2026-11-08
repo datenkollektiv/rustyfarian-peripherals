@@ -1,6 +1,8 @@
-//! ESP32-C3 — Blink a single LED on GPIO7 (esp-hal / `no_std`)
+//! ESP32-C3 — Blink a single LED on GPIO 8 (esp-hal / `no_std`)
 //!
-//! Drives an external active-high LED on for one second and off for one second.
+//! Drives an external active-low LED on for one second and off for one second.
+//! GPIO 8 is a strapping pin sampled at reset; it is only driven after boot,
+//! and the on-board LED on many boards mirrors it (ADR-012).
 //!
 //! ## Components
 //!
@@ -13,8 +15,8 @@
 //! ```text
 //! LED                 ESP32-C3
 //! ───                 ────────
-//! anode (+)           GPIO 7 through 330 Ω resistor
-//! cathode (-)         GND
+//! anode (+)           3V3 through 330 Ω resistor
+//! cathode (-)         GPIO 8 (active-low: LOW = on)
 //! ```
 //!
 //! ## Build and flash
@@ -47,13 +49,13 @@ fn panic(info: &core::panic::PanicInfo) -> ! {
 #[main]
 fn main() -> ! {
     let peripherals = esp_hal::init(esp_hal::Config::default());
-    let mut led = Output::new(peripherals.GPIO7, Level::Low, OutputConfig::default());
+    let mut led = Output::new(peripherals.GPIO8, Level::High, OutputConfig::default());
     let delay = Delay::new();
 
     loop {
-        led.set_high();
-        delay.delay_millis(BLINK_INTERVAL_MS);
         led.set_low();
+        delay.delay_millis(BLINK_INTERVAL_MS);
+        led.set_high();
         delay.delay_millis(BLINK_INTERVAL_MS);
     }
 }

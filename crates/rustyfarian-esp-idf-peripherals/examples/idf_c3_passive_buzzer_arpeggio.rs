@@ -27,11 +27,11 @@
 //! ```text
 //! Piezo buzzer       ESP32-C3
 //! ─────────────      ────────
-//! + (signal)          GPIO 6
+//! + (signal)          GPIO 10
 //! − (ground)          GND
 //! ```
 //!
-//! GPIO 6 is not a strapping pin (2/8/9), not the on-board WS2812 (8), not
+//! GPIO 10 is not a strapping pin (2/8/9), not the on-board WS2812 (8), not
 //! USB (18/19), not the UART console (20/21), and not in-package SPI flash
 //! (11-17) — a safe general-purpose PWM output on common ESP32-C3 boards.
 //!
@@ -122,7 +122,7 @@ fn main() -> anyhow::Result<()> {
     let mut led = LedcDriver::new(
         peripherals.ledc.channel0,
         &timer_driver,
-        peripherals.pins.gpio6,
+        peripherals.pins.gpio10,
     )?;
 
     // The LEDC timer above is 10-bit (matching the hal twins), so max_duty is
@@ -135,7 +135,7 @@ fn main() -> anyhow::Result<()> {
     // as_millis() returns u128; safe to truncate — u64 overflows after ~585M years.
     sequencer.start(start.elapsed().as_millis() as u64);
 
-    log::info!("Buzzer ready on GPIO 6 — power-on arpeggio looping.");
+    log::info!("Buzzer ready on GPIO 10 — power-on arpeggio looping.");
 
     let mut last: Option<ToneOutput> = None;
 

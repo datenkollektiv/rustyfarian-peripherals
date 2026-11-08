@@ -1,0 +1,60 @@
+# 128x64 I2C OLED (SSD1306 or SH1106) on the 4-pin I2C pogo (SDA GPIO 6, SCL GPIO 7, 0x3C), both tiers.
+# The example waits for the display, so it can be attached after boot; hot-plug via signwriter::Oled.
+# The controller is detected at runtime; the live swap needs one SSD1306 and one SH1106 module.
+# No step waits for Enter: each shows its instruction and passes as soon as its line arrives (60 s).
+# Attach steps wait for `ready` and then a frame line, so a connector that bounces while it seats
+# (ready, detached, ready) still passes.
+# No `$` anchors: idf lines end in an ANSI colour reset.
+examples = ["hal_c3_oled", "idf_c3_oled"]
+
+[[step]]
+say = "Wait for the example to start (OLED detached)"
+expect = 'OLED waiting on SDA 6 / SCL 7'
+reject = 'PANIC'
+timeout = 15
+arm = false
+
+[[step]]
+say = "Attach an OLED (SSD1306 or SH1106) to the 4-pin pogo"
+attended = true
+expect = [
+    'OLED ready addr=0x(?P<addr>3C) controller=(?P<first>Ssd1306|Sh1106) size=128x64',
+    'OLED frame n=\d+',
+]
+reject = 'PANIC'
+timeout = 60
+arm = false
+
+[[step]]
+say = "Look at the OLED"
+confirm = "Does the OLED show the border, `rustyfarian`, the tier name and a counter that counts up?"
+
+[[step]]
+say = "Unplug it and plug in the other OLED"
+attended = true
+expect = [
+    'OLED detached addr=0x(?P=addr)',
+    'OLED ready addr=0x(?P=addr) controller=(?!(?P=first))(?:Ssd1306|Sh1106) size=128x64',
+    'OLED frame n=\d+',
+]
+reject = 'PANIC'
+timeout = 60
+arm = false
+
+[[step]]
+say = "Look at the OLED"
+confirm = "Does the other OLED show the border, `rustyfarian`, the tier name and a counter that counts up?"
+
+[[step]]
+say = "Detach the OLED"
+attended = true
+expect = 'OLED detached addr=0x(?P=addr)'
+reject = 'PANIC'
+timeout = 60
+arm = false
+
+[[step]]
+say = "Hands off: the firmware keeps running for 5 s"
+duration = 5
+reject = 'PANIC|panicked at'
+arm = false

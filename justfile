@@ -18,6 +18,11 @@ host_flags := "-p tamer --target " + host_target
 tamer_hal_flags := host_flags + " --features hal"
 tamer_all_features_flags := host_flags + " --all-features"
 doc_flags  := "-p tamer --target " + host_target + " --no-deps"
+# signwriter (host-buildable, graphics-bearing) gates run beside tamer's but are kept out of
+# `host_flags`: its dev-dependency on tamer's `hal` feature would otherwise unify into tamer's own
+# tests and hide a missing `hal` gate.
+signwriter_flags := "-p signwriter --target " + host_target
+signwriter_doc_flags := signwriter_flags + " --no-deps"
 
 # Default device targets for the per-tier check recipes (ESP32-C3, the example
 # chip). build-example / flash derive the triple per chip from the example name.
@@ -60,6 +65,7 @@ _default:
 # check the host-buildable crates (no ESP toolchain required)
 check:
     cargo check {{ host_flags }}
+    cargo check {{ signwriter_flags }}
 
 # build the host-buildable crates (no ESP toolchain required)
 build:
@@ -195,6 +201,7 @@ tree *features:
 # run clippy on the host-buildable crates, denying warnings
 clippy:
     cargo clippy {{ host_flags }} -- -D warnings
+    cargo clippy {{ signwriter_flags }} --all-targets -- -D warnings
 
 # run clippy with every tamer feature enabled (hal + tilt), denying warnings
 clippy-all-features:
@@ -203,6 +210,7 @@ clippy-all-features:
 # run host-side unit tests (no ESP toolchain required)
 test:
     cargo test {{ host_flags }}
+    cargo test {{ signwriter_flags }}
 
 # run host-side unit tests with tamer's embedded-hal adapters enabled
 test-hal:
@@ -239,6 +247,7 @@ fmt-check:
 # build rustdoc for the pure core
 doc:
     cargo doc {{ doc_flags }}
+    cargo doc {{ signwriter_doc_flags }}
 
 # build rustdoc with every tamer feature enabled (matches docs.rs' all-features build)
 doc-all-features:
@@ -296,6 +305,10 @@ ramdisk action *args:
 release-dry-run *flags: verify
     cargo publish --dry-run -p tamer --target {{ host_target }} {{ flags }}
 
+# dry-run packaging of signwriter (host-buildable; runs no verify, pass --allow-dirty before committing)
+release-dry-run-signwriter *flags:
+    cargo publish --dry-run -p signwriter --target {{ host_target }} {{ flags }}
+
 # dry-run packaging of the esp-hal tier (needs tamer of this version on crates.io)
 release-dry-run-hal:
     rustup target add {{ hal_target }}
@@ -311,6 +324,11 @@ release-dry-run-idf:
 [confirm]
 release-publish-tamer:
     cargo publish -p tamer --target {{ host_target }}
+
+# publish signwriter to crates.io
+[confirm]
+release-publish-signwriter:
+    cargo publish -p signwriter --target {{ host_target }}
 
 # publish the esp-hal tier to crates.io
 [confirm]
@@ -334,8 +352,11 @@ pre-commit: fmt check clippy test
 verify:
     @cargo fmt -- --check || (printf '\nFormatting issues found — run `just pre-commit` to auto-fix.\n' >&2 && exit 1)
     cargo check {{ host_flags }}
+    cargo check {{ signwriter_flags }}
     cargo clippy {{ host_flags }} -- -D warnings
+    cargo clippy {{ signwriter_flags }} --all-targets -- -D warnings
     cargo test {{ host_flags }}
+    cargo test {{ signwriter_flags }}
 
 # CI-equivalent verification (non-modifying): format check, deny, check, lint, test
 ci: fmt-check deny check clippy test

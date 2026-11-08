@@ -3,7 +3,7 @@
 //! Reads an MPU6050 over I2C and prints a filtered tilt angle about the X axis
 //! at roughly 5 Hz.
 //! This is not the ball tilt switch of the `hal_c3_tilt_*` examples — it is a
-//! 6-axis IMU on the I2C bus from ADR-004.
+//! 6-axis IMU on the I2C bus from ADR-004 (pins: ADR-012).
 //!
 //! `tamer` owns everything that can be host-tested: the wake-up and
 //! configuration sequence ([`Mpu6050::init`]), the `WHO_AM_I` identity check,
@@ -31,12 +31,13 @@
 //! -------    --------
 //! VCC        3V3
 //! GND        GND
-//! SDA        GPIO 4
-//! SCL        GPIO 5
+//! SDA        GPIO 6
+//! SCL        GPIO 7
 //! AD0        GND (address 0x68; tie to 3V3 for 0x69)
 //! ```
 //!
-//! This is the shared I2C0 bus of ADR-004 (SDA GPIO 4, SCL GPIO 5, 100 kHz).
+//! This is the shared I2C0 bus of ADR-004 (SDA GPIO 6, SCL GPIO 7, 100 kHz;
+//! pins per ADR-012).
 //! Most breakout boards already carry SDA/SCL pull-ups; if using a bare sensor
 //! IC, add external 4.7 kΩ pull-ups to 3V3.
 //! Run `hal_c3_i2c_scan` first if the sensor does not answer.
@@ -112,7 +113,7 @@ fn main() -> ! {
         peripherals.I2C0,
         Config::default().with_frequency(Rate::from_khz(100)),
     ) {
-        Ok(i2c) => i2c.with_sda(peripherals.GPIO4).with_scl(peripherals.GPIO5),
+        Ok(i2c) => i2c.with_sda(peripherals.GPIO6).with_scl(peripherals.GPIO7),
         Err(e) => {
             println!("invalid I2C configuration: {:?}", e);
             park(&delay);
@@ -128,7 +129,7 @@ fn main() -> ! {
         ),
         Err(e) if e.is_nack() => {
             println!(
-                "no MPU6050 answered at 0x{:02X}: check VCC/GND, SDA=GPIO4, SCL=GPIO5 \
+                "no MPU6050 answered at 0x{:02X}: check VCC/GND, SDA=GPIO6, SCL=GPIO7 \
                  and AD0 (AD0 high means address 0x{:02X}: try I2C_ADDR_ALT)",
                 I2C_ADDR, I2C_ADDR_ALT
             );

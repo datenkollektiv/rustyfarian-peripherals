@@ -125,3 +125,13 @@ Use it for any check the firmware runs once at boot (calibrations, "keep the mag
 **A C3 wiper at rest jitters about 85–95 raw counts peak-to-peak on both tiers, so a 32-count deadband prints nearly every sample.**
 Symptom: `hal_c3_poti` printed 112 sample lines with the knob untouched (raw 3114–3210); the idf twin showed the same spread (84 vs 91 counts), so it is the signal or rig, not a tier.
 Fix: `DEADBAND_COUNTS = 128` in `{hal,idf}_c3_poti`; at rest the log then shows only the ready line.
+
+## OLED — telling an SSD1306 from an SH1106
+
+**Both controllers answer at 0x3C and have no ID register; a RAM read-back over I2C tells them apart, because only the SH1106 can read its display RAM.**
+Measured (C3 bench rig, `hal_c3_oled_identify`, 2026-11-08): write a byte to page 0, column 130 (`0xB0`, `0x02`, `0x18`, then data `0x40, v`), set the column again, then read two bytes after control `0x40`.
+The SH1106 returned a dummy byte and then `v` in every successful run, for `0xA5` at column 130 and `0x5A` at column 0; the SSD1306 returned its status byte `0x45` for every read, RAM or not.
+The status byte read after control `0x00` was `0x45` (SSD1306) vs `0x48` (SH1106), but values like these may differ on clones, so it is a log line, not the rule.
+Plain reads on the SH1106 drift once the controller is in data mode (`0xEA`, `0xDF`, …), so always set the mode with a control byte before reading.
+Rule: test with two different values; both come back → SH1106, otherwise SSD1306; column 130 is off-screen on the SH1106 and the driver init clears RAM anyway.
+Confirmed with both values at column 130: `signwriter` in `hal_c3_oled` classified both modules correctly across a live swap SSD1306 → SH1106 → SSD1306.

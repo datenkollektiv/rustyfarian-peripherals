@@ -33,12 +33,14 @@
 //! ------     --------
 //! VCC        3V3
 //! GND        GND
-//! SDA        GPIO 4
-//! SCL        GPIO 5
+//! SDA        GPIO 6
+//! SCL        GPIO 7
 //! SDO        GND (address 0x76; tie to 3V3 for 0x77)
 //! ```
 //!
-//! This is the shared I2C0 bus of ADR-004 (SDA GPIO 4, SCL GPIO 5, 100 kHz).
+//! This is the shared I2C0 bus of ADR-004 (SDA GPIO 6, SCL GPIO 7, 100 kHz;
+//! pins per ADR-012).
+//! Add 4.7 kΩ pull-ups to 3V3 on SDA/SCL if the module lacks them.
 //! The same four pins also serve an I2C OLED display or an MPU6050; see
 //! `docs/hardware-setup.md`, "Wiring — shared I2C pogo header".
 //! Run `hal_c3_i2c_scan` first if the sensor does not answer.
@@ -110,8 +112,8 @@ async fn main(_spawner: Spawner) -> ! {
         Config::default().with_frequency(Rate::from_khz(100)),
     ) {
         Ok(i2c) => i2c
-            .with_sda(peripherals.GPIO4)
-            .with_scl(peripherals.GPIO5)
+            .with_sda(peripherals.GPIO6)
+            .with_scl(peripherals.GPIO7)
             .into_async(),
         Err(e) => {
             println!("invalid I2C configuration: {:?}", e);
@@ -127,7 +129,7 @@ async fn main(_spawner: Spawner) -> ! {
         Err((e, _i2c)) => {
             if e.is_nack() {
                 println!(
-                    "no BME680 answered at 0x{:02X}: check VCC/GND, SDA=GPIO4, SCL=GPIO5 \
+                    "no BME680 answered at 0x{:02X}: check VCC/GND, SDA=GPIO6, SCL=GPIO7 \
                      and SDO (SDO high means address 0x{:02X}: try I2C_ADDR_ALT)",
                     ADDRESS, I2C_ADDR_ALT
                 );

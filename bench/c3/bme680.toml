@@ -1,4 +1,4 @@
-# BME680 on the shared I2C pogo header (SDA GPIO 4, SCL GPIO 5, address 0x76), blocking driver, both tiers.
+# BME680 on the shared I2C pogo header (SDA GPIO 6, SCL GPIO 7, address 0x76), blocking driver, both tiers.
 # Prints `T: 23.4 degC  P: 1013.2 hPa  RH: 41.5 %  gas: 52310 ohm`; gas reads `not valid` until the heater is stable.
 examples = ["hal_c3_bme680", "idf_c3_bme680"]
 

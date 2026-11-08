@@ -5,7 +5,7 @@
 //! All Morse timing and encoding logic lives in the pure
 //! [`MorseKeyer`](tamer::morse::MorseKeyer) — this example only reads its
 //! [`output()`](tamer::morse::MorseKeyer::output) each poll and, when that
-//! output changes, drives GPIO6 high or low.
+//! output changes, drives GPIO10 high or low.
 //! Unlike the passive-piezo arpeggio example, there is no LEDC/PWM here: an
 //! active buzzer has its own internal oscillator and only needs to be gated
 //! on and off.
@@ -15,7 +15,7 @@
 //! - ESP32-C3 development board (e.g. ESP32-C3 SuperMini)
 //! - 1 x active electromagnetic buzzer (e.g. TMB12A03)
 //!
-//! An active buzzer has its own internal oscillator, so keying GPIO6 high
+//! An active buzzer has its own internal oscillator, so keying GPIO10 high
 //! sounds it and keying it low silences it.
 //!
 //! ## Wiring
@@ -23,16 +23,16 @@
 //! ```text
 //! Active buzzer (TMB12A03)   ESP32-C3
 //! ─────────────────────      ────────
-//! + (signal)                 GPIO 6
+//! + (signal)                 GPIO 10
 //! − (ground)                 GND
 //! ```
 //!
-//! GPIO 6 is not a strapping pin (2/8/9), not the on-board WS2812 (8), not
+//! GPIO 10 is not a strapping pin (2/8/9), not the on-board WS2812 (8), not
 //! USB (18/19), not the UART console (20/21), and not in-package SPI flash
 //! (11-17) — the same safe general-purpose output the passive arpeggio
 //! example uses.
 //!
-//! GPIO6 is configured for the maximum 40 mA drive strength (see
+//! GPIO10 is configured for the maximum 40 mA drive strength (see
 //! `set_drive_strength` below) to source the TMB12A03's up-to-30 mA draw
 //! directly, as wired above.
 //! See `docs/hardware-setup.md` for the full wiring guidance, including the
@@ -101,7 +101,7 @@ fn main() -> anyhow::Result<()> {
     esp_idf_svc::log::EspLogger::initialize_default();
 
     let peripherals = Peripherals::take()?;
-    let mut buzzer = PinDriver::output(peripherals.pins.gpio6)?;
+    let mut buzzer = PinDriver::output(peripherals.pins.gpio10)?;
     // Selects the maximum 40 mA drive strength so the buzzer's up-to-30 mA
     // draw can be sourced directly off the pin (see the "Wiring" doc note).
     buzzer.set_drive_strength(DriveStrength::I40mA)?;

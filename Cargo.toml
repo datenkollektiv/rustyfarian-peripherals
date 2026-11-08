@@ -5,7 +5,7 @@ members = ["crates/*"]
 exclude = ["examples/avr-nano-tamer"]
 
 [workspace.package]
-version = "0.1.0"
+version = "0.2.0"
 authors = ["datenkollektiv"]
 edition = "2021"
 rust-version = "1.88"
@@ -17,7 +17,10 @@ repository = "https://github.com/datenkollektiv/rustyfarian-peripherals"
 # `version` must track `[workspace.package] version` — `cargo publish` rejects
 # path-only dependencies, and the tiers ship in lockstep with `tamer` (see
 # `release-plan.md`).
-tamer = { path = "crates/tamer", version = "0.1.0", default-features = false }
+tamer = { path = "crates/tamer", version = "0.2.0", default-features = false }
+# Lockstep with the workspace version; published right after tamer (see `release-plan.md`).
+# Dev-only for the tiers (the OLED examples).
+signwriter = { path = "crates/signwriter", version = "0.2.0" }
 
 # External — pure, host-buildable.
 # `embedded-hal` is the trait boundary every hardware tier shares: the pure
@@ -25,6 +28,8 @@ tamer = { path = "crates/tamer", version = "0.1.0", default-features = false }
 # device crates implement against the same traits. Kept at a caret range while
 # pure; the esp-* stacks below switch to exact pins once they are wired.
 embedded-hal = { version = "1.0", default-features = false }
+# Pixel/draw-target traits for `signwriter`; `embedded-graphics-core` carries no fonts or shapes.
+embedded-graphics-core = { version = "0.4", default-features = false }
 # Async twin of `embedded-hal`, behind `tamer`'s opt-in `hal-async` feature
 # (ADR-010 rung-3 async runners, for embassy on esp-hal).
 embedded-hal-async = { version = "1.0", default-features = false }
@@ -32,6 +37,15 @@ nb = { version = "1.1", default-features = false }
 # `no_std`/`f32` CORDIC trig (atan2 etc.) for `tamer::tilt`, gated behind the
 # `tilt` feature — purpose-built for small no_std code size, not a full libm.
 micromath = { version = "2", default-features = false }
+
+# ── Dev-only: OLED examples (both hardware tiers) ───────────────────────────
+#
+# Referenced only from the tier crates' `[dev-dependencies]` (never from `tamer`
+# or a tier's normal `[dependencies]`), so library builds do not pull them in.
+# Pure-Rust, `no_std`, MIT OR Apache-2.0; caret ranges like the other pure
+# crates above. `embedded-graphics` 0.8 is the current release and matches
+# `embedded-graphics-core` 0.4; the panel itself is driven by `signwriter`.
+embedded-graphics = { version = "0.8" }
 
 # ── Hardware-tier dependencies ───────────────────────────────────────────────
 #

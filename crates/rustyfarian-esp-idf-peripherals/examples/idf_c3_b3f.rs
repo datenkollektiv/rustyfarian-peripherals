@@ -21,15 +21,15 @@
 //! ```text
 //! B3F leg     ESP32-C3
 //! ───────     ────────
-//! one leg     GPIO 4
+//! one leg     GPIO 3
 //! other leg   GND
 //! ```
 //!
-//! The internal pull-up keeps GPIO 4 HIGH at rest.
+//! The internal pull-up keeps GPIO 3 HIGH at rest.
 //! Pressing the button shorts the line to GND, pulling it LOW.
 //!
-//! GPIO 4 is a convenient non-strapping pin on common ESP32-C3 dev boards
-//! (DevKitM-1, SuperMini); adjust it for your board. Avoid GPIO 8 / GPIO 9
+//! GPIO 3 is the C3 pin-map button pin (ADR-012): non-strapping, wake-capable
+//! on ESP32-C3 boards (DevKitM-1, SuperMini); adjust it for your board. Avoid GPIO 8 / GPIO 9
 //! (strapping / BOOT). The internal pull-up (~45 kΩ) is enough for a button on
 //! a short lead; a long or noisy lead may want an external pull-up. If a board
 //! variant lacks an internal pull-up on the chosen pin, add an external one and
@@ -64,14 +64,14 @@ fn main() -> anyhow::Result<()> {
     esp_idf_svc::log::EspLogger::initialize_default();
 
     let peripherals = Peripherals::take()?;
-    let button = PinDriver::input(peripherals.pins.gpio4, Pull::Up)?;
+    let button = PinDriver::input(peripherals.pins.gpio3, Pull::Up)?;
 
     // Pull-up keeps the line HIGH at rest.
     let mut edge = EdgeDetector::new(true, DEBOUNCE_MS);
     let mut press_count: u32 = 0;
     let start = Instant::now();
 
-    log::info!("B3F button ready on GPIO 4 — press to test.");
+    log::info!("B3F button ready on GPIO 3 — press to test.");
 
     loop {
         // as_millis() returns u128; safe to truncate — u64 overflows after ~585M years.

@@ -27,8 +27,8 @@
 //!
 //! LED                ESP32-C3
 //! ───                ────────
-//! anode (+)          GPIO 6 (through ~330 Ω resistor)
-//! cathode (-)         GND
+//! anode (+)          3V3 (through ~330 Ω resistor)
+//! cathode (-)         GPIO 8
 //! ```
 //!
 //! GPIO 4 is ADC1-capable on ESP32-C3 and is a convenient non-strapping pin
@@ -36,10 +36,11 @@
 //! Keep the potentiometer signal between GND and 3V3.
 //! Avoid feeding 5 V into the ADC pin.
 //!
-//! GPIO 6 drives the LED active-high through LEDC PWM (duty 0 = off, 255 =
-//! full brightness) and is not a strapping pin, the on-board WS2812 (GPIO 8),
-//! USB (GPIO 18/19), the UART console (GPIO 20/21), or in-package SPI flash
-//! (GPIO 11-17).
+//! GPIO 8 sinks the LED active-low through LEDC PWM: the mapped brightness
+//! (0 = off, 255 = full) is inverted at the LEDC write, so the hardware duty
+//! is `max - brightness` (ADR-012).
+//! GPIO 8 is a strapping pin sampled at reset; it is only driven after boot,
+//! and the on-board LED on many boards mirrors it.
 //!
 //! ## Build
 //!
@@ -108,11 +109,11 @@ fn main() -> ! {
         })
         .expect("LEDC timer configuration failed");
 
-    let mut led_channel = ledc.channel(channel::Number::Channel0, peripherals.GPIO6);
+    let mut led_channel = ledc.channel(channel::Number::Channel0, peripherals.GPIO8);
     led_channel
         .configure(channel::config::Config {
             timer: &led_timer,
-            duty_pct: 0,
+            duty_pct: 100, // active-low: 100 % duty = LED off
             drive_mode: esp_hal::gpio::DriveMode::PushPull,
         })
         .expect("LEDC channel configuration failed");
@@ -186,11 +187,13 @@ fn main() -> ! {
     let dimmer = RangeMap::new(range.min(), range.max(), 0, 255);
 
     let mut duty = dimmer.map(initial_raw);
+    let max_duty = led_channel.max_duty_cycle();
+    // Active-low LED: invert only at the LEDC write.
     led_channel
-        .set_duty_cycle(u16::from(duty))
+        .set_duty_cycle(max_duty - u16::from(duty))
         .expect("LEDC initial duty set failed");
 
-    println!("LED ready on GPIO 6: raw={} duty={}", initial_raw, duty);
+    println!("LED ready on GPIO 8: raw={} duty={}", initial_raw, duty);
 
     let mut read_failed = OnceLatch::new();
 
@@ -205,7 +208,7 @@ fn main() -> ! {
                 if mapped != duty {
                     duty = mapped;
                     led_channel
-                        .set_duty_cycle(u16::from(duty))
+                        .set_duty_cycle(max_duty - u16::from(duty))
                         .expect("LEDC duty set failed");
                     println!("raw={} duty={}", raw, duty);
                 }

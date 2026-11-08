@@ -27,11 +27,11 @@
 //! ----------    --------
 //! VCC           3V3
 //! GND           GND
-//! SDA           GPIO 4
-//! SCL           GPIO 5
+//! SDA           GPIO 6
+//! SCL           GPIO 7
 //! ```
 //!
-//! GPIO 4 / GPIO 5 are convenient non-strapping general-purpose pins on common
+//! GPIO 6 / GPIO 7 are the C3 pin-map I2C pair (ADR-012) on common
 //! ESP32-C3 dev boards, reused here (and in the upcoming MPU6050 example) as
 //! the shared SDA/SCL pair.
 //! Avoid GPIO 8 / GPIO 9 and any pins used by your board console or USB-UART
@@ -79,12 +79,12 @@ fn main() -> ! {
         Config::default().with_frequency(Rate::from_khz(100)),
     )
     .expect("valid I2C configuration")
-    .with_sda(peripherals.GPIO4)
-    .with_scl(peripherals.GPIO5);
+    .with_sda(peripherals.GPIO6)
+    .with_scl(peripherals.GPIO7);
 
     let delay = Delay::new();
 
-    println!("Scanning I2C bus 0x08..=0x77 @ 100 kHz (SDA=GPIO4, SCL=GPIO5)...");
+    println!("Scanning I2C bus 0x08..=0x77 @ 100 kHz (SDA=GPIO6, SCL=GPIO7)...");
 
     let mut found = 0u32;
     let mut bus_errors = 0u32;

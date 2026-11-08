@@ -1,11 +1,11 @@
-# Rotary encoder (A=GPIO0 B=GPIO1 button=GPIO10): ISR decode on hal, GPIO-interrupt Encoder on idf.
+# Rotary encoder (A=GPIO0 B=GPIO1 button=GPIO5): ISR decode on hal, GPIO-interrupt Encoder on idf.
 # The edge counters must move and `skipped` must stay 0 on both tiers.
 # Both tiers print `rotated CW position 3 (edges 12, skipped 0)`.
 examples = ["hal_c3_rotary_isr", "idf_c3_rotary"]
 
 [[step]]
 say = "Wait for the banner"
-expect = 'ready \(A=GPIO0 B=GPIO1 BTN=GPIO10\)'
+expect = 'ready \(A=GPIO0 B=GPIO1 BTN=GPIO5\)'
 timeout = 10
 optional = true
 arm = false

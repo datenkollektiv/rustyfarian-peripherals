@@ -8,7 +8,8 @@ Release process for the `rustyfarian-peripherals` workspace.
 ## Versioning
 
 - **Scheme:** SemVer (0.x.y — pre-stable; minor bumps may break).
-- **Model:** Single workspace version in `[workspace.package]` — all three crates move together.
+- **Model:** Single workspace version in `[workspace.package]` — `tamer`, `signwriter` and the two hardware tiers move together.
+  `signwriter` is published right after `tamer`, because it depends on it.
 - **Snapshot convention:** None; crates live at the released version between releases.
 - **Who decides version:** Maintainer; minor bump for new or breaking public API, patch for fixes only.
 
@@ -28,12 +29,13 @@ Release process for the `rustyfarian-peripherals` workspace.
 - [ ] `tamer` packages cleanly: `just release-dry-run`
 - [ ] Changelog has an `[Unreleased]` section with content for this release
 - [ ] `[workspace.dependencies] tamer` carries `version = "X.Y.Z"` matching `[workspace.package]`
+- [ ] `[workspace.dependencies] signwriter` carries `version = "X.Y.Z"` matching `[workspace.package]`
 - [ ] No uncommitted changes: `git status --short` is empty
 - [ ] Working tree is on `main` and in sync with `origin/main`
 - [ ] Authenticated with crates.io (see Authentication below)
 - [ ] Final hardware pass done (see below); feature docs carry no hardware gates of their own
 
-The hardware tiers cannot dry-run publish until `tamer` of the same version is live on crates.io — see Publish Order.
+The hardware tiers and `signwriter` cannot dry-run publish until `tamer` of the same version is live on crates.io — see Publish Order.
 
 ### Final hardware pass
 
@@ -45,14 +47,16 @@ A change to `tamer` or to a touched tier invalidates the prior ticks of every fl
 Bench results are local and git-ignored (`bench/*/results.jsonl`), so the tick itself must carry the commit and the date.
 Run each board twice: `just bench <board> --unattended` (walk away), then `just bench <board> --attended`; a gate is ticked only when both modes pass on the same commit.
 
-Board scenarios: `c3` (`b3f`, `rotary`, `bme680`, `bme680-async`, `mpu6050`, `buzzer`, `hall-linear`, `poti`), `c6` and `esp32` (`b3f`, `rotary`), `s3` (`b3f`, `rotary`, `rotary-isr`).
+Board scenarios: `c3` (`b3f`, `rotary`, `bme680`, `bme680-async`, `mpu6050`, `buzzer`, `hall-linear`, `poti`, `oled`), `c6` and `esp32` (`b3f`, `rotary`), `s3` (`b3f`, `rotary`, `rotary-isr`).
 The chip-matrix cells are in `docs/features/chip-matrix-v1.md` § Hardware pass.
 
 - [ ] Gate `c3/buzzer` (`just bench c3 buzzer`): the C3 passive-buzzer arpeggio on both tiers; `idf_c3_passive_buzzer_arpeggio` at 10-bit LEDC (was 8-bit) still plays the full melody; the ~77 Hz floor is computed, not measured.
-- [x] Gate `c3/poti` (`just bench c3 poti`): the `poti` example on the C3 rig; `poti_led` is a manual note until a scenario covers it — pass (2026-11-08, 5a11564, ESP32-C3 SuperMini): full run on both tiers, calibrated 0..4095, 0 % / 100 % / middle each held 2 s.
+- [x] Gate `c3/poti` (`just bench c3 poti`): the `poti` example on the C3 rig; `poti_led` is a manual note until a scenario covers it — pass (2026-11-08, 9430069, ESP32-C3 SuperMini): full run on both tiers, calibrated 0..4095, 0 % / 100 % / middle each held 2 s.
 - [ ] Gate `c3/mpu6050` (`just bench c3 mpu6050`): `idf_c3_mpu6050_tilt` on the C3 rig with a ±90° reading; the deliberate NACK (wrong address) that prints the AD0 hint is a manual note until the scenario prompts for it.
-- [x] Gate `c3/hall-linear` (`just bench c3 hall-linear`): `hal_c3_hall_linear` / `idf_c3_hall_linear` with a 49E sensor — pass (2026-11-08, 5a11564, ESP32-C3 SuperMini): both modes on both tiers, midpoint hal 2336 / idf 2345, each pole held 2 s.
-- [ ] Gate `c3/bme680` (`just bench c3 bme680`): `hal_c3_bme680` and `idf_c3_bme680` on the ADR-004 bus, incl. `heat_stab_r` at the fixed heater profile.
+- [x] Gate `c3/hall-linear` (`just bench c3 hall-linear`): `hal_c3_hall_linear` / `idf_c3_hall_linear` with a 49E sensor — pass (2026-11-08, 9430069, ESP32-C3 SuperMini): both modes on both tiers, midpoint hal 2336 / idf 2345, each pole held 2 s.
+- [x] Gate `c3/oled` (`just bench c3 oled`): `hal_c3_oled` and `idf_c3_oled` on `signwriter`, a 128x64 OLED on the C3 I2C pins (SDA 6 / SCL 7); an SSD1306 attached after boot with the picture confirmed by eye, then a live swap to an SH1106 (the logged `controller=` must differ), then detach noticed — pass (2026-11-08, 2d04fbd, ESP32-C3 SuperMini C3 bench rig): full run on both tiers, `Ssd1306` then `Sh1106` detected, both pictures confirmed by eye.
+  The detection rule's column-130 read-back is confirmed on the rig as part of this gate ([feature doc](docs/features/signwriter-v1.md) § Open Questions).
+- [ ] Gate `c3/bme680` (`just bench c3 bme680`): `hal_c3_bme680` and `idf_c3_bme680` on the ADR-012 I2C pins (SDA 6 / SCL 7), incl. `heat_stab_r` at the fixed heater profile.
 - [ ] Gate `c3/bme680-async` (`just bench c3 bme680-async`): `hal_c3_bme680_async` under embassy (esp-hal `I2c` in `Async` mode): same readings as the blocking twin, other tasks keep running during the conversion wait.
 - [ ] BME680 manual: `new_data` is clear after drain + trigger; then drop `PENDING(hardware)` from the drain mock script.
 - [ ] BME680 manual: plain `ctrl_gas_0` write (`0x00` / `0x08`) and the `meas_status_0` bits `0x20` / `0x40` behave as the poll assumes.
@@ -75,11 +79,14 @@ Files to update when bumping to `X.Y.Z`:
 - `Cargo.toml` — `[workspace.dependencies] tamer = { path = ..., version = "X.Y.Z", ... }`
 - `Cargo.lock` — refreshed by any `just check` after the bump
 
+`signwriter` is not part of the lockstep bump.
+Its version moves only with a `signwriter` release: `crates/signwriter/Cargo.toml` `[package] version` and `[workspace.dependencies] signwriter` `version`.
+
 Post-release version bump: none.
 
 ## Publish
 
-**Target:** crates.io — `tamer`, `rustyfarian-esp-hal-peripherals`, `rustyfarian-esp-idf-peripherals`.
+**Target:** crates.io — `tamer`, `signwriter`, `rustyfarian-esp-hal-peripherals`, `rustyfarian-esp-idf-peripherals`.
 **Credentials:** crates.io API token (see Authentication).
 **Downstream consumption:** versioned `[dependencies]` from crates.io.
 
@@ -95,7 +102,7 @@ Alternatively set `CARGO_REGISTRY_TOKEN` in the environment for the duration of 
 
 ### Crate Ownership
 
-Sole owner of all three crates: `fwaibel@datenkollektiv.de`.
+Sole owner of every published crate: `fwaibel@datenkollektiv.de`.
 Move to a GitHub team owner (e.g. `github:datenkollektiv:wheel`) on the first merged external PR or at `v1.0.0`.
 
 ### Publish Order
@@ -109,6 +116,17 @@ just release-publish-tamer
 ```
 
 Verify `https://crates.io/crates/tamer` shows `X.Y.Z` before continuing.
+
+**Stage 1b — `signwriter` (same wave, after `tamer` is live):**
+
+```sh
+cargo publish -p signwriter --dry-run
+cargo publish -p signwriter
+```
+
+Use `just release-dry-run-signwriter`, then `just release-publish-signwriter`.
+`signwriter` goes before Stage 2 because the tiers list it as a dev-dependency, so it must be live before their dry-runs.
+Verify `https://crates.io/crates/signwriter` shows `X.Y.Z` before continuing.
 
 **Stage 2 — dry-run the hardware tiers** (now that `tamer X.Y.Z` is live):
 
@@ -167,7 +185,7 @@ cargo yank --version X.Y.Z --undo <crate>
 ```
 
 - A yanked version still resolves for existing `Cargo.lock` files but cannot be newly depended on.
-- Fix forward with a lockstep patch bump (e.g. `0.1.0` → `0.1.1`) across all three crates.
+- Fix forward with a lockstep patch bump (e.g. `0.1.0` → `0.1.1`) across `tamer`, `signwriter` and the two tiers.
 - If `tamer` was yanked, re-run Stages 1–3 in full.
 - If only a tier was yanked, re-run Stage 1 (lockstep) and Stages 2–3 for that tier.
 - If publishing failed before anything went live: `git push --delete origin vX.Y.Z`, `git tag -d vX.Y.Z`, `git revert HEAD`.

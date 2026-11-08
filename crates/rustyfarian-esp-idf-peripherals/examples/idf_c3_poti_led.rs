@@ -27,10 +27,10 @@
 //! wiper/middle      GPIO 4
 //! outer leg         GND
 //!
-//! LED (active-high)         ESP32-C3
-//! ──────────────────        ────────
-//! anode -- 330 Ω resistor    GPIO 6
-//! cathode                    GND
+//! LED (active-low)          ESP32-C3
+//! ─────────────────         ────────
+//! anode -- 330 Ω resistor    3V3
+//! cathode                    GPIO 8
 //! ```
 //!
 //! GPIO 4 is ADC1-capable on ESP32-C3 and is a convenient non-strapping pin on
@@ -38,9 +38,11 @@
 //! Keep the potentiometer signal between GND and 3V3.
 //! Avoid feeding 5 V into the ADC pin.
 //!
-//! GPIO 6 is not a strapping pin (2/8/9), not the on-board WS2812 (8), not
-//! USB (18/19), not the UART console (20/21), and not in-package SPI flash
-//! (11-17) — a safe general-purpose PWM output on common ESP32-C3 boards.
+//! GPIO 8 sinks the LED active-low through LEDC PWM: the mapped brightness
+//! (0 = off, 255 = full) is inverted at the LEDC write, so the hardware duty
+//! is `max - brightness` (ADR-012).
+//! GPIO 8 is a strapping pin sampled at reset; it is only driven after boot,
+//! and the on-board LED on many boards mirrors it.
 //!
 //! ## Build
 //!
@@ -86,8 +88,11 @@ fn main() -> anyhow::Result<()> {
     let mut led = LedcDriver::new(
         peripherals.ledc.channel0,
         timer_driver,
-        peripherals.pins.gpio6,
+        peripherals.pins.gpio8,
     )?;
+    // Active-low LED: hardware duty = max - brightness; start fully off.
+    let max_duty = led.get_max_duty();
+    led.set_duty(max_duty)?;
 
     let default_range = AnalogRange::zero_to(ADC_MAX);
 
@@ -173,7 +178,7 @@ fn main() -> anyhow::Result<()> {
                 let duty = dimmer.map(raw);
 
                 if last_duty != Some(duty) {
-                    led.set_duty(u32::from(duty))?;
+                    led.set_duty(max_duty - u32::from(duty))?;
                     log::info!("raw={} duty={}", raw, duty);
                     last_duty = Some(duty);
                 }

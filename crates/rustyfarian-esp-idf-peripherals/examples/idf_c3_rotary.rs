@@ -19,13 +19,13 @@
 //! ────────      ────────
 //! A / CLK       GPIO 0
 //! B / DT        GPIO 1
-//! Button / SW   GPIO 10
+//! Button / SW   GPIO 5
 //! +             3V3
 //! -             GND
 //! ```
 //!
 //! All pins use internal pull-ups.
-//! GPIO 4-7 are left free for other examples; GPIO 2/8/9 are strapping pins and
+//! GPIO 5 (click) is non-strapping and wake-capable (ADR-012); GPIO 2/8/9 are strapping pins and
 //! GPIO 18-21 are USB/UART. The C3 is single-core.
 //! The A/B quadrature channels are monitored via persistent AnyEdge GPIO interrupts;
 //! the button is polled for debounce/timing.
@@ -69,12 +69,12 @@ fn main() -> anyhow::Result<()> {
     let peripherals = Peripherals::take()?;
 
     let mut encoder = Encoder::new(
-        peripherals.pins.gpio0,  // A / CLK
-        peripherals.pins.gpio1,  // B / DT
-        peripherals.pins.gpio10, // Button / SW
+        peripherals.pins.gpio0, // A / CLK
+        peripherals.pins.gpio1, // B / DT
+        peripherals.pins.gpio5, // Button / SW
     )
     .context("Failed to initialize encoder")?;
-    info!("encoder ready (A=GPIO0 B=GPIO1 BTN=GPIO10)");
+    info!("encoder ready (A=GPIO0 B=GPIO1 BTN=GPIO5)");
 
     let mut last_pos = encoder.position();
 
