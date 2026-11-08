@@ -7,6 +7,11 @@
 //!
 //! Everything public in [`tamer`] is re-exported here, so firmware needs a
 //! single import.
+//! This crate's own [`rotary`] and [`analog`] modules shadow the
+//! glob-reexported `tamer::rotary` / `tamer::analog` module paths (an explicit
+//! local item wins over a glob import); each local module re-exports the
+//! matching `tamer` items, and the flattened top-level re-export stays intact.
+//! [`analog::AdcReader`] is the one-line raw-count ADC1 reader.
 //!
 //! # Status — first driver
 //!
@@ -24,6 +29,7 @@
 //! See `rustyfarian-network`'s `rustyfarian-esp-hal-network` crate for the
 //! established esp-hal feature-gating and async patterns to follow.
 
+pub mod analog;
 pub mod rotary;
 
 // Compile-time guard: fails to build if the concrete type stops implementing
@@ -45,6 +51,19 @@ const _: fn() = || {
         core::marker::PhantomData::<crate::NoopRotaryEncoder>;
     fn same_trait<T: crate::RotaryEncoder>() {}
     same_trait::<tamer::rotary::NoopRotaryEncoder>();
+};
+
+// Conformance guard: `analog::AdcReader` (concrete ADC1 pin) implements the
+// shared `AnalogRead` trait, and `analog::MockAnalogRead` is the tamer item
+// despite the local `analog` module shadowing the glob re-export.
+const _: fn() = || {
+    fn assert_impl<R: tamer::analog::AnalogRead>() {}
+    #[cfg(esp32)]
+    assert_impl::<analog::AdcReader<'static, esp_hal::peripherals::GPIO32<'static>>>();
+    #[cfg(not(esp32))]
+    assert_impl::<analog::AdcReader<'static, esp_hal::peripherals::GPIO4<'static>>>();
+    let _: core::marker::PhantomData<tamer::analog::MockAnalogRead> =
+        core::marker::PhantomData::<analog::MockAnalogRead>;
 };
 
 #[doc(inline)]

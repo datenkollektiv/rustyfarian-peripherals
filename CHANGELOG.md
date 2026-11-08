@@ -11,6 +11,8 @@ This project follows [Semantic Versioning](https://semver.org/) (pre-1.0: minor 
 
 ### Added
 
+- `rustyfarian-esp-hal-peripherals::analog::AdcReader` and `AdcError`: one-line ADC1 one-shot reader for esp-hal returning raw counts (`AdcReader::new(adc1, pin)`, infallible), fixed at 11 dB, loading the efuse init code via `AdcCalBasic` on C3/C6/S3 (classic ESP32 has none and reads uncalibrated, as ESP-IDF does); implements `tamer::analog::AnalogRead`.
+- `rustyfarian-esp-idf-peripherals::analog::AdcReader` and `AdcError`: one-line ADC1 one-shot reader for ESP-IDF returning raw counts (`AdcReader::new(adc1, pin)?`), fixed at `DB_12`; implements `tamer::analog::AnalogRead`, and `AdcError` wraps `EspError` with `source()`.
 - ADR-010 adopted: shared logic follows the three-rung ladder (a generic `embedded-hal` driver first, an event machine next, and a sans-IO action machine only on a trigger), and the `Bme680` and `Mpu6050` runners now sit over the `ForcedConversion` and `OffsetSampler` machines; the hardware re-runs that the adoption needs are gated in `release-plan.md` § Final hardware pass.
 - Examples `hal_c3_bme680`, `idf_c3_bme680` and embassy `hal_c3_bme680_async` (esp-hal `I2c` in `Async` mode, `Bme680::measure_async`): temperature, pressure, humidity and gas on the ADR-004 bus (GPIO4/GPIO5, 100 kHz); `docs/hardware-setup.md` gains the shared I2C pogo header wiring (BME680, I2C OLED, MPU6050 on one 4-pin header).
 - `tamer` feature `hal-async` (implies `hal`, not default; adds the `embedded-hal-async` dependency): `Bme680::measure_async` and `Mpu6050::calibrate_async`, async runners over the same `ForcedConversion` / `OffsetSampler` machines with identical bus traffic, error mapping (including `Error::Sequence`) and poll-fuel bound; dropping the future mid-measure leaves the sensor converting and the next call's sleep-mode recovery handles it; `embedded_hal_async::i2c::I2c` for `MockI2c` and async `DelayNs` for `NoopDelay` under the same feature; parity tests need no executor.
@@ -68,6 +70,8 @@ This project follows [Semantic Versioning](https://semver.org/) (pre-1.0: minor 
 
 ### Fixed
 
+- `hal_c3_hall_linear`, `hal_c3_poti` and `hal_c3_poti_led` read the ADC through `AdcCalBasic`, which loads the efuse zero-volt init code as ESP-IDF does; uncalibrated, esp-hal 1.2.2 writes init code 0 and a C3 read a 1.67 V Hall rest point as ~4030, clipping one pole (the idf twin read 2345 on the same wiring).
+  The fix is now enforced by `AdcReader`, which always loads the init code where the chip has one, so no ADC example can regress to the uncalibrated read.
 - `tamer::mpu6050::AccelCalibration`: sums are `i64`, so long calibration runs (over ~65,500 samples at full scale) no longer overflow (debug panic, release wrap) and the average divides by the full `u32` count instead of a cast that went negative above `i32::MAX`; samples beyond `u32::MAX` are ignored.
 - ESP-IDF `rotary::Encoder`: the GPIO ISR no longer takes `critical_section`, which on ESP-IDF is a FreeRTOS mutex and crashed an ESP32-S3 (`xTaskRemoveFromEventList` in ISR context) under cross-core construct/drop; it now uses esp-idf-hal's ISR-safe `interrupt::IsrCriticalSection`. See ADR-006.
 - ESP-IDF `rotary::Encoder::drop`: no use-after-free on dual-core chips (ESP32, ESP32-S3); see ADR-006.
@@ -75,6 +79,7 @@ This project follows [Semantic Versioning](https://semver.org/) (pre-1.0: minor 
 - ESP-IDF `rotary::Encoder::new`: a turn during construction no longer shifts the first detent.
 
 ### Changed
+- The ADC examples `hal_c3_hall_linear`, `hal_c3_poti`, `hal_c3_poti_led`, `idf_c3_hall_linear`, `idf_c3_poti` and `idf_c3_poti_led` set up the ADC in one line with `AdcReader` and read with `read_raw()`; the hal twins now log the `OnceLatch` read errors like the idf twins, and bench log text is unchanged.
 - BREAKING: `bme680::Error` and `mpu6050::Error` gain a `Sequence` variant (the driver and its state machine fell out of step; a library bug). `Bme680::measure` and `Mpu6050::calibrate` return `Err(Error::Sequence)` when the machine answers `OutOfPhase` or the poll fuel runs out, replacing the `Timeout` and zero-offset `Ok` fallbacks; the `debug_assert!` is removed. `is_nack()` is false for it. Exhaustive matches on either `Error` must add an arm.
 - `Mpu6050::calibrate` now runs as a bounded blocking runner over `OffsetSampler`; signature, errors, I2C transactions and delay calls are unchanged.
 - `tamer::bme680::Bme680::measure` now runs as a thin blocking runner over `ForcedConversion`; signature, errors, I2C transaction order and `DelayNs` calls are unchanged.

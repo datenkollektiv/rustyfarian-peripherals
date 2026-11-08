@@ -68,14 +68,8 @@
 //! just flash idf_c3_hall_linear
 //! ```
 
-use esp_idf_hal::{
-    adc::{
-        attenuation::DB_12,
-        oneshot::{config::AdcChannelConfig, AdcChannelDriver, AdcDriver},
-    },
-    delay::FreeRtos,
-    peripherals::Peripherals,
-};
+use esp_idf_hal::{delay::FreeRtos, peripherals::Peripherals};
+use rustyfarian_esp_idf_peripherals::analog::{AdcReader, AnalogRead};
 use tamer::latch::OnceLatch;
 use tamer::{
     hall::{HallSensor, Pole},
@@ -94,12 +88,7 @@ fn main() -> anyhow::Result<()> {
     esp_idf_svc::log::EspLogger::initialize_default();
 
     let peripherals = Peripherals::take()?;
-    let adc = AdcDriver::new(peripherals.adc1)?;
-    let config = AdcChannelConfig {
-        attenuation: DB_12,
-        ..Default::default()
-    };
-    let mut pin = AdcChannelDriver::new(&adc, peripherals.pins.gpio4, &config)?;
+    let mut adc = AdcReader::new(peripherals.adc1, peripherals.pins.gpio4)?;
 
     // --- Calibration phase ---
     // Read samples with no magnet present to find the resting midpoint.
@@ -113,7 +102,7 @@ fn main() -> anyhow::Result<()> {
 
     for sample in cal_buf.iter_mut() {
         loop {
-            match adc.read_raw(&mut pin) {
+            match adc.read_raw() {
                 Ok(raw) => {
                     if cal_read_failed.rearm() {
                         log::info!("ADC read recovered during calibration");
@@ -153,7 +142,7 @@ fn main() -> anyhow::Result<()> {
     let mut read_failed = OnceLatch::new();
 
     loop {
-        match adc.read_raw(&mut pin) {
+        match adc.read_raw() {
             Ok(raw) => {
                 if read_failed.rearm() {
                     log::info!("ADC read recovered");

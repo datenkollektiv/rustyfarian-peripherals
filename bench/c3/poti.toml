@@ -10,36 +10,75 @@ timeout = 15
 optional = true
 arm = false
 
+# The firmware's 5 s calibration window opens at boot, so Enter resets the board:
+# the window starts when the operator is ready, and a retry really retries.
+# Percentages are relative to the sweep, so the raw span itself must reach both rails;
+# a squeezed range (e.g. the old esp-hal init-code bug, or a resistor in a leg) fails here.
+# The in-band pattern wins over the catch-all `Calibration raw` reject.
 [[step]]
-say = "Turn the potentiometer end-to-end, back and forth, during the 5 s calibration"
+say = "Turn the potentiometer end-to-end, back and forth, for 5 s"
 attended = true
-expect = 'Calibration accepted; using calibrated range'
-reject = 'falling back|ADC read failed|PANIC'
+reset = true
+expect = [
+    'Calibration accepted; using calibrated range',
+    'Calibration raw min=Some\((?:\d|\d\d|1\d\d)\) max=Some\((?:39\d\d|40\d\d)\)',
+]
+reject = 'falling back|Calibration raw|ADC read failed|PANIC'
 timeout = 20
 
+# Unattended, nobody turns the knob, so the firmware falls back to the full range first.
 [[step]]
 say = "Wait for the ready line"
-attended = true
 expect = 'Potentiometer ready on GPIO 4: raw=\d+ normalized=\d+ percent=\d+%'
-timeout = 10
+reject = 'ADC read failed|PANIC'
+timeout = 15
+arm = false
 
+# Each position is reached, then held: a sample passing through the band on the way is not enough.
 [[step]]
-say = "Turn the potentiometer to the end where it reads about 0 percent"
+say = "Turn the potentiometer to the end where it reads about 0 percent and let go"
 attended = true
 expect = 'percent=[0-4]%'
 reject = 'ADC read failed|PANIC'
 timeout = 20
 
 [[step]]
-say = "Turn the potentiometer to the other end, about 100 percent"
+say = "Leave it there"
+attended = true
+duration = 2
+reject = 'percent=(?:[5-9]|[1-9]\d|100)%|ADC read failed|PANIC'
+arm = false
+
+[[step]]
+say = "Turn it to the other end, about 100 percent, and let go"
 attended = true
 expect = 'percent=(?:9[6-9]|100)%'
 reject = 'ADC read failed|PANIC'
 timeout = 20
 
 [[step]]
-say = "Turn it to about the middle"
+say = "Leave it there"
 attended = true
-expect = 'percent=(?:4[0-9]|5[0-9]|6[0-5])%'
+duration = 2
+reject = 'percent=(?:\d|[1-8]\d|9[0-5])%|ADC read failed|PANIC'
+arm = false
+
+[[step]]
+say = "Turn it to about the middle and let go"
+attended = true
+expect = 'percent=(?:4\d|5\d|6[0-5])%'
 reject = 'ADC read failed|PANIC'
 timeout = 20
+
+[[step]]
+say = "Leave it there"
+attended = true
+duration = 2
+reject = 'percent=(?:\d|[1-3]\d|6[6-9]|[7-9]\d|100)%|ADC read failed|PANIC'
+arm = false
+
+[[step]]
+say = "Hands off: the firmware keeps running for 5 s"
+duration = 5
+reject = 'PANIC|panicked at|ADC read failed'
+arm = false

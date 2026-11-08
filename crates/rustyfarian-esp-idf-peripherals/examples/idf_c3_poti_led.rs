@@ -55,20 +55,16 @@
 //! ```
 
 use esp_idf_hal::{
-    adc::{
-        attenuation::DB_12,
-        oneshot::{config::AdcChannelConfig, AdcChannelDriver, AdcDriver},
-    },
     delay::FreeRtos,
     ledc::{config::TimerConfig, LedcDriver, LedcTimerDriver, Resolution},
     peripherals::Peripherals,
     units::Hertz,
 };
-use tamer::latch::OnceLatch;
-use tamer::{
-    analog::{AnalogCalibration, AnalogRange},
-    range_map::RangeMap,
+use rustyfarian_esp_idf_peripherals::analog::{
+    AdcReader, AnalogCalibration, AnalogRange, AnalogRead,
 };
+use tamer::latch::OnceLatch;
+use tamer::range_map::RangeMap;
 
 const ADC_MAX: u16 = 4095;
 const LEDC_FREQUENCY_HZ: u32 = 5_000;
@@ -81,12 +77,7 @@ fn main() -> anyhow::Result<()> {
     esp_idf_svc::log::EspLogger::initialize_default();
 
     let peripherals = Peripherals::take()?;
-    let adc = AdcDriver::new(peripherals.adc1)?;
-    let config = AdcChannelConfig {
-        attenuation: DB_12,
-        ..Default::default()
-    };
-    let mut poti_pin = AdcChannelDriver::new(&adc, peripherals.pins.gpio4, &config)?;
+    let mut adc = AdcReader::new(peripherals.adc1, peripherals.pins.gpio4)?;
 
     let timer_config = TimerConfig::new()
         .frequency(Hertz(LEDC_FREQUENCY_HZ))
@@ -103,7 +94,7 @@ fn main() -> anyhow::Result<()> {
     log::info!("Waiting for first ADC sample on GPIO 4...");
 
     let initial_raw = loop {
-        match adc.read_raw(&mut poti_pin) {
+        match adc.read_raw() {
             Ok(raw) => break raw,
             Err(err) => {
                 log::warn!("ADC read failed while initializing; retrying: {:?}", err);
@@ -121,7 +112,7 @@ fn main() -> anyhow::Result<()> {
     let mut calibration_read_failed = OnceLatch::new();
 
     for _ in 0..CALIBRATION_SAMPLES {
-        match adc.read_raw(&mut poti_pin) {
+        match adc.read_raw() {
             Ok(raw) => {
                 if calibration_read_failed.rearm() {
                     log::info!("ADC read recovered during calibration");
@@ -173,7 +164,7 @@ fn main() -> anyhow::Result<()> {
     let mut read_failed = OnceLatch::new();
 
     loop {
-        match adc.read_raw(&mut poti_pin) {
+        match adc.read_raw() {
             Ok(raw) => {
                 if read_failed.rearm() {
                     log::info!("ADC read recovered");

@@ -60,7 +60,6 @@ esp_bootloader_esp_idf::esp_app_desc!();
 
 use embedded_hal::pwm::SetDutyCycle;
 use esp_hal::{
-    analog::adc::{Adc, AdcConfig, Attenuation},
     delay::Delay,
     ledc::{
         channel::{self, ChannelIFace},
@@ -71,11 +70,11 @@ use esp_hal::{
     time::Rate,
 };
 use esp_println::println;
-use tamer::latch::OnceLatch;
-use tamer::{
-    analog::{AnalogCalibration, AnalogRange},
-    range_map::RangeMap,
+use rustyfarian_esp_hal_peripherals::analog::{
+    AdcReader, AnalogCalibration, AnalogRange, AnalogRead,
 };
+use tamer::latch::OnceLatch;
+use tamer::range_map::RangeMap;
 
 const ADC_MAX: u16 = 4095;
 const CALIBRATION_SAMPLES: u16 = 200;
@@ -92,9 +91,7 @@ fn panic(info: &core::panic::PanicInfo) -> ! {
 fn main() -> ! {
     let peripherals = esp_hal::init(esp_hal::Config::default());
 
-    let mut adc1_config = AdcConfig::new();
-    let mut poti_pin = adc1_config.enable_pin(peripherals.GPIO4, Attenuation::_11dB);
-    let mut adc1 = Adc::new(peripherals.ADC1, adc1_config);
+    let mut adc = AdcReader::new(peripherals.ADC1, peripherals.GPIO4);
     let delay = Delay::new();
 
     // LEDC low-speed timer at 8-bit duty resolution, so RangeMap's u8 output
@@ -125,10 +122,10 @@ fn main() -> ! {
     println!("Waiting for first ADC sample on GPIO 4...");
 
     let initial_raw = loop {
-        match nb::block!(adc1.read_oneshot(&mut poti_pin)) {
+        match adc.read_raw() {
             Ok(raw) => break raw,
-            Err(_) => {
-                println!("ADC read failed while initializing; retrying");
+            Err(err) => {
+                println!("ADC read failed while initializing; retrying: {:?}", err);
                 delay.delay_millis(250u32);
             }
         }
@@ -143,7 +140,7 @@ fn main() -> ! {
     let mut calibration_read_failed = OnceLatch::new();
 
     for _ in 0..CALIBRATION_SAMPLES {
-        match nb::block!(adc1.read_oneshot(&mut poti_pin)) {
+        match adc.read_raw() {
             Ok(raw) => {
                 if calibration_read_failed.rearm() {
                     println!("ADC read recovered during calibration");
@@ -151,9 +148,12 @@ fn main() -> ! {
 
                 calibration.observe(raw);
             }
-            Err(_) => {
+            Err(err) => {
                 if calibration_read_failed.trip() {
-                    println!("ADC read failed during calibration; suppressing repeated failures");
+                    println!(
+                        "ADC read failed during calibration; suppressing repeated failures: {:?}",
+                        err
+                    );
                 }
             }
         }
@@ -195,7 +195,7 @@ fn main() -> ! {
     let mut read_failed = OnceLatch::new();
 
     loop {
-        match nb::block!(adc1.read_oneshot(&mut poti_pin)) {
+        match adc.read_raw() {
             Ok(raw) => {
                 if read_failed.rearm() {
                     println!("ADC read recovered");
@@ -210,9 +210,9 @@ fn main() -> ! {
                     println!("raw={} duty={}", raw, duty);
                 }
             }
-            Err(_) => {
+            Err(err) => {
                 if read_failed.trip() {
-                    println!("ADC read failed; suppressing repeated failures");
+                    println!("ADC read failed; suppressing repeated failures: {:?}", err);
                 }
             }
         }

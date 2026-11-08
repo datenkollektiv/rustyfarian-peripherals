@@ -46,14 +46,14 @@ The bench runs are guided by `just bench <board> <check>` (see [`bench/README.md
 |:-----------------------------|:----:|:--------------------------------------|:-------------------------|:-------------------------------------------------------|
 | ESP32 WROOM-32 / Feather V2  | hal  | not run                               | not run                  | n/a (no scenario written)                              |
 | ESP32 WROOM-32 / Feather V2  | idf  | not run                               | not run                  | n/a (no scenario written)                              |
-| ESP32-C3 SuperMini           | hal  | not run                               | not run                  | not run (sensor and buzzer scenarios in `bench/c3/`)   |
-| ESP32-C3 SuperMini           | idf  | not run                               | not run                  | not run (sensor and buzzer scenarios in `bench/c3/`)   |
+| ESP32-C3 SuperMini           | hal  | not run                               | not run                  | `hall-linear`, `poti` pass (2026-11-08, 5a11564, C3 SuperMini); others not run |
+| ESP32-C3 SuperMini           | idf  | not run                               | not run                  | `hall-linear`, `poti` pass (2026-11-08, 5a11564, C3 SuperMini); others not run |
 | ESP32-C6-DevKitC-1           | hal  | not run                               | not run                  | n/a (no scenario written)                              |
 | ESP32-C6-DevKitC-1           | idf  | not run                               | not run                  | n/a (no scenario written)                              |
 | CrowPanel 1.28" (S3)         | hal  | pass (2026-11-06, commit TBD, CrowPanel S3) | not run (`rotary`, `rotary-isr`) | n/a (no scenario written)                    |
 | CrowPanel 1.28" (S3)         | idf  | not run                               | not run (`rotary`)       | n/a (`rotary-isr` is hal-only)                         |
 
-The S3 `b3f` pass is the only recorded hardware pass; its commit is not yet recorded and must be filled in before the cell counts toward a release.
+The S3 `b3f` pass still lacks its commit, which must be filled in before the cell counts toward a release.
 
 ## Known tier gaps
 
@@ -80,7 +80,7 @@ The S3 `b3f` pass is the only recorded hardware pass; its commit is not yet reco
 - [x] `check-matrix`, `build-matrix` (link proof), `check-avr-target`, `setup-avr`, `build-avr-example` (and `-upstream`) recipes
 - [x] `idf_{esp,c6,s3}_b3f`, the six rotary examples, and `examples/avr-nano-tamer`
 - [x] `cross-target-{riscv,xtensa,avr,avr-upstream}` workflows (written; first GitHub run pending)
-- [ ] Hardware pass: one cell passed (hal S3 `b3f`, 2026-11-06); every other cell in the table is `not run`
+- [ ] Hardware pass: hal S3 `b3f` (2026-11-06) and C3 `hall-linear` and `poti` on both tiers (2026-11-08) passed; every other cell is `not run`
 - [x] Documentation updated (AGENTS.md matrix, hardware-setup, CHANGELOG)
 
 ## Session Log

@@ -9,7 +9,7 @@
 | bme680       | BME680 SDA / SCL            | 4 / 5        | I2C pogo header, address 0x76 (SDO to GND), 3V3 only     |
 | mpu6050      | MPU6050 SDA / SCL           | 4 / 5        | same header, address 0x68 (AD0 to GND)                   |
 | buzzer       | passive piezo + to GND      | 6            | direct drive for a small piezo, NPN for a loud one       |
-| hall-linear  | 49E (HW-477) OUT            | 4            | ADC1; VCC to 3V3, never 5 V into the pin                 |
+| hall-linear  | 49E (HW-477) OUT            | 4            | ADC1; VCC to 3V3 (OUT rests ~1.65 V), never 5 V |
 | poti         | potentiometer wiper         | 4            | ADC1; outer legs to 3V3 and GND                          |
 
 GPIO 4 is shared: wire only one of b3f, hall-linear, poti or the I2C header at a time.
@@ -31,6 +31,12 @@ See `docs/hardware-setup.md` for the I2C pogo header pin order (GND, 3V3, SDA, S
 ## Commands
 
 Each step waits for Enter before it starts timing; read the instruction, press Enter, then act.
+
+Until the pin moves past rustyfarian-bench v0.3.0, the scenarios need the local checkout (hall-linear pole capture, poti reset on Enter); run this once per shell:
+
+```sh
+export RUSTYFARIAN_BENCH=../rustyfarian-bench
+```
 
 Builds, flashes and guides the button check (3 presses, a hold) on hal, then offers idf:
 
@@ -68,13 +74,13 @@ Checks the arpeggio loop in the log and by ear, including the idf 10-bit LEDC me
 just bench c3 buzzer
 ```
 
-Checks the 49E calibration and the SOUTH / NORTH pole tags with a magnet on hal, then offers idf:
+Checks the 49E midpoint has headroom both ways, then asks for one pole and then the other, each held for 2 s, on hal, then offers idf:
 
 ```sh
 just bench c3 hall-linear
 ```
 
-Checks the potentiometer calibration sweep and the low, high and middle readings on hal, then offers idf:
+Checks the calibration sweep reaches both rails (raw ≤ 199 and ≥ 3900), then the low, high and middle readings, each held for 2 s, on hal, then offers idf:
 
 ```sh
 just bench c3 poti
@@ -90,6 +96,18 @@ Same as above for one check, but skips the build when nothing changed:
 
 ```sh
 just bench c3 rotary --no-build
+```
+
+Runs only the steps the log can judge, so you can walk away (a gate needs this and the attended run):
+
+```sh
+just bench c3 hall-linear --unattended
+```
+
+Runs only the steps that need a person, skipping the build:
+
+```sh
+just bench c3 hall-linear --attended --no-build
 ```
 
 ## Not covered here

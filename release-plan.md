@@ -49,9 +49,9 @@ Board scenarios: `c3` (`b3f`, `rotary`, `bme680`, `bme680-async`, `mpu6050`, `bu
 The chip-matrix cells are in `docs/features/chip-matrix-v1.md` § Hardware pass.
 
 - [ ] Gate `c3/buzzer` (`just bench c3 buzzer`): the C3 passive-buzzer arpeggio on both tiers; `idf_c3_passive_buzzer_arpeggio` at 10-bit LEDC (was 8-bit) still plays the full melody; the ~77 Hz floor is computed, not measured.
-- [ ] Gate `c3/poti` (`just bench c3 poti`): the `poti` example on the C3 rig; `poti_led` is a manual note until a scenario covers it.
+- [x] Gate `c3/poti` (`just bench c3 poti`): the `poti` example on the C3 rig; `poti_led` is a manual note until a scenario covers it — pass (2026-11-08, 5a11564, ESP32-C3 SuperMini): full run on both tiers, calibrated 0..4095, 0 % / 100 % / middle each held 2 s.
 - [ ] Gate `c3/mpu6050` (`just bench c3 mpu6050`): `idf_c3_mpu6050_tilt` on the C3 rig with a ±90° reading; the deliberate NACK (wrong address) that prints the AD0 hint is a manual note until the scenario prompts for it.
-- [ ] Gate `c3/hall-linear` (`just bench c3 hall-linear`): `hal_c3_hall_linear` / `idf_c3_hall_linear` with a 49E sensor.
+- [x] Gate `c3/hall-linear` (`just bench c3 hall-linear`): `hal_c3_hall_linear` / `idf_c3_hall_linear` with a 49E sensor — pass (2026-11-08, 5a11564, ESP32-C3 SuperMini): both modes on both tiers, midpoint hal 2336 / idf 2345, each pole held 2 s.
 - [ ] Gate `c3/bme680` (`just bench c3 bme680`): `hal_c3_bme680` and `idf_c3_bme680` on the ADR-004 bus, incl. `heat_stab_r` at the fixed heater profile.
 - [ ] Gate `c3/bme680-async` (`just bench c3 bme680-async`): `hal_c3_bme680_async` under embassy (esp-hal `I2c` in `Async` mode): same readings as the blocking twin, other tasks keep running during the conversion wait.
 - [ ] BME680 manual: `new_data` is clear after drain + trigger; then drop `PENDING(hardware)` from the drain mock script.

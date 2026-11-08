@@ -96,6 +96,8 @@ esp-hal = { workspace = true, features = ["unstable"] }
 esp-bootloader-esp-idf = { workspace = true }
 # Guards the `rotary::InterruptEncoder` decoder slot shared with the GPIO ISR.
 critical-section = { workspace = true }
+# `analog::AdcReader` blocks on esp-hal's `nb`-style one-shot ADC read.
+nb = { workspace = true }
 
 # Runtime for the async examples only; the `rotary::Encoder` itself needs only
 # esp-hal and is always compiled.
@@ -106,7 +108,6 @@ embassy-futures  = { workspace = true, optional = true }
 
 [dev-dependencies]
 esp-println = { workspace = true, features = ["auto"] }
-nb = { workspace = true }
 # Dev-dependency features only apply to examples/tests under resolver 2, so the
 # library itself keeps the pure `tamer` (no `hal`/`tilt`).
 tamer = { workspace = true, features = ["hal", "hal-async", "tilt", "bme680"] }

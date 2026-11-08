@@ -14,6 +14,8 @@
 //! (`rustyfarian_esp_idf_peripherals::QuadratureDecoder`,
 //! `rustyfarian_esp_idf_peripherals::EncoderDirection`) rather than through
 //! `rustyfarian_esp_idf_peripherals::rotary::`.
+//! The [`analog`] module shadows `tamer::analog` the same way and re-exports
+//! its items; [`analog::AdcReader`] is the one-line raw-count ADC1 reader.
 //!
 //! # Interrupt-driven GPIO on this tier
 //!
@@ -52,6 +54,7 @@
 //! See `rustyfarian-esp-idf-power` for the established ESP-IDF wrapper pattern
 //! (trait-first, hardware lifecycle only, logic delegated to the pure crate).
 
+pub mod analog;
 pub mod rotary;
 
 // Compile-time guard: fails to build if the concrete type stops implementing
@@ -73,6 +76,21 @@ const _: fn() = || {
         core::marker::PhantomData::<crate::NoopRotaryEncoder>;
     fn same_trait<T: crate::RotaryEncoder>() {}
     same_trait::<tamer::rotary::NoopRotaryEncoder>();
+};
+
+// Conformance guard: `analog::AdcReader` (concrete ADC1 pin) implements the
+// shared `AnalogRead` trait, and `analog::MockAnalogRead` is the tamer item
+// despite the local `analog` module shadowing the glob re-export.
+const _: fn() = || {
+    fn assert_impl<R: tamer::analog::AnalogRead>() {}
+    // Classic ESP32 GPIO4 is on ADC2; GPIO32 is its first ADC1 pin.
+    #[cfg(esp32)]
+    type Pin = esp_idf_hal::gpio::Gpio32<'static>;
+    #[cfg(not(esp32))]
+    type Pin = esp_idf_hal::gpio::Gpio4<'static>;
+    assert_impl::<analog::AdcReader<'static, <Pin as esp_idf_hal::gpio::ADCPin>::AdcChannel>>();
+    let _: core::marker::PhantomData<tamer::analog::MockAnalogRead> =
+        core::marker::PhantomData::<analog::MockAnalogRead>;
 };
 
 #[doc(inline)]

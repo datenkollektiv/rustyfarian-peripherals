@@ -42,19 +42,14 @@
 //! just flash idf_c3_poti
 //! ```
 
-use esp_idf_hal::{
-    adc::{
-        attenuation::DB_12,
-        oneshot::{config::AdcChannelConfig, AdcChannelDriver, AdcDriver},
-    },
-    delay::FreeRtos,
-    peripherals::Peripherals,
+use esp_idf_hal::{delay::FreeRtos, peripherals::Peripherals};
+use rustyfarian_esp_idf_peripherals::analog::{
+    AdcReader, AnalogCalibration, AnalogRange, AnalogRead, AnalogValue,
 };
-use tamer::analog::{AnalogCalibration, AnalogRange, AnalogValue};
 use tamer::latch::OnceLatch;
 
 const ADC_MAX: u16 = 4095;
-const DEADBAND_COUNTS: u16 = 32;
+const DEADBAND_COUNTS: u16 = 128;
 const CALIBRATION_SAMPLES: u16 = 200;
 const CALIBRATION_DELAY_MS: u32 = 25;
 const MIN_CALIBRATION_SPAN: u16 = 512;
@@ -64,18 +59,13 @@ fn main() -> anyhow::Result<()> {
     esp_idf_svc::log::EspLogger::initialize_default();
 
     let peripherals = Peripherals::take()?;
-    let adc = AdcDriver::new(peripherals.adc1)?;
-    let config = AdcChannelConfig {
-        attenuation: DB_12,
-        ..Default::default()
-    };
-    let mut poti_pin = AdcChannelDriver::new(&adc, peripherals.pins.gpio4, &config)?;
+    let mut adc = AdcReader::new(peripherals.adc1, peripherals.pins.gpio4)?;
     let default_range = AnalogRange::zero_to(ADC_MAX);
 
     log::info!("Waiting for first ADC sample on GPIO 4...");
 
     let initial_raw = loop {
-        match adc.read_raw(&mut poti_pin) {
+        match adc.read_raw() {
             Ok(raw) => break raw,
             Err(err) => {
                 log::warn!("ADC read failed while initializing; retrying: {:?}", err);
@@ -93,7 +83,7 @@ fn main() -> anyhow::Result<()> {
     let mut calibration_read_failed = OnceLatch::new();
 
     for _ in 0..CALIBRATION_SAMPLES {
-        match adc.read_raw(&mut poti_pin) {
+        match adc.read_raw() {
             Ok(raw) => {
                 if calibration_read_failed.rearm() {
                     log::info!("ADC read recovered during calibration");
@@ -149,7 +139,7 @@ fn main() -> anyhow::Result<()> {
     );
 
     loop {
-        match adc.read_raw(&mut poti_pin) {
+        match adc.read_raw() {
             Ok(raw) => {
                 if read_failed.rearm() {
                     log::info!("ADC read recovered");

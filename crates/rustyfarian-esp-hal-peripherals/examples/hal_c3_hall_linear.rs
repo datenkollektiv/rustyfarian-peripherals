@@ -73,12 +73,9 @@
 
 esp_bootloader_esp_idf::esp_app_desc!();
 
-use esp_hal::{
-    analog::adc::{Adc, AdcConfig, Attenuation},
-    delay::Delay,
-    main,
-};
+use esp_hal::{delay::Delay, main};
 use esp_println::println;
+use rustyfarian_esp_hal_peripherals::analog::{AdcReader, AnalogRead};
 use tamer::latch::OnceLatch;
 use tamer::{
     hall::{HallSensor, Pole},
@@ -104,10 +101,9 @@ fn main() -> ! {
     let delay = Delay::new();
 
     // --- ADC setup ---
-    // 11 dB attenuation gives full 0–3.3 V range (12-bit: 0–4095).
-    let mut adc1_config = AdcConfig::new();
-    let mut pin = adc1_config.enable_pin(peripherals.GPIO4, Attenuation::_11dB);
-    let mut adc1 = Adc::new(peripherals.ADC1, adc1_config);
+    // `AdcReader` fixes 11 dB attenuation and loads the efuse calibration (zero-volt
+    // offset) like ESP-IDF does, so both tiers read the same values.
+    let mut adc = AdcReader::new(peripherals.ADC1, peripherals.GPIO4);
 
     // --- Calibration phase ---
     // Read samples with no magnet present to find the resting midpoint.
@@ -121,7 +117,7 @@ fn main() -> ! {
 
     for sample in cal_buf.iter_mut() {
         loop {
-            match nb::block!(adc1.read_oneshot(&mut pin)) {
+            match adc.read_raw() {
                 Ok(raw) => {
                     if cal_read_failed.rearm() {
                         println!("ADC read recovered during calibration");
@@ -129,10 +125,11 @@ fn main() -> ! {
                     *sample = raw;
                     break;
                 }
-                Err(_) => {
+                Err(err) => {
                     if cal_read_failed.trip() {
                         println!(
-                            "ADC read failed during calibration; suppressing repeated failures"
+                            "ADC read failed during calibration; suppressing repeated failures: {:?}",
+                            err
                         );
                     }
                 }
@@ -161,7 +158,7 @@ fn main() -> ! {
     let mut read_failed = OnceLatch::new();
 
     loop {
-        match nb::block!(adc1.read_oneshot(&mut pin)) {
+        match adc.read_raw() {
             Ok(raw) => {
                 if read_failed.rearm() {
                     println!("ADC read recovered");
@@ -184,9 +181,9 @@ fn main() -> ! {
                     tag,
                 );
             }
-            Err(_) => {
+            Err(err) => {
                 if read_failed.trip() {
-                    println!("ADC read failed; suppressing repeated failures");
+                    println!("ADC read failed; suppressing repeated failures: {:?}", err);
                 }
             }
         }

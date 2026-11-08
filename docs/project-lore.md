@@ -53,13 +53,17 @@ Confirmed on ESP32-C3: the KY-003 shipped an A3144; switching from ADC + linear 
 Fix: call `esp_idf_svc::log::EspLogger::initialize_default()` once at startup and use `log::info!` instead of `println!` — `esp_log` is unbuffered, the same path the boot lines use. This matches the convention every idf example in the sibling `rustyfarian-network` repo already follows.
 Confirmed on ESP32-C3 with `idf_c3_b3f`: after the switch, the `B3F button ready` line and the press/release events appear immediately.
 
-## esp-hal vs esp-idf — ADC raw floor
+## esp-hal vs esp-idf — ADC init code
 
-**A fixed-range ADC→output map (`RangeMap::new(0, 4095, …)`) reaches the rails on the ESP-IDF tier but not on esp-hal, because the two stacks floor the raw reading differently.**
-Symptom: the same `poti_led` dimmer (pot → `RangeMap` → LEDC PWM) went fully dark and bright on esp-idf, but stayed in a compressed mid-range on esp-hal.
-Cause: `esp-idf-hal`'s ADC oneshot applies the chip's efuse calibration (raw ~0 low, near full-scale high); `esp-hal`'s `read_oneshot` returns the *uncalibrated* SAR value with no `AdcCal*` scheme, which on the C3 floors ~100–200 and ceilings below 4095 — so a `0..=4095` map never hits its endpoints.
-Fix: don't hard-code the ADC span for rail-reaching controls. Run an `AnalogCalibration` startup sweep and build the map from the observed range (`RangeMap::new(range.min(), range.max(), 0, 255)`); it self-adjusts per stack. (Or attach esp-hal's `AdcCalCurve`/`AdcCalLine`.)
-Confirmed on ESP32-C3-DevKitM-1: after the calibration sweep, both tiers sweep fully dark → full bright.
+**Without an `AdcCal*` scheme, esp-hal 1.2.2 writes ADC init code 0 before every conversion instead of the efuse zero-volt value, so the same voltage reads very differently on the two tiers.**
+Symptom (C3 SuperMini, 49E Hall, 2026-11-08): OUT measured 1.67 V at zero field; `idf_c3_hall_linear` calibrated to `midpoint=2345` and saw both poles, `hal_c3_hall_linear` calibrated to ~4030 and one pole clipped at 4095 (`dev` stuck at 61, below the threshold).
+Earlier symptom (C3 DevKitM-1): the `poti_led` dimmer reached both rails on esp-idf but stayed in a compressed mid-range on esp-hal.
+Cause: `enable_pin(..)` uses the no-op scheme `()`, whose init code is 0 (`analog/adc/riscv.rs` `read_oneshot` → `set_init_code(pin.cal_scheme.adc_cal())`); ESP-IDF's oneshot driver loads the efuse init code.
+The offset is board-dependent, so a supply or wiring fault is the wrong first suspect — a meter on the pin settles it.
+Fix: `enable_pin_with_cal::<_, AdcCalBasic<ADC1>>(pin, Attenuation::_11dB)` (raw units, efuse init code), now enforced by `rustyfarian-esp-hal-peripherals::analog::AdcReader`, which always loads the init code where the chip has one; the hal C3 ADC examples read through it since 2026-11-08.
+Confirmed on the C3 SuperMini: `hal_c3_hall_linear` then calibrated to 2363 vs idf 2345 on the same wiring, and `just bench c3 hall-linear` passed on both tiers.
+Classic ESP32 has no init code (its only scheme, `AdcCalLine`, returns mV), so `AdcReader` reads it uncalibrated; that path and `AdcCalBasic` on C6 and S3 are compile-verified only, not hardware-checked.
+For rail-reaching controls, still build the map from an `AnalogCalibration` sweep rather than `0..=4095`.
 
 ## esp-hal — console output
 
@@ -110,3 +114,14 @@ Fix: guard ISR-shared state with `IsrCriticalSection` (`xPortEnterCriticalTimeou
 Symptom: a compile error in `encoding_rs` 0.8.44, which calls `slice::as_chunks`, still unstable on that nightly.
 Cause: the newest `encoding_rs` is picked up by a fresh resolution, and it needs a newer toolchain than the pinned AVR nightly provides.
 Fix: keep the seeded `Cargo.lock` committed (`.gitignore` has the `!examples/avr-nano-tamer/Cargo.lock` exception) and build with `--locked`. The same failure is recorded in the ws2812 lore.
+
+## Bench — boot-time windows and ADC jitter
+
+**A firmware window that opens at boot cannot be driven by an armed bench step: the runner resets the board when it opens the port, before the first Enter, and an armed step drops the backlog after Enter.**
+Symptom (C3 SuperMini, `just bench c3 poti`, 2026-11-08): the 5 s calibration sweep ended before the operator pressed Enter, the firmware printed `falling back to full ADC range`, and the step failed; its "Retry this step?" prompt was buried under device lines, and a retry could not reopen the window anyway.
+Fix: `reset = true` on the step (rustyfarian-bench, unreleased after v0.3.0) resets the board after Enter, so the window starts when the operator is ready and a retry resets again; the bench now also mutes device echo while it asks Retry/Continue.
+Use it for any check the firmware runs once at boot (calibrations, "keep the magnet away" baselines).
+
+**A C3 wiper at rest jitters about 85–95 raw counts peak-to-peak on both tiers, so a 32-count deadband prints nearly every sample.**
+Symptom: `hal_c3_poti` printed 112 sample lines with the knob untouched (raw 3114–3210); the idf twin showed the same spread (84 vs 91 counts), so it is the signal or rig, not a tier.
+Fix: `DEADBAND_COUNTS = 128` in `{hal,idf}_c3_poti`; at rest the log then shows only the ready line.

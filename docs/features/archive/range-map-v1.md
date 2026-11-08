@@ -94,7 +94,7 @@ The contract the implementation PR must satisfy (host tests):
 - [x] Core implementation (`tamer::range_map::RangeMap`)
 - [x] Host tests passing (per **Required tests** above)
 - [x] Documentation updated (module docs, `prelude` export, LDR→backlight doctest, CHANGELOG)
-- [x] In-repo example — `hal_c3_poti_led` / `idf_c3_poti_led` twin (pot → `RangeMap` → LEDC PWM LED, GPIO6). Both tiers device-compiled and **hardware-verified on an ESP32-C3-DevKitM-1** (full dark → full bright after the startup calibration sweep). Needed an `AnalogCalibration` sweep so the map's endpoints track each stack's real ADC span — see `project-lore` (esp-hal vs esp-idf ADC raw floor).
+- [x] In-repo example — `hal_c3_poti_led` / `idf_c3_poti_led` twin (pot → `RangeMap` → LEDC PWM LED, GPIO6). Both tiers device-compiled and **hardware-verified on an ESP32-C3-DevKitM-1** (full dark → full bright after the startup calibration sweep). Needed an `AnalogCalibration` sweep so the map's endpoints track each stack's real ADC span — see `project-lore` (esp-hal vs esp-idf — ADC init code).
 
 ## Session Log
 - 2026-07-10 — Feature doc created via `/feature`. Assessed fit with `rust-engineer`: fits per `VISION.md`'s input+output scope (`RangeMap` imports nothing, no `ws2812` coupling). Chose generic `RangeMap` in flat `tamer::range_map` over `BrightnessCurve` / an `output::` namespace. Resolved the technical open questions with precedent-driven answers — `u8`-only for v1, gamma → v2, `in_min == in_max` via panicking `assert!` matching `AnalogRange::new`.

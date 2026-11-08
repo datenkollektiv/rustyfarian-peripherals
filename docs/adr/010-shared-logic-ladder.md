@@ -66,6 +66,7 @@ Paths are module paths in `tamer`; the feature in brackets gates the type.
 - **Rung 1 — generic driver.**
   - `bme680::Bme680<I2C>` [`bme680`, `hal`] and `mpu6050::Mpu6050<I2C>` [`hal`], generic over `embedded_hal::i2c::I2c` and `DelayNs`.
   - The `InputPin` adapters `debounce::DebouncedInput`, `rotary::QuadratureInput`, `button::ButtonInput` and `presence::DigitalPresenceInput` [`hal`]; each wraps a rung-2 decoder, which rung 1 allows (the rung-1 driver may contain a rung-2 decoder, as `rustyfarian-ws2812` ADR-012 decision 1 notes).
+  - The tier adapter `analog::AdcReader` in `rustyfarian-esp-hal-peripherals` and `rustyfarian-esp-idf-peripherals` (added 2026-11-08): a rung-1 adapter over `tamer::analog::AnalogRead`, holding only ADC1 bus setup (init code and attenuation fixed, raw counts, errors mapped to `AdcError`); the range, deadband and smoothing logic stays in `tamer`.
 - **Rung 2 — event machine** (`update(sample, now) -> Option<Event>` or a close variant):
   - `rotary::QuadratureDecoder::update(a, b)`, fed by the esp-hal GPIO hook, the ESP-IDF ISR and `QuadratureInput`.
   - `button::ButtonDecoder::update(pressed, now)`.

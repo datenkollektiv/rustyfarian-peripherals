@@ -3,10 +3,14 @@
 # No `$` anchors: idf log lines end in an ANSI colour reset.
 examples = ["hal_c3_hall_linear", "idf_c3_hall_linear"]
 
+# The 49E rests at VCC/2 (~2000-2400 raw on 3V3) and swings both ways.
+# A midpoint outside 1000-3000 leaves one pole no headroom before the ADC clips
+# (e.g. mid=4041 on a 5 V supply: SOUTH can never cross the threshold), so it fails here.
+# The in-band pattern wins over the catch-all `Calibrated:` reject.
 [[step]]
 say = "Wait for the calibration (keep the magnet away)"
-expect = ['Calibrating', 'Calibrated: midpoint=\d+, threshold=\d+']
-reject = 'Calibration error|ADC read failed|PANIC'
+expect = ['Calibrating', 'Calibrated: midpoint=(?:[12]\d{3}|3000), threshold=\d+']
+reject = 'Calibrated: midpoint=|Calibration error|ADC read failed|PANIC'
 timeout = 20
 arm = false
 
@@ -17,23 +21,36 @@ reject = 'SOUTH|NORTH|ADC read failed|PANIC'
 timeout = 10
 settle = 2
 
+# The first pole may be either; its name is captured, and the next step asks for the other one,
+# so the log proves both poles without an operator answer.
+# Each pole is reached, then held: a flicker across the threshold is not enough.
 [[step]]
-say = "Bring one pole of the magnet close to the sensor and hold"
+say = "Bring the magnet close until the log reads NORTH or SOUTH, and hold it there"
 attended = true
-expect = 'dev=-?\d+\s+(?:SOUTH|NORTH)'
+expect = 'dev=-?\d+\s+(?P<pole>SOUTH|NORTH)'
 reject = 'ADC read failed|PANIC'
-timeout = 20
+timeout = 30
 
 [[step]]
-say = "Take the magnet away, flip it, and bring the other pole close"
+say = "Hold the magnet still"
 attended = true
-expect = ['dev=-?\d+\s+---', 'dev=-?\d+\s+(?:SOUTH|NORTH)']
-reject = 'ADC read failed|PANIC'
-timeout = 20
+duration = 2
+reject = 'dev=-?\d+\s+(?:---|(?!(?P=pole))(?:SOUTH|NORTH))|ADC read failed|PANIC'
+arm = false
 
 [[step]]
-say = "Check the poles"
-confirm = "Did the tag change between SOUTH and NORTH when you flipped the magnet?"
+say = "Take the magnet away, flip it, and bring the other pole close, and hold it there"
+attended = true
+expect = ['dev=-?\d+\s+---', 'dev=-?\d+\s+(?!(?P=pole))(?:SOUTH|NORTH)']
+reject = 'ADC read failed|PANIC'
+timeout = 30
+
+[[step]]
+say = "Hold the magnet still"
+attended = true
+duration = 2
+reject = 'dev=-?\d+\s+(?:---|(?P=pole))|ADC read failed|PANIC'
+arm = false
 
 [[step]]
 say = "Take the magnet away again"
