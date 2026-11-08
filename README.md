@@ -106,6 +106,8 @@ How shared tier logic is split across the rungs of the ladder is recorded in [AD
 `signwriter` is the one graphics-side crate: it drives the OLED and implements `embedded-graphics` `DrawTarget`.
 `tamer` never depends on `signwriter` or on `embedded-graphics`, so the pure core stays graphics-free ([ADR-008](docs/adr/008-display-scope.md), [ADR-013](docs/adr/013-signwriter.md)).
 
+Each hardware tier has a `board-*` feature per board (for example `board-feather-v2`), and its `board` module names that board's I2C pins, so one example runs on every board of a chip ([ADR-014](docs/adr/014-board-profiles.md)).
+
 The pure core uses the rustyfarian family's funfair naming (`tamer`, joining
 `bunting` / `pennant` / `ferriswheel` / `juggler` / `stoker`); the hardware
 tiers use the technical `rustyfarian-<hal>-<repo>` convention.

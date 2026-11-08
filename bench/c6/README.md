@@ -6,6 +6,7 @@
 |:-------|:-------------------------|:-------------|:-----------------------------------------------------|
 | b3f    | B3F button to GND        | 4            | internal pull-up, active-low                         |
 | rotary | EC11 A / B / button      | 18 / 19 / 20 | adjacent on J3; internal pull-ups, common to GND|
+| oled   | OLED SDA / SCL           | 21 / 22      | board profile c6-devkitc (ADR-014); 0x3C, SSD1306 or SH1106 |
 
 ## Checks
 
@@ -13,6 +14,7 @@
 |:-------|:----------------------------------------|:--------|
 | b3f    | `hal_c6_b3f`, `idf_c6_b3f`              | not run |
 | rotary | `hal_c6_rotary_isr`, `idf_c6_rotary`    | not run |
+| oled   | `hal_c6_oled`, `idf_c6_oled`            | not run |
 
 ## Commands
 
@@ -46,6 +48,12 @@ Shows the chip and MAC on each connected port:
 
 ```sh
 just bench-detect
+```
+
+Waits for an OLED on SDA 21 / SCL 22, checks the picture, a live swap to the other controller and the detach, on hal, then offers idf:
+
+```sh
+just bench c6 oled
 ```
 
 ## If it hangs

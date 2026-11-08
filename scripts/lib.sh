@@ -47,11 +47,13 @@ get_example_features_from_toml() {
     printf '%s' "$(printf '%s' "$features" | tr -d '"' | tr -d ' ')"
 }
 
-# resolve_example <example> <hal_dir> <idf_dir>
+# resolve_example <example> <hal_dir> <idf_dir> [board]
 # Parses a `{hal|idf}_{chip}_{name}` example name and exports the build context
 # as globals: EX_TIER EX_CHIP EX_MCU EX_TARGET EX_PKG EX_TARGET_DIR EX_FEATURES EX_XTENSA.
+# [board] (e.g. feather-v2) selects the `board-<board>` profile feature; empty
+# picks the chip's default profile (c3 supermini, c6 devkitc, esp wroom, s3 none).
 resolve_example() {
-    local example="$1" hal_dir="$2" idf_dir="$3"
+    local example="$1" hal_dir="$2" idf_dir="$3" board="${4:-}"
     EX_TIER="${example%%_*}"
     EX_CHIP="$(printf '%s' "$example" | cut -d_ -f2)"
     EX_XTENSA=0
@@ -98,5 +100,18 @@ resolve_example() {
     # "esp32esp32" / "esp32esp32s3" for the esp32 and esp32s3 chips.
     if [ "$EX_TIER" = hal ] && [ -z "$EX_FEATURES" ]; then
         EX_FEATURES="${EX_MCU},rt,unstable"
+    fi
+
+    # Board profile (ADR-014): explicit, else the chip default. Libraries are
+    # built with no profile; only example builds add one.
+    if [ -z "$board" ]; then
+        case "$EX_MCU" in
+            esp32c3) board="c3-supermini" ;;
+            esp32c6) board="c6-devkitc" ;;
+            esp32) board="esp32-wroom" ;;
+        esac
+    fi
+    if [ -n "$board" ]; then
+        EX_FEATURES="${EX_FEATURES:+$EX_FEATURES,}board-$board"
     fi
 }

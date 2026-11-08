@@ -47,7 +47,7 @@ A change to `tamer` or to a touched tier invalidates the prior ticks of every fl
 Bench results are local and git-ignored (`bench/*/results.jsonl`), so the tick itself must carry the commit and the date.
 Run each board twice: `just bench <board> --unattended` (walk away), then `just bench <board> --attended`; a gate is ticked only when both modes pass on the same commit.
 
-Board scenarios: `c3` (`b3f`, `rotary`, `bme680`, `bme680-async`, `mpu6050`, `buzzer`, `hall-linear`, `poti`, `oled`), `c6` and `esp32` (`b3f`, `rotary`), `s3` (`b3f`, `rotary`, `rotary-isr`).
+Board scenarios: `feather-v2` (`oled`), `c3` (`b3f`, `rotary`, `bme680`, `bme680-async`, `mpu6050`, `buzzer`, `hall-linear`, `poti`, `oled`), `c6` and `esp32` (`b3f`, `rotary`, `oled`), `s3` (`b3f`, `rotary`, `rotary-isr`).
 The chip-matrix cells are in `docs/features/chip-matrix-v1.md` § Hardware pass.
 
 - [ ] Gate `c3/buzzer` (`just bench c3 buzzer`): the C3 passive-buzzer arpeggio on both tiers; `idf_c3_passive_buzzer_arpeggio` at 10-bit LEDC (was 8-bit) still plays the full melody; the ~77 Hz floor is computed, not measured.
@@ -55,6 +55,11 @@ The chip-matrix cells are in `docs/features/chip-matrix-v1.md` § Hardware pass.
 - [ ] Gate `c3/mpu6050` (`just bench c3 mpu6050`): `idf_c3_mpu6050_tilt` on the C3 rig with a ±90° reading; the deliberate NACK (wrong address) that prints the AD0 hint is a manual note until the scenario prompts for it.
 - [x] Gate `c3/hall-linear` (`just bench c3 hall-linear`): `hal_c3_hall_linear` / `idf_c3_hall_linear` with a 49E sensor — pass (2026-11-08, 9430069, ESP32-C3 SuperMini): both modes on both tiers, midpoint hal 2336 / idf 2345, each pole held 2 s.
 - [x] Gate `c3/oled` (`just bench c3 oled`): `hal_c3_oled` and `idf_c3_oled` on `signwriter`, a 128x64 OLED on the C3 I2C pins (SDA 6 / SCL 7); an SSD1306 attached after boot with the picture confirmed by eye, then a live swap to an SH1106 (the logged `controller=` must differ), then detach noticed — pass (2026-11-08, 2d04fbd, ESP32-C3 SuperMini C3 bench rig): full run on both tiers, `Ssd1306` then `Sh1106` detected, both pictures confirmed by eye.
+  Rerun before the release: `signwriter` changed after `2d04fbd` (P1 review fix: a read rejected after acknowledged writes means SSD1306, `Oled::with_controller`), and the swap step is now split into unplug-and-wait and plug-in.
+- [ ] Gate `c6/oled` (`just bench c6 oled`): `hal_c6_oled` and `idf_c6_oled` with the `c6-devkitc` board profile (SDA 21 / SCL 22); attach, picture by eye, unplug and wait for the detach, plug in the other controller, detach.
+- [ ] Gate `esp32/oled` (`just bench esp32 oled`): `hal_esp_oled` and `idf_esp_oled` with the `esp32-wroom` board profile (SDA 21 / SCL 22), same steps.
+- [ ] Gate `feather-v2/oled` (`just bench feather-v2 oled`): the same examples built with the `feather-v2` board profile (STEMMA QT SDA 22 / SCL 20, socket power on GPIO 2), same steps.
+- `s3/oled` is `n/a`: the CrowPanel's I2C (GPIO 6 / 7) is its touch bus and has no free connector.
   The detection rule's column-130 read-back is confirmed on the rig as part of this gate ([feature doc](docs/features/signwriter-v1.md) § Open Questions).
 - [ ] Gate `c3/bme680` (`just bench c3 bme680`): `hal_c3_bme680` and `idf_c3_bme680` on the ADR-012 I2C pins (SDA 6 / SCL 7), incl. `heat_stab_r` at the fixed heater profile.
 - [ ] Gate `c3/bme680-async` (`just bench c3 bme680-async`): `hal_c3_bme680_async` under embassy (esp-hal `I2c` in `Async` mode): same readings as the blocking twin, other tasks keep running during the conversion wait.

@@ -1,9 +1,11 @@
 #!/usr/bin/env bash
 set -euo pipefail
 # build-example.sh — build a named example (no flash).
-# Usage: scripts/build-example.sh <example> [hal_dir [idf_dir]]
+# Usage: scripts/build-example.sh <example> [hal_dir [idf_dir [board]]]
 #   example: hal_{chip}_{name} (bare-metal) | idf_{chip}_{name} (ESP-IDF)
 #   chip ∈ {c3, c6, esp, s3} (long forms esp32c3, esp32c6, esp32, esp32s3 also accepted)
+#   board: optional profile (c3-supermini | c6-devkitc | esp32-wroom | feather-v2);
+#          default per chip, see resolve_example in lib.sh (ADR-014)
 #
 # Chip, crate, target triple, and required-features are derived from the name.
 # Bare-metal builds use the stable toolchain with the rustup target (RISC-V) or
@@ -17,7 +19,7 @@ REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 . "$SCRIPT_DIR/lib.sh"
 
 if [ $# -lt 1 ]; then
-    printf 'Usage: %s <example> [hal_dir [idf_dir]]\n  example: hal_{chip}_{name} | idf_{chip}_{name}\n' "$0" >&2
+    printf 'Usage: %s <example> [hal_dir [idf_dir [board]]]\n  example: hal_{chip}_{name} | idf_{chip}_{name}\n' "$0" >&2
     exit 2
 fi
 
@@ -32,8 +34,9 @@ fi
 example="$1"
 hal_dir="${2:-target/hal}"
 idf_dir="${3:-target/idf}"
+board="${4:-}"
 
-resolve_example "$example" "$hal_dir" "$idf_dir"
+resolve_example "$example" "$hal_dir" "$idf_dir" "$board"
 
 cargo_bin=(cargo)
 if [ "$EX_XTENSA" = 1 ]; then

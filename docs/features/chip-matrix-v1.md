@@ -61,6 +61,8 @@ The S3 `b3f` pass still lacks its commit, which must be filled in before the cel
 - `hal_c6_passive_buzzer_arpeggio` is a C6 LEDC pitch probe, suspected one octave high; feature examples stay on their reference chip, and the probe is optional in `release-plan.md`.
 - `hal_c3_bme680_async` and `hal_s3_rotary` exist only on esp-hal (async), so they have no ESP-IDF twin to compare against.
 - `hal_c3_rig_check` is a hal-only diagnostic for the C3 bench rig; it has no ESP-IDF twin by design.
+- `oled` (I2C OLED, [signwriter v1](signwriter-v1.md)) is the scenario for every chip with an I2C connector: C3 is `pass` on both tiers, C6 and the ESP32 (WROOM-32 and Feather V2 profiles) are planned for stage 3, and the S3 is `n/a (touch bus, no connector)`, because its I2C 6/7 is the touch bus.
+- The OLED examples take their I2C pins from a board profile ([ADR-014](../adr/014-board-profiles.md)): C3 SuperMini, C6-DevKitC-1, ESP32 WROOM-32 and Feather V2 (`just build-example <ex> feather-v2`); the bench runs `oled` once per board, so a WROOM-32 pass does not count for the Feather V2.
 
 ## Rotary pins (A / B / button, internal pull-ups, active-low)
 | Board                       | A  | B  | Button | Why                                                                                    |

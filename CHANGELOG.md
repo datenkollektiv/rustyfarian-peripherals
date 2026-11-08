@@ -70,6 +70,8 @@ This project follows [Semantic Versioning](https://semver.org/) (pre-1.0: minor 
 - `bench/` layout (ADR-011): one directory per board, one TOML scenario per check (`<board>/<check>.toml`), `bench/bench.toml` for build, flash and board settings, and git-ignored `results.jsonl` and logs; the `s3` board is in progress, and the `c3`, `c6` and `esp32` scenarios are written but not run.
 - Bench scenarios: `c3` (`b3f`, `rotary`, `bme680`, `bme680-async`, `mpu6050`, `buzzer`, `hall-linear`, `poti`), `c6` and `esp32` (`b3f`, `rotary`); `s3` keeps `b3f`, `rotary` and `rotary-isr`, and on `c3`, `c6` and `esp32` the `rotary` scenario runs the hal ISR example and its idf twin.
 - Compile-time tier conformance guards in both tier crates: the esp-hal and ESP-IDF rotary `Encoder` must keep `edge_count()` and `skipped_count()` in parity, and both crates must keep re-exporting the shared `tamer` types.
+- Board profiles on both hardware tiers ([ADR-014](docs/adr/014-board-profiles.md)): one `board-*` Cargo feature per board (`board-c3-supermini`, `board-c6-devkitc`, `board-esp32-wroom`, `board-feather-v2`) and a public `board` module with `board_i2c!`, `board_i2c_power!`, `BOARD_NAME` and `I2C_PINS`; `just build-example <ex> <profile>` (also `just flash` and `just run`) overrides the default profile of each chip, and two profiles or a chip mismatch fail to compile.
+- Examples `hal_c6_oled`, `idf_c6_oled`, `hal_esp_oled` and `idf_esp_oled`: a 128x64 OLED on the I2C pins of the board profile (C6-DevKitC-1 SDA 21 / SCL 22; ESP32 SDA 21 / SCL 22 by default, or the Feather V2 with `feather-v2 as the second argument`, SDA 22 / SCL 20 with socket power on GPIO 2), drawn through `signwriter`.
 
 ### Fixed
 

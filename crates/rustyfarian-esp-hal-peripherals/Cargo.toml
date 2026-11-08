@@ -87,6 +87,18 @@ embassy = [
     "esp-rtos/embassy",
 ]
 
+# ── Board profiles (ADR-014) ─────────────────────────────────────────────────
+#
+# At most one; compiled into the public `board` module. `scripts/lib.sh` adds the
+# chip's default (c3 → supermini, c6 → devkitc, esp → wroom); libraries build
+# with none.
+# Umbrella: compiles the `board` module; the OLED examples require it.
+board              = []
+board-c3-supermini = ["board"]
+board-c6-devkitc   = ["board"]
+board-esp32-wroom  = ["board"]
+board-feather-v2   = ["board"]
+
 [dependencies]
 # `tamer` stays pure (no `hal` feature): the examples feed the pure
 # `EdgeDetector` directly from an esp-hal `Input`'s `is_high()`.
@@ -218,3 +230,15 @@ required-features = ["esp32c3", "rt", "unstable", "embassy"]
 [[example]]
 name = "hal_c6_rotary_isr"
 required-features = ["esp32c6", "rt", "unstable", "embassy"]
+
+[[example]]
+name = "hal_c3_oled"
+required-features = ["esp32c3", "rt", "unstable", "board"]
+
+[[example]]
+name = "hal_c6_oled"
+required-features = ["esp32c6", "rt", "unstable", "board"]
+
+[[example]]
+name = "hal_esp_oled"
+required-features = ["esp32", "rt", "unstable", "board"]

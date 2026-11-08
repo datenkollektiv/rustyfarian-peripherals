@@ -43,6 +43,9 @@
 //! established, hardware-verified need for zero event loss under load — that
 //! is a deliberately high bar for taking on raw-FFI interrupt plumbing.
 //!
+//! With a `board-*` feature, the [`board`] module names the board's I2C pins
+//! and bus power (ADR-014).
+//!
 //! # Status
 //!
 //! The first driver has landed: [`rotary::Encoder`], an interrupt-driven
@@ -55,6 +58,13 @@
 //! (trait-first, hardware lifecycle only, logic delegated to the pure crate).
 
 pub mod analog;
+#[cfg(any(
+    feature = "board-c3-supermini",
+    feature = "board-c6-devkitc",
+    feature = "board-esp32-wroom",
+    feature = "board-feather-v2"
+))]
+pub mod board;
 pub mod rotary;
 
 // Compile-time guard: fails to build if the concrete type stops implementing

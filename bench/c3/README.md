@@ -17,7 +17,7 @@ The C3 bench rig follows the ESP32-C3 pin map (ADR-012); every C3 example uses t
 | rig          | the whole rig               | 3, 4, 6/7, 10 | attach/detach each part, press the button, confirm the buzzer |
 
 The button (3), the 3-pin pogo (4) and the 4-pin I2C pogo (6/7) are wired at the same time on their own pins; the rig lets you reach only one of them at a time.
-The rig's LED sits on GPIO 8, active-low.
+The rig's LED will sit on GPIO 8, active-low; it is not fitted yet, so the rig check has no LED step until it is.
 See `docs/hardware-setup.md` § C3 bench rig for the connector pin orders and the I2C pull-ups.
 
 ## Checks

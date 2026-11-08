@@ -16,6 +16,19 @@ readme = "README.md"
 [lib]
 name = "rustyfarian_esp_idf_peripherals"
 
+[features]
+# ── Board profiles (ADR-014) ─────────────────────────────────────────────────
+#
+# At most one; compiled into the public `board` module. `scripts/lib.sh` adds the
+# chip's default (c3 → supermini, c6 → devkitc, esp → wroom); libraries build
+# with none.
+# Umbrella: compiles the `board` module; the OLED examples require it.
+board              = []
+board-c3-supermini = ["board"]
+board-c6-devkitc   = ["board"]
+board-esp32-wroom  = ["board"]
+board-feather-v2   = ["board"]
+
 [build-dependencies]
 # Re-emits the ESP-IDF link args in this crate's build script so example/test
 # binaries link against ESP-IDF (a dependency's link args do not propagate).
@@ -117,3 +130,15 @@ name = "idf_s3_rotary"
 # primary docs.
 [package.metadata.docs.rs]
 default-target = "riscv32imc-esp-espidf"
+
+[[example]]
+name = "idf_c3_oled"
+required-features = ["board"]
+
+[[example]]
+name = "idf_c6_oled"
+required-features = ["board"]
+
+[[example]]
+name = "idf_esp_oled"
+required-features = ["board"]

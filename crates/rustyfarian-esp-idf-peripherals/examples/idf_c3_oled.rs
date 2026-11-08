@@ -9,7 +9,7 @@
 //! it and flushes the framebuffer; this example draws through `embedded-graphics`
 //! and holds no decode logic of its own (ADR-008, ADR-013).
 //!
-//! ## Pins (ADR-012)
+//! ## Pins (ADR-012, board profile ADR-014)
 //!
 //! | Part  | Pin(s)        | Notes                          |
 //! |:------|:--------------|:-------------------------------|
@@ -34,7 +34,7 @@
 //! ## Log lines
 //!
 //! ```text
-//! OLED waiting on SDA 6 / SCL 7 (0x3C)
+//! OLED waiting on c3-supermini SDA 6 / SCL 7 (0x3C)   (<board> from the profile)
 //! OLED ready addr=0x3C controller=Sh1106 size=128x64
 //! OLED frame n=5          (every 5 s while attached)
 //! OLED detached addr=0x3C
@@ -64,6 +64,10 @@ use esp_idf_hal::{
     i2c::{config::Config, I2cDriver},
     peripherals::Peripherals,
     units::FromValueType,
+};
+use rustyfarian_esp_idf_peripherals::{
+    board::{BOARD_NAME, I2C_PINS},
+    board_i2c, board_i2c_power,
 };
 use signwriter::{Event, Oled, ADDRESS_PRIMARY};
 use std::time::Instant;
@@ -101,15 +105,17 @@ fn main() -> anyhow::Result<()> {
 
     let peripherals = Peripherals::take()?;
     let config = Config::new().baudrate(100.kHz().into());
-    let i2c = I2cDriver::new(
-        peripherals.i2c0,
-        peripherals.pins.gpio6,
-        peripherals.pins.gpio7,
-        &config,
-    )?;
+    let _bus_power = board_i2c_power!(peripherals);
+    let (sda, scl) = board_i2c!(peripherals);
+    let i2c = I2cDriver::new(peripherals.i2c0, sda, scl, &config)?;
     let start = Instant::now();
 
-    log::info!("OLED waiting on SDA 6 / SCL 7 (0x3C)");
+    log::info!(
+        "OLED waiting on {} SDA {} / SCL {} (0x3C)",
+        BOARD_NAME,
+        I2C_PINS.0,
+        I2C_PINS.1
+    );
 
     let mut oled = Oled::new(
         i2c,

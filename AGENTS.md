@@ -32,6 +32,7 @@ Four workspace members under `crates/`:
 The pure logic in `tamer` is the contract; the hardware crates are thin wrappers
 that delegate all decoding/rendering to it. `embedded-hal`'s `InputPin` (and the
 relevant output/bus traits) is the seam, behind `tamer`'s optional `hal` feature.
+Each hardware tier has a `board` module, selected by one `board-*` feature per board, that names the board's I2C pins for examples ([ADR-014](docs/adr/014-board-profiles.md)).
 `tamer` has four opt-in features: `hal` (embedded-hal adapters), `hal-async`
 (implies `hal`; async runners over `embedded-hal-async`), `bme680` (BME680
 register map and compensation), and `tilt` (`atan2` trig via `micromath`); the default build is dependency-free.

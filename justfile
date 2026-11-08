@@ -147,7 +147,7 @@ check-matrix-idf:
 # build and link the b3f smoke example for every chip on both tiers (the matrix's link proof)
 build-matrix: build-matrix-hal build-matrix-idf
 
-# build and link hal_{esp,c3,c6,s3}_b3f, one chip at a time
+# build and link hal_{esp,c3,c6,s3}_b3f and the hal_{esp,c3,c6}_oled examples (esp for both boards), one chip at a time
 build-matrix-hal:
     #!/usr/bin/env bash
     set -euo pipefail
@@ -155,14 +155,26 @@ build-matrix-hal:
         scripts/ramdisk-guard.sh "{{ ramdisk }}" "{{ ramdisk_mounted }}" "hal_${chip}_b3f"
         scripts/build-example.sh "hal_${chip}_b3f" "{{ hal_dir }}" "{{ idf_dir }}"
     done
+    for entry in esp: c3: c6: esp:feather-v2; do
+        chip="${entry%%:*}"
+        board="${entry#*:}"
+        scripts/ramdisk-guard.sh "{{ ramdisk }}" "{{ ramdisk_mounted }}" "hal_${chip}_oled ${board}"
+        scripts/build-example.sh "hal_${chip}_oled" "{{ hal_dir }}" "{{ idf_dir }}" "${board}"
+    done
 
-# build and link idf_{esp,c3,c6,s3}_b3f, one chip at a time (requires espup)
+# build and link idf_{esp,c3,c6,s3}_b3f and the idf_{esp,c3,c6}_oled examples (esp for both boards), one chip at a time (requires espup)
 build-matrix-idf:
     #!/usr/bin/env bash
     set -euo pipefail
     for chip in esp c3 c6 s3; do
         scripts/ramdisk-guard.sh "{{ ramdisk }}" "{{ ramdisk_mounted }}" "idf_${chip}_b3f"
         scripts/build-example.sh "idf_${chip}_b3f" "{{ hal_dir }}" "{{ idf_dir }}"
+    done
+    for entry in esp: c3: c6: esp:feather-v2; do
+        chip="${entry%%:*}"
+        board="${entry#*:}"
+        scripts/ramdisk-guard.sh "{{ ramdisk }}" "{{ ramdisk_mounted }}" "idf_${chip}_oled ${board}"
+        scripts/build-example.sh "idf_${chip}_oled" "{{ hal_dir }}" "{{ idf_dir }}" "${board}"
     done
 
 # check and clippy the esp-hal library for one chip: esp32 | esp32c3 | esp32c6 | esp32s3
@@ -378,17 +390,17 @@ examples:
         printf '  %-20s (%s)\n' "$(basename "$f" .rs)" "$(echo "$f" | cut -d/ -f2)"
     done
 
-# build a named example; crate/chip/target auto-detected from the name
-build-example example:
-    scripts/build-example.sh "{{ example }}" "{{ hal_dir }}" "{{ idf_dir }}"
+# build a named example; crate/chip/target auto-detected from the name; optional board profile as second argument (e.g. `just build-example hal_esp_oled feather-v2`)
+build-example example board="":
+    scripts/build-example.sh "{{ example }}" "{{ hal_dir }}" "{{ idf_dir }}" "{{ board }}"
 
-# build and flash a named example to a connected board (optional explicit port)
-flash example port="":
-    scripts/flash.sh "{{ example }}" "{{ hal_dir }}" "{{ idf_dir }}" "{{ port }}"
+# build and flash a named example to a connected board (optional explicit port and board profile, ADR-014)
+flash example port="" board="":
+    scripts/flash.sh "{{ example }}" "{{ hal_dir }}" "{{ idf_dir }}" "{{ port }}" "{{ board }}"
 
-# build, flash, then open the serial monitor
-run example:
-    just flash "{{ example }}"
+# build, flash, then open the serial monitor (optional board profile, ADR-014)
+run example board="":
+    just flash "{{ example }}" "" "{{ board }}"
     espflash monitor
 
 # open the serial monitor for an already-flashed device

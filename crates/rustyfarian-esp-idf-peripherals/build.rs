@@ -20,6 +20,9 @@
 fn main() {
     println!("cargo:rustc-check-cfg=cfg(esp32)");
     println!("cargo:rustc-check-cfg=cfg(esp32s3)");
+    // Chip cfgs for the `board` profile mismatch checks.
+    println!("cargo:rustc-check-cfg=cfg(esp32c3)");
+    println!("cargo:rustc-check-cfg=cfg(esp32c6)");
     // Emitted by esp-idf-sys for single-core FreeRTOS builds (C3, C6); gates
     // the dual-core-only IPC teardown barrier in `rotary`.
     println!("cargo:rustc-check-cfg=cfg(esp_idf_freertos_unicore)");
@@ -28,6 +31,8 @@ fn main() {
     match target.as_str() {
         "xtensa-esp32-espidf" => println!("cargo:rustc-cfg=esp32"),
         "xtensa-esp32s3-espidf" => println!("cargo:rustc-cfg=esp32s3"),
+        "riscv32imc-esp-espidf" => println!("cargo:rustc-cfg=esp32c3"),
+        "riscv32imac-esp-espidf" => println!("cargo:rustc-cfg=esp32c6"),
         _ => {}
     }
 

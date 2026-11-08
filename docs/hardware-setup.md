@@ -247,6 +247,57 @@ Electrical notes:
 
 ---
 
+## Wiring — I2C OLED per board
+
+The 128x64 I2C OLED (SSD1306 or SH1106, [signwriter](features/signwriter-v1.md)) takes its bus pins from a board profile ([ADR-014](adr/014-board-profiles.md)), so the same `hal_*_oled` or `idf_*_oled` example runs on each board below.
+Use the table for the board you have; the examples need no edits.
+Every board uses 3.3 V logic, so never connect the OLED or its pull-ups to 5 V.
+
+ESP32-C3 SuperMini (`board-c3-supermini`, examples `hal_c3_oled` / `idf_c3_oled`):
+
+| Signal | GPIO  | Notes                                                |
+|:-------|:------|:-----------------------------------------------------|
+| SDA    | GPIO 6 | I2C0 data; the rig adds 4.7 kΩ pull-ups to 3V3       |
+| SCL    | GPIO 7 | I2C0 clock at 100 kHz                                |
+| VCC    | 3V3   | 3.3 V supply                                         |
+| GND    | GND   | ground                                               |
+
+ESP32-C6-DevKitC-1 (`board-c6-devkitc`, examples `hal_c6_oled` / `idf_c6_oled`):
+
+| Signal | GPIO   | Notes                                                |
+|:-------|:-------|:-----------------------------------------------------|
+| SDA    | GPIO 21 | I2C0 data; add 4.7 kΩ to 3V3 if the module has none |
+| SCL    | GPIO 22 | I2C0 clock at 100 kHz                                |
+| VCC    | 3V3    | 3.3 V supply                                         |
+| GND    | GND    | ground                                               |
+
+ESP32 WROOM-32 (`board-esp32-wroom`, examples `hal_esp_oled` / `idf_esp_oled`):
+
+| Signal | GPIO   | Notes                                                |
+|:-------|:-------|:-----------------------------------------------------|
+| SDA    | GPIO 21 | I2C0 data; the de-facto ESP32 default; add 4.7 kΩ to 3V3 if the module has none |
+| SCL    | GPIO 22 | I2C0 clock at 100 kHz                                |
+| VCC    | 3V3    | 3.3 V supply                                         |
+| GND    | GND    | ground                                               |
+
+Adafruit ESP32 Feather V2 (`board-feather-v2`, examples `hal_esp_oled` / `idf_esp_oled` built with `just build-example <ex> feather-v2`):
+
+| Signal | GPIO   | Notes                                                |
+|:-------|:-------|:-----------------------------------------------------|
+| SDA    | GPIO 22 | STEMMA QT socket; I2C data                           |
+| SCL    | GPIO 20 | STEMMA QT socket; I2C clock at 100 kHz               |
+| Power  | GPIO 2 | drive high to power the STEMMA QT socket; the example does this before the bus starts |
+| VCC    | 3V3    | 3.3 V supply on the socket                           |
+| GND    | GND    | ground                                               |
+
+On the Feather V2, GPIO 2 is a strapping pin that is sampled at reset; the example drives it high after boot, so it does not select the boot mode.
+Confirm GPIO 20, 22 and 2 on the Feather V2 pinout card before wiring, as this guide does not carry the card.
+
+ESP32-S3 CrowPanel 1.28" HMI: no OLED example.
+Its I2C 6 / 7 pins are the touch bus, and the board has no free I2C connector, so the S3 has no OLED wiring here ([chip matrix](features/chip-matrix-v1.md)).
+
+---
+
 ## Wiring — MPU6050 tilt (ESP32-C3 SuperMini)
 
 MPU6050 6-axis IMU on I2C0, read by `tamer::mpu6050` and reduced to a tilt angle by `tamer::TiltEstimator`.

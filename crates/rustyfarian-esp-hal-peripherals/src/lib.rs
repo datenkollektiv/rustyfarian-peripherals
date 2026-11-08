@@ -13,6 +13,9 @@
 //! matching `tamer` items, and the flattened top-level re-export stays intact.
 //! [`analog::AdcReader`] is the one-line raw-count ADC1 reader.
 //!
+//! With a `board-*` feature, the [`board`] module names the board's I2C pins
+//! and bus power (ADR-014).
+//!
 //! # Status — first driver
 //!
 //! The first driver is the async rotary [`Encoder`](rotary::Encoder) in
@@ -30,6 +33,13 @@
 //! established esp-hal feature-gating and async patterns to follow.
 
 pub mod analog;
+#[cfg(any(
+    feature = "board-c3-supermini",
+    feature = "board-c6-devkitc",
+    feature = "board-esp32-wroom",
+    feature = "board-feather-v2"
+))]
+pub mod board;
 pub mod rotary;
 
 // Compile-time guard: fails to build if the concrete type stops implementing
