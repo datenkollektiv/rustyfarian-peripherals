@@ -12,7 +12,7 @@ Same chip as the `esp32` board, built with the `feather-v2` board profile ([ADR-
 
 | Check | Examples                       | Verdict |
 |:------|:-------------------------------|:--------|
-| oled  | `hal_esp_oled`, `idf_esp_oled` | not run |
+| oled  | `hal_esp_oled`, `idf_esp_oled` | deferred (needs a STEMMA QT cable) |
 
 ## Commands
 

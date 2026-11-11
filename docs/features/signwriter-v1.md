@@ -110,7 +110,7 @@ Gates: `just test`, `just clippy`, `just doc` and `just verify` run the signwrit
 - [x] Is the SH1106 wire on the rig flaky? Yes, one wire on that module (2026-11-08); fix it before the live swap runs. The driver re-initialises after a brief contact loss.
 - [ ] How often does a clone answer the read-back differently, and is the SSD1306 classification then a wrong column offset on screen?
 - [ ] How long a swap between two probes can go undetected in practice, and does it justify periodic re-detection? Revisit after bench data.
-- [ ] Pins for the C6 and classic ESP32 OLED examples (stage 3) come from their board profiles ([ADR-014](../adr/014-board-profiles.md)) and must be confirmed on each board, including the Feather V2 GPIO 2 power switch.
+- [ ] Pins for the C6 and classic ESP32 OLED examples (stage 3) come from their board profiles ([ADR-014](../adr/014-board-profiles.md)) and must be confirmed on each board; the Feather V2 (incl. its GPIO 2 power switch) is deferred to the next release, because the STEMMA QT cable is not on hand.
 
 ## State
 - [x] Design approved

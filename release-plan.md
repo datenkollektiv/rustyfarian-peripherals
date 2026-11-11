@@ -58,7 +58,8 @@ The chip-matrix cells are in `docs/features/chip-matrix-v1.md` § Hardware pass.
   Rerun before the release: `signwriter` changed after `2d04fbd` (P1 review fix: a read rejected after acknowledged writes means SSD1306, `Oled::with_controller`), and the swap step is now split into unplug-and-wait and plug-in.
 - [ ] Gate `c6/oled` (`just bench c6 oled`): `hal_c6_oled` and `idf_c6_oled` with the `c6-devkitc` board profile (SDA 21 / SCL 22); attach, picture by eye, unplug and wait for the detach, plug in the other controller, detach.
 - [ ] Gate `esp32/oled` (`just bench esp32 oled`): `hal_esp_oled` and `idf_esp_oled` with the `esp32-wroom` board profile (SDA 21 / SCL 22), same steps.
-- [ ] Gate `feather-v2/oled` (`just bench feather-v2 oled`): the same examples built with the `feather-v2` board profile (STEMMA QT SDA 22 / SCL 20, socket power on GPIO 2), same steps.
+- Gate `feather-v2/oled` (`just bench feather-v2 oled`): the same examples built with the `feather-v2` board profile (STEMMA QT SDA 22 / SCL 20, socket power on GPIO 2), same steps — deferred to the next release (2026-11-11): no STEMMA QT (JST SH 1.0 mm) cable on hand.
+  The `feather-v2` profile ships compile- and link-checked only (`build-matrix`); this release does not wait for it.
 - `s3/oled` is `n/a`: the CrowPanel's I2C (GPIO 6 / 7) is its touch bus and has no free connector.
   The detection rule's column-130 read-back is confirmed on the rig as part of this gate ([feature doc](docs/features/signwriter-v1.md) § Open Questions).
 - [ ] Gate `c3/bme680` (`just bench c3 bme680`): `hal_c3_bme680` and `idf_c3_bme680` on the ADR-012 I2C pins (SDA 6 / SCL 7), incl. `heat_stab_r` at the fixed heater profile.
