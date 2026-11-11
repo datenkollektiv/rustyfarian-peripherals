@@ -21,7 +21,7 @@ It runs the hardware pass that ADR-010 requires.
 2. `bench/bench.toml` calls the existing `just build-example {example}` and `just flash {example} {port}`.
    No bench-only build or flash recipe is added.
 3. Boards are bench sessions: one board is finished before the next one starts, and a board's checks are the evidence for its cells in the final pass.
-4. `just bench <board> [check]`, `just bench-list` and `just bench-detect` run `rustyfarian-bench` pinned to the `v0.3.0` release through `uvx --from git+https://github.com/datenkollektiv/rustyfarian-bench@v0.3.0`.
+4. `just bench <board> [check]`, `just bench-list` and `just bench-detect` run `rustyfarian-bench` pinned to the `v0.5.0` release through `uvx --from git+https://github.com/datenkollektiv/rustyfarian-bench@v0.5.0`.
    Bumping the tag is how this repo opts into a new runner.
    `RUSTYFARIAN_BENCH=<path>` points the recipes at a local checkout instead, for bench development.
 5. Run logs and results stay git-ignored: `bench/*/logs/` and `bench/*/results.jsonl` record board MACs, and `bench.toml` pins no MAC.
@@ -39,6 +39,7 @@ It runs the hardware pass that ADR-010 requires.
 - 2026-11-07: pinned to `v0.3.0` for `--unattended` / `--attended` runs.
   Scenarios mark steps that need a person with `attended = true`; a gate needs both modes to pass on one commit.
   Every `b3f` and `rotary` check gains a hands-off 5 s no-panic watch so the unattended run proves boot per chip.
+- 2026-11-11: pinned to `v0.5.0`; the scenarios use step captures (`(?P<name>…)` / `(?P=name)`) and `reset = true` from `v0.4.0`, which `v0.3.0` rejects at load time.
 
 ## Alternatives Considered
 | Alternative                                      | Pros                            | Cons                                                       | Why Rejected                                              |

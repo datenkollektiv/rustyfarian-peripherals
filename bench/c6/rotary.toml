@@ -1,6 +1,9 @@
 # Rotary encoder (A=GPIO18 B=GPIO19 button=GPIO20): ISR decode on hal, GPIO-interrupt Encoder on idf.
 # The edge counters must move and `skipped` must stay 0 on both tiers.
-# Both tiers print `rotated CW position 3 (edges 12, skipped 0)`.
+# Both tiers print `rotated CW position 3 (edges 12, skipped 0)`; `edges` and `skipped` are running totals.
+# The spin step resets the board, so each attempt (and a retry) starts at position 0 with `skipped 0`;
+# it asks for fast, not flat out, because a bare EC11 bounces into skips when spun flat out (lore).
+# No step waits for Enter: each shows its instruction and passes as soon as its line arrives (60 s).
 examples = ["hal_c6_rotary_isr", "idf_c6_rotary"]
 
 [[step]]
@@ -16,39 +19,54 @@ duration = 5
 reject = 'PANIC|panicked at|Guru Meditation|abort\(\) was called'
 arm = false
 
+# Extra clockwise detents during the 2 s settle are fine; the next step turns back to 0.
 [[step]]
-say = "Turn the knob 3 detents clockwise, slowly"
+say = "Turn the knob 3 detents clockwise, slowly, then hands off for 2 s"
 attended = true
-expect = ['rotated CW\b', 'rotated CW\b', 'rotated CW\b.*edges [1-9]\d*']
+expect = ['rotated CW\b', 'rotated CW\b', 'rotated CW\b.*edges [1-9]\d*, skipped 0\)']
 reject = 'rotated CCW|skipped [1-9]|PANIC'
-
-[[step]]
-say = "Turn it 3 detents back counter-clockwise"
-attended = true
-expect = ['rotated CCW', 'rotated CCW', 'rotated CCW position 0 ']
-reject = 'rotated CW\b|skipped [1-9]|PANIC'
-
-[[step]]
-say = "Spin the knob fast (about one turn, any direction), then hands off for 2 s"
-attended = true
-expect = 'rotated (?:CW|CCW)\b.*skipped 0\b'
-reject = 'skipped [1-9]|PANIC'
+timeout = 60
 settle = 2
+arm = false
+
+[[step]]
+say = "Turn it back counter-clockwise to where you started (position 0)"
+attended = true
+expect = 'rotated CCW position 0 \(edges [1-9]\d*, skipped 0\)'
+reject = 'rotated CW\b|skipped [1-9]|PANIC'
+timeout = 60
+arm = false
+
+[[step]]
+say = "The board restarts: then spin the knob fast but not flat out (10+ detents, any direction), then hands off for 2 s"
+attended = true
+reset = true
+expect = 'rotated (?:CW|CCW) position -?[1-9]\d+ \(edges \d+, skipped 0\)'
+reject = 'skipped [1-9]|PANIC'
+timeout = 60
+settle = 2
+arm = false
 
 [[step]]
 say = "Click the knob button once"
 attended = true
 expect = 'button: Click\b'
-reject = 'DoubleClick|PANIC'
+reject = 'DoubleClick|skipped [1-9]|PANIC'
+timeout = 60
+arm = false
 
 [[step]]
 say = "Double-click the knob button"
 attended = true
 expect = 'button: DoubleClick'
-reject = "PANIC"
+reject = 'skipped [1-9]|PANIC'
+timeout = 60
+arm = false
 
 [[step]]
 say = "Long-press the knob button (hold ~1 s)"
 attended = true
 expect = 'button: LongPress'
-reject = "PANIC"
+reject = 'skipped [1-9]|PANIC'
+timeout = 60
+arm = false

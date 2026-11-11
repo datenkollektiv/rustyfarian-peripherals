@@ -4,8 +4,8 @@ No wiring: knob A = GPIO 45, B = GPIO 42, button = GPIO 41.
 
 ## Commands
 
-Builds, flashes and guides the button check (3 presses, a hold, a turn each way) on hal, then offers idf.
-Each step waits for Enter before it starts timing; read the instruction, press Enter, then act:
+Builds, flashes and guides the button check (3 presses) on hal, then offers idf.
+No step waits for Enter: read the instruction and act; each step passes as soon as its line arrives (60 s):
 
 ```sh
 just bench s3 b3f
@@ -25,7 +25,7 @@ Runs the rotary check (direction, round trip, click, double click, long press) o
 just bench s3 rotary
 ```
 
-Runs the ISR rotary check under load (10 detents out and back, fast spin, heartbeat):
+Runs the ISR rotary check under load (10+ detents each way without pausing, fast spin, heartbeat; no skipped edges):
 
 ```sh
 just bench s3 rotary-isr

@@ -70,7 +70,7 @@ The `esp` toolchain (`just setup-toolchain`, via espup) and device target config
 
 `just bench <board> [check]` runs a guided on-device check from `bench/<board>/`, builds and flashes it, and judges each step; `bench/README.md` lists the boards and checks.
 `just bench-list` lists every scenario, and `just bench-detect` shows the chip and MAC of each connected board.
-The runner is `rustyfarian-bench`; `RUSTYFARIAN_BENCH=<path>` points the recipes at a local checkout instead of the pinned `v0.3.0` release (ADR-011 records the pin and the bench layout).
+The runner is `rustyfarian-bench`; `RUSTYFARIAN_BENCH=<path>` points the recipes at a local checkout instead of the pinned `v0.5.0` release (ADR-011 records the pin and the bench layout).
 Bench logs and `results.jsonl` are git-ignored, because they record board MACs.
 
 ### Chip matrix

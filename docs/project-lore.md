@@ -38,6 +38,10 @@ Symptom: `failed to run custom build command for esp-idf-sys` with `cargo metada
 Cause: the 12 GiB `/Volumes/RustBuilds` is shared across all rustyfarian repos, and sibling target trees (`rustyfarian-network`, `rustyfarian-power`) fill it; `df -h /Volumes/RustBuilds` shows 100 %.
 Fix: `just ramdisk prune [days]` to drop idle sibling trees, then re-run the gate; grep the full output for `os error 28` before reading the build-script error literally. Hit 2026-10-30 on the MPU6050 example twin.
 
+**`just verify` does not lint the device examples, so a change that only breaks `just clippy-hal` stays green.**
+Symptom (2026-11-08, board profiles): the OLED examples imported the feature-gated `board` module; `verify`, `check-hal`, `check-idf` and `build-matrix` all passed, but `just clippy-hal` (S3, `--lib --examples`, no board feature) failed with `could not find board`.
+Fix: examples that need an optional feature declare it in `[[example]] required-features` (here an umbrella `board` feature that every `board-*` enables), so lint runs without it skip them; run `just clippy-hal` whenever examples change.
+
 ## Hardware — inputs
 
 **KY-003 and "Hall sensor" marketplace labels are ambiguous — verify the actual chip before modeling behavior.**
@@ -45,6 +49,11 @@ KY-003 modules ship two different sensors in the same form: the A3144 (`3144xUA`
 Reading an A3144 through ADC + `tamer::hall::HallSensor` (which assumes a linear bipolar response) is the wrong abstraction: it idles near 4095, detects one polarity cleanly, and clips on the other because it never drives below ~VCC/2.
 Fix: check the TO-92 marking (`3144EUA`, `SS49E`, `AH477`, …). For A3144 KY-003 modules read via `tamer::presence::DigitalPresence` (ActiveLow, 20 ms debounce), not the `tamer::hall` + ADC linear model.
 Confirmed on ESP32-C3: the KY-003 shipped an A3144; switching from ADC + linear Hall to GPIO + `DigitalPresence` made its single-pole and no-magnet states cleanly distinguishable.
+
+**The CrowPanel S3's bare EC11 skips quadrature edges only when spun flat out; a fast spin decodes cleanly, and the cause is contact bounce, not the ISR.**
+Symptom (`hal_s3_rotary_isr`, 2026-11-11): a flat-out spin logged `cw=22 edges=165 skipped=3`, while a fast spin logged `ccw=26 edges=174 skipped=0`; a clean detent gives 4 edges, this knob gives 7–8.
+The `HB` line in the skipping window already showed the final `pos` and `skipped=3`, so it printed after the skips, which rules out the `esp_println` critical section holding off the `Priority3` GPIO ISR.
+Fix: none in firmware; bench steps say "fast but not flat out", and no check may require `edges = 4 × detents`.
 
 ## ESP-IDF — console output
 
@@ -119,12 +128,18 @@ Fix: keep the seeded `Cargo.lock` committed (`.gitignore` has the `!examples/avr
 
 **A firmware window that opens at boot cannot be driven by an armed bench step: the runner resets the board when it opens the port, before the first Enter, and an armed step drops the backlog after Enter.**
 Symptom (C3 SuperMini, `just bench c3 poti`, 2026-11-08): the 5 s calibration sweep ended before the operator pressed Enter, the firmware printed `falling back to full ADC range`, and the step failed; its "Retry this step?" prompt was buried under device lines, and a retry could not reopen the window anyway.
-Fix: `reset = true` on the step (rustyfarian-bench, unreleased after v0.3.0) resets the board after Enter, so the window starts when the operator is ready and a retry resets again; the bench now also mutes device echo while it asks Retry/Continue.
+Fix: `reset = true` on the step (rustyfarian-bench v0.4.0) resets the board after Enter, so the window starts when the operator is ready and a retry resets again; the bench now also mutes device echo while it asks Retry/Continue.
 Use it for any check the firmware runs once at boot (calibrations, "keep the magnet away" baselines).
 
 **A C3 wiper at rest jitters about 85–95 raw counts peak-to-peak on both tiers, so a 32-count deadband prints nearly every sample.**
 Symptom: `hal_c3_poti` printed 112 sample lines with the knob untouched (raw 3114–3210); the idf twin showed the same spread (84 vs 91 counts), so it is the signal or rig, not a tier.
 Fix: `DEADBAND_COUNTS = 128` in `{hal,idf}_c3_poti`; at rest the log then shows only the ready line.
+
+## Bench — judging counters
+
+**A bench `reject` on a cumulative counter fails every later step and every retry once the counter moves, so judge per-window lines only.**
+Symptom (`just bench s3 rotary-isr`, 2026-11-11): one skip made `HB ... skipped=1` match `reject = 'skipped=[1-9]'`, and each "Retry this step?" failed again on the next heartbeat whatever the operator did.
+Fix: `reject = 'WINDOW .*skipped=[1-9]'`; also never demand an exact detent count in one window, because a window closes 1.5 s after the last detent and any pause splits the turn — require "at least N" (`cw=[1-9]\d+ ccw=0`) and ignore the short windows.
 
 ## OLED — telling an SSD1306 from an SH1106
 

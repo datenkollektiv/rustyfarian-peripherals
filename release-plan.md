@@ -69,9 +69,10 @@ The chip-matrix cells are in `docs/features/chip-matrix-v1.md` § Hardware pass.
 - [ ] Gate `c3/rotary` (`just bench c3 rotary`): `hal_c3_rotary_isr` and `idf_c3_rotary` move `edge_count()` / `skipped_count()` under turning (the counting lives in `QuadratureDecoder`).
 - [ ] Gate `c6/rotary` (`just bench c6 rotary`): `hal_c6_rotary_isr` and `idf_c6_rotary`, the same counts under turning.
 - [ ] Gate `esp32/rotary` (`just bench esp32 rotary`): `hal_esp_rotary_isr` and `idf_esp_rotary`, the same counts under turning.
-- [ ] Gate `s3/rotary` (`just bench s3 rotary`): `hal_s3_rotary` and `idf_s3_rotary` on the CrowPanel S3.
-- [ ] Gate `s3/rotary-isr` (`just bench s3 rotary-isr`): `hal_s3_rotary_isr` under load; there is no ESP-IDF twin.
-- [ ] Gate `s3/b3f` (`just bench s3 b3f`): hal passed on 2026-11-06 on the CrowPanel S3; the tick stays open until the commit is recorded, and the idf twin `idf_s3_b3f` is not run.
+- [x] Gate `s3/rotary` (`just bench s3 rotary`): `hal_s3_rotary` and `idf_s3_rotary` on the CrowPanel S3 — pass (2026-11-11, c8907e9, CrowPanel S3): both modes on both tiers, 3 detents each way with `skipped 0`, click, double click, long press.
+- [x] Gate `s3/rotary-isr` (`just bench s3 rotary-isr`): `hal_s3_rotary_isr` under load; there is no ESP-IDF twin — pass (2026-11-11, c8907e9, CrowPanel S3): both modes, windows of 10+ detents each way and a fast spin (26 detents) with `skipped=0`.
+  A flat-out spin skipped 3 of 22 detents' edges (165 edges): contact bounce of the bare EC11, not the redraw (the HB that printed in that window came after the skips).
+- [x] Gate `s3/b3f` (`just bench s3 b3f`): `hal_s3_b3f` and `idf_s3_b3f` on the CrowPanel S3 — pass (2026-11-11, c8907e9, CrowPanel S3): both modes on both tiers, 3 presses.
 - [ ] Gate `c3/b3f`, `c6/b3f` and `esp32/b3f` (`just bench <board> b3f`): the `b3f` smoke on each board and tier, not run.
 - [ ] Chip matrix rollup: every cell of `docs/features/chip-matrix-v1.md` § Hardware pass reads `pass (...)` or `n/a (...)`; the gate items above tick the cells.
 - [ ] Optional manual: `hal_c6_passive_buzzer_arpeggio` pitch (suspected one octave high from the C6 LEDC clock); no bench scenario covers it.

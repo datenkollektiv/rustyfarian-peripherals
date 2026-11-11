@@ -16,12 +16,6 @@ Same chip as the `esp32` board, built with the `feather-v2` board profile ([ADR-
 
 ## Commands
 
-Until the pin moves past rustyfarian-bench v0.3.0, the scenarios need the local checkout; run this once per shell:
-
-```sh
-export RUSTYFARIAN_BENCH=../rustyfarian-bench
-```
-
 Waits for an OLED on the STEMMA QT socket, checks the picture, a live swap to the other controller and the detach, on hal, then offers idf:
 
 ```sh

@@ -50,10 +50,10 @@ The bench runs are guided by `just bench <board> <check>` (see [`bench/README.md
 | ESP32-C3 SuperMini           | idf  | not run                               | not run                  | `hall-linear`, `poti` pass (2026-11-08, 9430069, C3 SuperMini); `oled` pass (2026-11-08, 2d04fbd, C3 bench rig); others not run |
 | ESP32-C6-DevKitC-1           | hal  | not run                               | not run                  | n/a (no scenario written)                              |
 | ESP32-C6-DevKitC-1           | idf  | not run                               | not run                  | n/a (no scenario written)                              |
-| CrowPanel 1.28" (S3)         | hal  | pass (2026-11-06, commit TBD, CrowPanel S3) | not run (`rotary`, `rotary-isr`) | n/a (no scenario written)                    |
-| CrowPanel 1.28" (S3)         | idf  | not run                               | not run (`rotary`)       | n/a (`rotary-isr` is hal-only)                         |
+| CrowPanel 1.28" (S3)         | hal  | pass (2026-11-11, c8907e9, CrowPanel S3) | `rotary`, `rotary-isr` pass (2026-11-11, c8907e9, CrowPanel S3) | n/a (no scenario written)                    |
+| CrowPanel 1.28" (S3)         | idf  | pass (2026-11-11, c8907e9, CrowPanel S3) | pass (2026-11-11, c8907e9, CrowPanel S3) | n/a (`rotary-isr` is hal-only)                         |
 
-The S3 `b3f` pass still lacks its commit, which must be filled in before the cell counts toward a release.
+The S3 row is complete: every S3 gate passed unattended and attended on one commit.
 
 ## Known tier gaps
 
@@ -83,7 +83,7 @@ The S3 `b3f` pass still lacks its commit, which must be filled in before the cel
 - [x] `check-matrix`, `build-matrix` (link proof), `check-avr-target`, `setup-avr`, `build-avr-example` (and `-upstream`) recipes
 - [x] `idf_{esp,c6,s3}_b3f`, the six rotary examples, and `examples/avr-nano-tamer`
 - [x] `cross-target-{riscv,xtensa,avr,avr-upstream}` workflows (written; first GitHub run pending)
-- [ ] Hardware pass: hal S3 `b3f` (2026-11-06) and C3 `hall-linear`, `poti` and `oled` on both tiers (2026-11-08) passed; every other cell is `not run`
+- [ ] Hardware pass: S3 `b3f`, `rotary` and `rotary-isr` on both tiers (2026-11-11) and C3 `hall-linear`, `poti` and `oled` on both tiers (2026-11-08) passed; every other cell is `not run`
 - [x] Documentation updated (AGENTS.md matrix, hardware-setup, CHANGELOG)
 
 ## Session Log
@@ -91,3 +91,4 @@ The S3 `b3f` pass still lacks its commit, which must be filled in before the cel
 - 2026-11-04 — Updated: CI like ws2812, AVR `default` + `hal`, rotary pins chosen for ESP32/C3/C6.
 - 2026-11-04 — Infra, examples and AVR landed; `just verify` blocked by an out-of-scope fmt diff; docs updated, hardware pass open.
 - 2026-11-07 — Split the compile and link evidence from the hardware pass table, added the known tier gaps and the decision that build results never tick a cell, and recorded the 2026-11-06 hal S3 `b3f` pass (commit to be filled in).
+- 2026-11-11 — S3 row passed on c8907e9 (unattended + attended, both tiers); `rotary-isr` fast spin is clean, a flat-out spin skips a few edges from contact bounce.

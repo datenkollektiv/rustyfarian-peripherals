@@ -1,5 +1,6 @@
 # b3f smoke: debounced GPIO 41 input (the knob's push button) + console, both tiers.
-# The examples also print one `knob cw|ccw` line per detent, so rotation is observable.
+# The examples print only `pressed` / `released`; knob rotation and long press are covered by rotary.toml.
+# No step waits for Enter: each shows its instruction and passes as soon as its lines arrive (60 s).
 examples = ["hal_s3_b3f", "idf_s3_b3f"]
 
 [[step]]
@@ -19,28 +20,7 @@ arm = false
 say = "Press the knob button 3 times, then keep your hands off for 2 s"
 attended = true
 expect = ["pressed", "released", "pressed", "released", "pressed", "released"]
-reject = "pressed|released|knob|PANIC"
-settle = 2
-
-[[step]]
-say = "Press and hold the knob button for 2 s, release, then hands off for 1 s"
-attended = true
-expect = ["pressed", "released"]
-reject = "pressed|released|knob|PANIC"
-settle = 1
-
-[[step]]
-say = "Turn the knob clockwise a few detents, then hands off for 2 s"
-attended = true
-expect = 'knob cw'
 reject = "pressed|released|PANIC"
-timeout = 15
+timeout = 60
 settle = 2
-
-[[step]]
-say = "Turn the knob counter-clockwise a few detents, then hands off for 2 s"
-attended = true
-expect = 'knob ccw'
-reject = "pressed|released|PANIC"
-timeout = 15
-settle = 2
+arm = false

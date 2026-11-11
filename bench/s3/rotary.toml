@@ -1,5 +1,6 @@
 # Rotary encoder without load: direction, position round trip and button events, both tiers.
 # Both tiers print `rotated CW position 3 (edges 12, skipped 0)`, so the edge counters are checked on each.
+# No step waits for Enter: each shows its instruction and passes as soon as its line arrives.
 examples = ["hal_s3_rotary", "idf_s3_rotary"]
 
 [[step]]
@@ -20,27 +21,38 @@ say = "Turn the knob 3 detents clockwise, slowly"
 attended = true
 expect = ['rotated CW position 1 \(edges [1-9]\d*, skipped 0\)', 'rotated CW position 2 ', 'rotated CW position 3 \(edges [1-9]\d*, skipped 0\)']
 reject = 'rotated CCW|skipped [1-9]|PANIC'
+timeout = 60
+arm = false
 
 [[step]]
 say = "Turn it 3 detents back counter-clockwise"
 attended = true
 expect = ['rotated CCW position 2 ', 'rotated CCW position 1 ', 'rotated CCW position 0 \(edges [1-9]\d*, skipped 0\)']
 reject = 'rotated CW\b|skipped [1-9]|PANIC'
+timeout = 60
+arm = false
 
 [[step]]
 say = "Click the knob button once"
 attended = true
 expect = '(?i)(?<!double )\bclick\b'
 reject = '(?i)double|PANIC'
+timeout = 60
+arm = false
 
 [[step]]
 say = "Double-click the knob button"
 attended = true
 expect = '(?i)double ?click'
 reject = "PANIC"
+timeout = 60
+arm = false
 
 [[step]]
 say = "Long-press the knob button (hold ~1 s)"
 attended = true
 expect = '(?i)long ?press'
 reject = "PANIC"
+timeout = 60
+arm = false
+

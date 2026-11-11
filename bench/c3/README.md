@@ -37,15 +37,9 @@ See `docs/hardware-setup.md` § C3 bench rig for the connector pin orders and th
 
 ## Commands
 
-Each step waits for Enter before it starts timing; read the instruction, press Enter, then act.
+`b3f`, `rotary` and `oled` steps start without Enter and pass as soon as their line arrives (60 s); the other checks still wait for Enter before a step starts timing.
 
-Until the pin moves past rustyfarian-bench v0.3.0, the scenarios need the local checkout (hall-linear pole capture, poti reset on Enter); run this once per shell:
-
-```sh
-export RUSTYFARIAN_BENCH=../rustyfarian-bench
-```
-
-Builds, flashes and guides the button check (3 presses, a hold) on hal, then offers idf:
+Builds, flashes and guides the button check (3 presses) on hal, then offers idf:
 
 ```sh
 just bench c3 b3f

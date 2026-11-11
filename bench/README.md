@@ -5,7 +5,7 @@ One directory per board; a board is one bench session, finished before the next.
 The adoption and its reasons are recorded in [ADR-011](../docs/adr/011-adopt-rustyfarian-bench.md).
 
 The runner is the sibling project [`rustyfarian-bench`](../../rustyfarian-bench) (Python + uv).
-The `just bench` recipes pin it to `v0.3.0` through `uvx --from git+https://github.com/datenkollektiv/rustyfarian-bench@v0.3.0`.
+The `just bench` recipes pin it to `v0.5.0` through `uvx --from git+https://github.com/datenkollektiv/rustyfarian-bench@v0.5.0`.
 To run against a local checkout instead, set `RUSTYFARIAN_BENCH=/path/to/rustyfarian-bench`.
 
 | Board                        | Directory    | State                                                                 |

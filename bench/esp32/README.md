@@ -20,9 +20,9 @@ Common of the encoder goes to GND on both rows.
 
 ## Commands
 
-Each step waits for Enter before it starts timing; read the instruction, press Enter, then act.
+No step waits for Enter: read the instruction and act; each step passes as soon as its line arrives (60 s).
 
-Builds, flashes and guides the button check (3 presses, a hold) on hal, then offers idf:
+Builds, flashes and guides the button check (3 presses) on hal, then offers idf:
 
 ```sh
 just bench esp32 b3f
