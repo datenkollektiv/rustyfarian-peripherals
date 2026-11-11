@@ -14,7 +14,8 @@
 |:-------|:----------------------------------------|:--------|
 | b3f    | `hal_c6_b3f`, `idf_c6_b3f`              | not run |
 | rotary | `hal_c6_rotary_isr`, `idf_c6_rotary`    | not run |
-| oled   | `hal_c6_oled`, `idf_c6_oled`            | not run |
+| oled-ssd1306 | `hal_c6_oled`, `idf_c6_oled`            | not run |
+| oled-sh1106  | `hal_c6_oled`, `idf_c6_oled`            | not run |
 
 ## Commands
 
@@ -50,10 +51,16 @@ Shows the chip and MAC on each connected port:
 just bench-detect
 ```
 
-Waits for an OLED on SDA 21 / SCL 22, checks the picture, a live swap to the other controller and the detach, on hal, then offers idf:
+Checks an SSD1306 OLED on SDA 21 / SCL 22 (wired before the run or connected when asked): detected controller, picture, detach after you pull its VCC or SDA wire, on hal, then offers idf:
 
 ```sh
-just bench c6 oled
+just bench c6 oled-ssd1306
+```
+
+The same check with an SH1106 OLED:
+
+```sh
+just bench c6 oled-sh1106
 ```
 
 ## If it hangs

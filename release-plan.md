@@ -47,7 +47,7 @@ A change to `tamer` or to a touched tier invalidates the prior ticks of every fl
 Bench results are local and git-ignored (`bench/*/results.jsonl`), so the tick itself must carry the commit and the date.
 Run each board twice: `just bench <board> --unattended` (walk away), then `just bench <board> --attended`; a gate is ticked only when both modes pass on the same commit.
 
-Board scenarios: `feather-v2` (`oled`), `c3` (`b3f`, `rotary`, `bme680`, `bme680-async`, `mpu6050`, `buzzer`, `hall-linear`, `poti`, `oled`), `c6` and `esp32` (`b3f`, `rotary`, `oled`), `s3` (`b3f`, `rotary`, `rotary-isr`).
+Board scenarios: `feather-v2` (`oled-ssd1306`, `oled-sh1106`), `c3` (`b3f`, `rotary`, `bme680`, `bme680-async`, `mpu6050`, `buzzer`, `hall-linear`, `poti`, `oled`), `c6` and `esp32` (`b3f`, `rotary`, `oled-ssd1306`, `oled-sh1106`), `s3` (`b3f`, `rotary`, `rotary-isr`).
 The chip-matrix cells are in `docs/features/chip-matrix-v1.md` § Hardware pass.
 
 - [ ] Gate `c3/buzzer` (`just bench c3 buzzer`): the C3 passive-buzzer arpeggio on both tiers; `idf_c3_passive_buzzer_arpeggio` at 10-bit LEDC (was 8-bit) still plays the full melody; the ~77 Hz floor is computed, not measured.
@@ -56,9 +56,11 @@ The chip-matrix cells are in `docs/features/chip-matrix-v1.md` § Hardware pass.
 - [x] Gate `c3/hall-linear` (`just bench c3 hall-linear`): `hal_c3_hall_linear` / `idf_c3_hall_linear` with a 49E sensor — pass (2026-11-08, 9430069, ESP32-C3 SuperMini): both modes on both tiers, midpoint hal 2336 / idf 2345, each pole held 2 s.
 - [x] Gate `c3/oled` (`just bench c3 oled`): `hal_c3_oled` and `idf_c3_oled` on `signwriter`, a 128x64 OLED on the C3 I2C pins (SDA 6 / SCL 7); an SSD1306 attached after boot with the picture confirmed by eye, then a live swap to an SH1106 (the logged `controller=` must differ), then detach noticed — pass (2026-11-08, 2d04fbd, ESP32-C3 SuperMini C3 bench rig): full run on both tiers, `Ssd1306` then `Sh1106` detected, both pictures confirmed by eye.
   Rerun before the release: `signwriter` changed after `2d04fbd` (P1 review fix: a read rejected after acknowledged writes means SSD1306, `Oled::with_controller`), and the swap step is now split into unplug-and-wait and plug-in.
-- [ ] Gate `c6/oled` (`just bench c6 oled`): `hal_c6_oled` and `idf_c6_oled` with the `c6-devkitc` board profile (SDA 21 / SCL 22); attach, picture by eye, unplug and wait for the detach, plug in the other controller, detach.
-- [ ] Gate `esp32/oled` (`just bench esp32 oled`): `hal_esp_oled` and `idf_esp_oled` with the `esp32-wroom` board profile (SDA 21 / SCL 22), same steps.
-- Gate `feather-v2/oled` (`just bench feather-v2 oled`): the same examples built with the `feather-v2` board profile (STEMMA QT SDA 22 / SCL 20, socket power on GPIO 2), same steps — deferred to the next release (2026-11-11): no STEMMA QT (JST SH 1.0 mm) cable on hand.
+- [ ] Gate `c6/oled-ssd1306` and `c6/oled-sh1106` (`just bench c6 oled-ssd1306`, `just bench c6 oled-sh1106`): `hal_c6_oled` and `idf_c6_oled` with the `c6-devkitc` board profile (SDA 21 / SCL 22), one controller per run; connect (before or after boot), the logged `controller=` must match, picture by eye, disconnect and wait for the detach.
+  The live swap between controllers is gated on the C3 only (`c3/oled`); it is the same chip-independent `signwriter` code.
+- [ ] Gate `esp32/oled-ssd1306` and `esp32/oled-sh1106` (`just bench esp32 oled-ssd1306`, `just bench esp32 oled-sh1106`): `hal_esp_oled` and `idf_esp_oled` with the `esp32-wroom` board profile (SDA 21 / SCL 22), same steps.
+  `oled-ssd1306` pass (2026-11-12, 6214033, ESP32 WROOM-32): both modes on both tiers, `controller=Ssd1306`, picture confirmed by eye, detach logged; `oled-sh1106` not run (no SH1106 module at hand).
+- Gate `feather-v2/oled-ssd1306` and `feather-v2/oled-sh1106` (`just bench feather-v2 oled-ssd1306`, `… oled-sh1106`): the same examples built with the `feather-v2` board profile (STEMMA QT SDA 22 / SCL 20, socket power on GPIO 2), same steps — deferred to the next release (2026-11-11): no STEMMA QT (JST SH 1.0 mm) cable on hand.
   The `feather-v2` profile ships compile- and link-checked only (`build-matrix`); this release does not wait for it.
 - `s3/oled` is `n/a`: the CrowPanel's I2C (GPIO 6 / 7) is its touch bus and has no free connector.
   The detection rule's column-130 read-back is confirmed on the rig as part of this gate ([feature doc](docs/features/signwriter-v1.md) § Open Questions).
@@ -69,12 +71,13 @@ The chip-matrix cells are in `docs/features/chip-matrix-v1.md` § Hardware pass.
 - [ ] BME680 manual: capture a real register dump for the test fixture.
 - [ ] Gate `c3/rotary` (`just bench c3 rotary`): `hal_c3_rotary_isr` and `idf_c3_rotary` move `edge_count()` / `skipped_count()` under turning (the counting lives in `QuadratureDecoder`).
 - [ ] Gate `c6/rotary` (`just bench c6 rotary`): `hal_c6_rotary_isr` and `idf_c6_rotary`, the same counts under turning.
-- [ ] Gate `esp32/rotary` (`just bench esp32 rotary`): `hal_esp_rotary_isr` and `idf_esp_rotary`, the same counts under turning.
+- [x] Gate `esp32/rotary` (`just bench esp32 rotary`): `hal_esp_rotary_isr` and `idf_esp_rotary`, the same counts under turning — pass (2026-11-12, 6214033, ESP32 WROOM-32): both modes on both tiers, 3 CW and back to 0, a 10-detent spin after a board reset (edges 40 hal / 43 idf), all `skipped 0`, click, double click, long press.
 - [x] Gate `s3/rotary` (`just bench s3 rotary`): `hal_s3_rotary` and `idf_s3_rotary` on the CrowPanel S3 — pass (2026-11-11, c8907e9, CrowPanel S3): both modes on both tiers, 3 detents each way with `skipped 0`, click, double click, long press.
 - [x] Gate `s3/rotary-isr` (`just bench s3 rotary-isr`): `hal_s3_rotary_isr` under load; there is no ESP-IDF twin — pass (2026-11-11, c8907e9, CrowPanel S3): both modes, windows of 10+ detents each way and a fast spin (26 detents) with `skipped=0`.
   A flat-out spin skipped 3 of 22 detents' edges (165 edges): contact bounce of the bare EC11, not the redraw (the HB that printed in that window came after the skips).
 - [x] Gate `s3/b3f` (`just bench s3 b3f`): `hal_s3_b3f` and `idf_s3_b3f` on the CrowPanel S3 — pass (2026-11-11, c8907e9, CrowPanel S3): both modes on both tiers, 3 presses.
-- [ ] Gate `c3/b3f`, `c6/b3f` and `esp32/b3f` (`just bench <board> b3f`): the `b3f` smoke on each board and tier, not run.
+- [ ] Gate `c3/b3f` and `c6/b3f` (`just bench <board> b3f`): the `b3f` smoke on each board and tier, not run.
+- [x] Gate `esp32/b3f` (`just bench esp32 b3f`): `hal_esp_b3f` and `idf_esp_b3f` on GPIO 4 — pass (2026-11-12, 6214033, ESP32 WROOM-32): both modes on both tiers, 3 presses.
 - [ ] Chip matrix rollup: every cell of `docs/features/chip-matrix-v1.md` § Hardware pass reads `pass (...)` or `n/a (...)`; the gate items above tick the cells.
 - [ ] Optional manual: `hal_c6_passive_buzzer_arpeggio` pitch (suspected one octave high from the C6 LEDC clock); no bench scenario covers it.
 

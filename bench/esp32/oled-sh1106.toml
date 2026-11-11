@@ -1,0 +1,46 @@
+# 128x64 I2C OLED with an SH1106 controller on the board's I2C pins (SDA GPIO 21, SCL GPIO 22), 0x3C, both tiers.
+# One controller per scenario (`oled-ssd1306`, `oled-sh1106`): no live swap; the swap is gated on the C3 (`c3/oled`),
+# and it is the same chip-independent `signwriter` code.
+# The example prints `waiting` at boot before it looks for the display, so the module may be wired before the
+# run (the attach step then reads the boot backlog) or attached after boot; hot-plug via signwriter::Oled.
+# No step waits for Enter: each shows its instruction and passes as soon as its line arrives (60 s).
+# The attach step waits for `ready` and then a frame line, so a connector that bounces while it seats
+# (ready, detached, ready) still passes.
+# No `$` anchors: idf lines end in an ANSI colour reset.
+examples = ["hal_esp_oled", "idf_esp_oled"]
+
+[[step]]
+say = "Wait for the example to start"
+expect = 'OLED waiting on .*SDA 21 / SCL 22'
+reject = 'PANIC'
+timeout = 15
+arm = false
+
+[[step]]
+say = "Connect the SH1106 OLED to SDA 21 / SCL 22 (wiring it before the run is fine)"
+attended = true
+expect = [
+    'OLED ready addr=0x(?P<addr>3C) controller=Sh1106 size=128x64',
+    'OLED frame n=\d+',
+]
+reject = 'controller=Ssd1306|PANIC'
+timeout = 60
+arm = false
+
+[[step]]
+say = "Look at the OLED"
+confirm = "Does the OLED show the border, `rustyfarian`, the tier name and a counter that counts up?"
+
+[[step]]
+say = "Disconnect the OLED (pulling its VCC or SDA wire is enough) and wait until the detach is logged"
+attended = true
+expect = 'OLED detached addr=0x(?P=addr)'
+reject = 'PANIC'
+timeout = 60
+arm = false
+
+[[step]]
+say = "Hands off: the firmware keeps running for 5 s"
+duration = 5
+reject = 'PANIC|panicked at'
+arm = false

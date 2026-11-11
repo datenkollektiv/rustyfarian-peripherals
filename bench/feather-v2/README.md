@@ -12,12 +12,19 @@ Same chip as the `esp32` board, built with the `feather-v2` board profile ([ADR-
 
 | Check | Examples                       | Verdict |
 |:------|:-------------------------------|:--------|
-| oled  | `hal_esp_oled`, `idf_esp_oled` | deferred (needs a STEMMA QT cable) |
+| oled-ssd1306 | `hal_esp_oled`, `idf_esp_oled` | deferred (needs a STEMMA QT cable) |
+| oled-sh1106  | `hal_esp_oled`, `idf_esp_oled` | deferred (needs a STEMMA QT cable) |
 
 ## Commands
 
-Waits for an OLED on the STEMMA QT socket, checks the picture, a live swap to the other controller and the detach, on hal, then offers idf:
+Checks an SSD1306 OLED on the STEMMA QT socket (wired before the run or connected when asked): detected controller, picture, detach after you pull its VCC or SDA wire, on hal, then offers idf:
 
 ```sh
-just bench feather-v2 oled
+just bench feather-v2 oled-ssd1306
+```
+
+The same check with an SH1106 OLED:
+
+```sh
+just bench feather-v2 oled-sh1106
 ```

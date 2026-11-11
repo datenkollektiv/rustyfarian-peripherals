@@ -122,4 +122,4 @@ Gates: `just test`, `just clippy`, `just doc` and `just verify` run the signwrit
 - 2026-11-08 — Feature doc created; design approved with the maintainer decisions: manual `redetect()` only, `tamer` 0.2.0 and `signwriter` 0.1.0 in one wave, `signwriter` written from scratch.
 - 2026-11-08 — Version decision changed: `signwriter` joins the lockstep workspace version and ships as 0.2.0 with `tamer` 0.2.0.
 - 2026-11-08 — Stage 3 scoped: board profiles per tier ([ADR-014](../adr/014-board-profiles.md)), C6 and ESP32 OLED examples, S3 recorded `n/a`.
-- 2026-11-08 — Stage 3 done in code: board profiles on both tiers, four new OLED examples, bench scenarios `c6/oled`, `esp32/oled`, `feather-v2/oled`; gates and `build-matrix` (16 builds) green; hardware runs pending.
+- 2026-11-08 — Stage 3 done in code: board profiles on both tiers, four new OLED examples, bench scenarios for C6, ESP32 and Feather V2 (split per controller on 2026-11-12); gates and `build-matrix` (16 builds) green; hardware runs pending.

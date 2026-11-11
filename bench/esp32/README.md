@@ -14,9 +14,10 @@ Common of the encoder goes to GND on both rows.
 
 | Check  | Examples                                | Verdict |
 |:-------|:----------------------------------------|:--------|
-| b3f    | `hal_esp_b3f`, `idf_esp_b3f`            | not run |
-| rotary | `hal_esp_rotary_isr`, `idf_esp_rotary`  | not run |
-| oled   | `hal_esp_oled`, `idf_esp_oled`          | not run |
+| b3f    | `hal_esp_b3f`, `idf_esp_b3f`            | pass (2026-11-12, 6214033) |
+| rotary | `hal_esp_rotary_isr`, `idf_esp_rotary`  | pass (2026-11-12, 6214033) |
+| oled-ssd1306 | `hal_esp_oled`, `idf_esp_oled`          | pass (2026-11-12, 6214033) |
+| oled-sh1106  | `hal_esp_oled`, `idf_esp_oled`          | not run |
 
 ## Commands
 
@@ -52,10 +53,16 @@ Shows the chip and MAC on each connected port:
 just bench-detect
 ```
 
-Waits for an OLED on SDA 21 / SCL 22, checks the picture, a live swap to the other controller and the detach, on hal, then offers idf:
+Checks an SSD1306 OLED on SDA 21 / SCL 22 (wired before the run or connected when asked): detected controller, picture, detach after you pull its VCC or SDA wire, on hal, then offers idf:
 
 ```sh
-just bench esp32 oled
+just bench esp32 oled-ssd1306
+```
+
+The same check with an SH1106 OLED:
+
+```sh
+just bench esp32 oled-sh1106
 ```
 
 ## If it hangs
