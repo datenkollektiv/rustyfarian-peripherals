@@ -1,5 +1,6 @@
 # Passive piezo buzzer on GPIO 10 playing the looping C5-E5-G5-C6 arpeggio via LEDC, both tiers.
 # Pitch cannot be read from the log, so the verdict is the operator's ear (`confirm`).
+# Only the two ear checks wait for an answer; the log steps start at once.
 # idf runs LEDC at 10-bit duty (was 8-bit); the ~77 Hz floor is computed, not measured, so listen for the full melody.
 examples = ["hal_c3_passive_buzzer_arpeggio", "idf_c3_passive_buzzer_arpeggio"]
 
@@ -15,11 +16,13 @@ say = "Listen: the sequencer steps through notes 0-3 and loops back to note 0"
 expect = ['note 0', 'note 1', 'note 2', 'note 3', 'note 0']
 reject = 'failed to|not representable|PANIC'
 timeout = 20
+arm = false
 
 [[step]]
 say = "Let it loop for 10 s without a retune or duty failure"
 duration = 10
 reject = 'failed to|not representable|PANIC'
+arm = false
 
 [[step]]
 say = "Listen to the melody"

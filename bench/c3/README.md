@@ -24,12 +24,12 @@ See `docs/hardware-setup.md` § C3 bench rig for the connector pin orders and th
 
 | Check        | Examples                                                           | Verdict |
 |:-------------|:-------------------------------------------------------------------|:--------|
-| b3f          | `hal_c3_b3f`, `idf_c3_b3f`                                         | not run |
+| b3f          | `hal_c3_b3f`, `idf_c3_b3f`                                         | pass (2026-11-12, 38dfe55) |
 | rotary       | `hal_c3_rotary_isr`, `idf_c3_rotary`                               | not run |
 | bme680       | `hal_c3_bme680`, `idf_c3_bme680`                                   | not run |
 | bme680-async | `hal_c3_bme680_async`                                              | not run |
 | mpu6050      | `hal_c3_mpu6050_tilt`, `idf_c3_mpu6050_tilt`                       | not run |
-| buzzer       | `hal_c3_passive_buzzer_arpeggio`, `idf_c3_passive_buzzer_arpeggio` | not run |
+| buzzer       | `hal_c3_passive_buzzer_arpeggio`, `idf_c3_passive_buzzer_arpeggio` | pass (2026-11-12, 38dfe55) |
 | hall-linear  | `hal_c3_hall_linear`, `idf_c3_hall_linear`                         | pass (2026-11-08, 9430069) |
 | poti         | `hal_c3_poti`, `idf_c3_poti`                                       | pass (2026-11-08, 9430069) |
 | oled         | `hal_c3_oled`, `idf_c3_oled`                                       | pass (2026-11-08, 2d04fbd) |
@@ -37,7 +37,7 @@ See `docs/hardware-setup.md` § C3 bench rig for the connector pin orders and th
 
 ## Commands
 
-`b3f`, `rotary` and `oled` steps start without Enter and pass as soon as their line arrives (60 s); the other checks still wait for Enter before a step starts timing.
+`b3f`, `rotary`, `oled` and `buzzer` steps start without Enter and pass as soon as their line arrives (60 s); the other checks still wait for Enter before a step starts timing.
 
 Builds, flashes and guides the button check (3 presses) on hal, then offers idf:
 

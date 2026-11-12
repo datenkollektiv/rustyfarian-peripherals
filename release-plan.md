@@ -50,7 +50,7 @@ Run each board twice: `just bench <board> --unattended` (walk away), then `just 
 Board scenarios: `feather-v2` (`oled-ssd1306`, `oled-sh1106`), `c3` (`b3f`, `rotary`, `bme680`, `bme680-async`, `mpu6050`, `buzzer`, `hall-linear`, `poti`, `oled`), `c6` and `esp32` (`b3f`, `rotary`, `oled-ssd1306`, `oled-sh1106`), `s3` (`b3f`, `rotary`, `rotary-isr`).
 The chip-matrix cells are in `docs/features/chip-matrix-v1.md` § Hardware pass.
 
-- [ ] Gate `c3/buzzer` (`just bench c3 buzzer`): the C3 passive-buzzer arpeggio on both tiers; `idf_c3_passive_buzzer_arpeggio` at 10-bit LEDC (was 8-bit) still plays the full melody; the ~77 Hz floor is computed, not measured.
+- [x] Gate `c3/buzzer` (`just bench c3 buzzer`): the C3 passive-buzzer arpeggio on both tiers; `idf_c3_passive_buzzer_arpeggio` at 10-bit LEDC (was 8-bit) still plays the full melody; the ~77 Hz floor is computed, not measured. — pass (2026-11-12, 38dfe55, C3 bench rig): both modes on both tiers, notes 0–4 loop on time (160/160/160/240 ms + 600 ms rest), melody and C5 pitch confirmed by ear.
 - [x] Gate `c3/poti` (`just bench c3 poti`): the `poti` example on the C3 rig; `poti_led` is a manual note until a scenario covers it — pass (2026-11-08, 9430069, ESP32-C3 SuperMini): full run on both tiers, calibrated 0..4095, 0 % / 100 % / middle each held 2 s.
 - [ ] Gate `c3/mpu6050` (`just bench c3 mpu6050`): `idf_c3_mpu6050_tilt` on the C3 rig with a ±90° reading; the deliberate NACK (wrong address) that prints the AD0 hint is a manual note until the scenario prompts for it.
 - [x] Gate `c3/hall-linear` (`just bench c3 hall-linear`): `hal_c3_hall_linear` / `idf_c3_hall_linear` with a 49E sensor — pass (2026-11-08, 9430069, ESP32-C3 SuperMini): both modes on both tiers, midpoint hal 2336 / idf 2345, each pole held 2 s.
@@ -76,7 +76,8 @@ The chip-matrix cells are in `docs/features/chip-matrix-v1.md` § Hardware pass.
 - [x] Gate `s3/rotary-isr` (`just bench s3 rotary-isr`): `hal_s3_rotary_isr` under load; there is no ESP-IDF twin — pass (2026-11-11, c8907e9, CrowPanel S3): both modes, windows of 10+ detents each way and a fast spin (26 detents) with `skipped=0`.
   A flat-out spin skipped 3 of 22 detents' edges (165 edges): contact bounce of the bare EC11, not the redraw (the HB that printed in that window came after the skips).
 - [x] Gate `s3/b3f` (`just bench s3 b3f`): `hal_s3_b3f` and `idf_s3_b3f` on the CrowPanel S3 — pass (2026-11-11, c8907e9, CrowPanel S3): both modes on both tiers, 3 presses.
-- [ ] Gate `c3/b3f` and `c6/b3f` (`just bench <board> b3f`): the `b3f` smoke on each board and tier, not run.
+- [ ] Gate `c6/b3f` (`just bench c6 b3f`): the `b3f` smoke on both tiers, not run.
+- [x] Gate `c3/b3f` (`just bench c3 b3f`): `hal_c3_b3f` and `idf_c3_b3f` on GPIO 3 — pass (2026-11-12, 38dfe55, C3 bench rig): both modes on both tiers, 3 presses.
 - [x] Gate `esp32/b3f` (`just bench esp32 b3f`): `hal_esp_b3f` and `idf_esp_b3f` on GPIO 4 — pass (2026-11-12, 6214033, ESP32 WROOM-32): both modes on both tiers, 3 presses.
 - [ ] Chip matrix rollup: every cell of `docs/features/chip-matrix-v1.md` § Hardware pass reads `pass (...)` or `n/a (...)`; the gate items above tick the cells.
 - [ ] Optional manual: `hal_c6_passive_buzzer_arpeggio` pitch (suspected one octave high from the C6 LEDC clock); no bench scenario covers it.
