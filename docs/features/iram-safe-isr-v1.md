@@ -1,6 +1,6 @@
 # Feature: IRAM-Safe Interrupt Handler v1
 
-**Status:** Designed, not started — deferred follow-up to [interrupt-driven-encoder-v1](archive/interrupt-driven-encoder-v1.md).
+**Status:** Designed, not started — deferred follow-up to the interrupt-driven encoder (`rotary::InterruptEncoder`).
 Trigger for implementation: a consumer combines the ESP-IDF `Encoder` with flash writes (the knob adopting OTA, or the clock / beekeeper adopting the encoder).
 
 ## Problem
@@ -86,8 +86,3 @@ Deliver an **opt-in** IRAM-safe mode for the ESP-IDF `Encoder` that keeps the ha
 - [ ] Device placement-check recipe
 - [ ] Device tests (NVS write loop, OTA download) on S3 and C3
 - [ ] README caveat removed for IRAM mode; CHANGELOG; patch release of `rustyfarian-esp-idf-peripherals`
-
-## Session Log
-
-- 2026-07-15 — Skeleton created as deferred follow-up to interrupt-driven-encoder-v1. Problem statement (cache-off crash), scope (IRAM tags, QUAD_TABLE relocation, ESP_INTR_FLAG_IRAM), constraints, and open decisions recorded. Marked as demand-driven follow-up (when a consumer needs OTA without encoder glitch).
-- 2026-10-24 — Ecosystem sweep flagged this as urgent for the clock and beekeeper. Verified against ESP-IDF v5.3.2 / esp-idf-hal 0.47.0: with flags `0` the failure is a deferred, coalesced edge (dropped detent), not a crash; the crash needs a foreign `ESP_INTR_FLAG_IRAM` install. Neither the clock nor the beekeeper consumes the ESP-IDF encoder; only the knob does, and it performs no flash writes. Inventoried every flash-resident piece on the ISR path (`gpio_get_level`, `critical_section` wrappers, `QUAD_TABLE`, `tamer` `update`). Settled the open decisions (opt-in; arithmetic decode; no critical section in the ISR). Corrected README, rustdoc, and ROADMAP wording. Implementation stays Mid term until a consumer combines the encoder with OTA / NVS.

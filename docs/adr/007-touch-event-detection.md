@@ -46,9 +46,8 @@ Proposed surface (architectural sketch — **not the normative API**):
 
 > This ADR fixes the *architecture and constraints*. The concrete v1 API
 > contract — payload-carrying events, the collapsed `Swipe(SwipeDirection)`
-> variant, and the `update` signature — is owned by
-> [Feature: Touch Event Detection v1](../features/archive/touch-event-detection-v1.md).
-> Where the sketch below and that feature doc disagree, **the feature doc wins**;
+> variant, and the `update` signature — is owned by the `tamer::touch`
+> rustdoc. Where the sketch below and the code disagree, **the code wins**;
 > the divergences are called out inline.
 
 - `TouchEvent { Down, Up, Move, Tap, LongPress, SwipeUp, SwipeDown, SwipeLeft,

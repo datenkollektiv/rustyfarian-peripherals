@@ -35,7 +35,7 @@ Second, [ADR-007](007-touch-event-detection.md) already set the governing
 precedent: **no bespoke `tamer` trait where an ecosystem-standard trait exists**
 (there, no `embedded-hal` touch trait existed; here, `embedded-graphics` *is* the
 de-facto standard). The CYD feature doc
-([cyd-support-v1](../features/cyd-support-v1.md)) independently reached the same
+(cyd-support-v1, in the downstream CYD project) independently reached the same
 conclusion for layer 1: "wrap `mipidsi` + `embedded-graphics` in the hardware
 tier; keep the pure crate's value at the layout / dirty-rect-diffing layer" and
 rejected hand-written drivers. `embedded-graphics` is already a workspace dep in

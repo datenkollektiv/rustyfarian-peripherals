@@ -17,6 +17,3 @@
 - [ ] Core implementation
 - [ ] Tests passing
 - [ ] Documentation updated
-
-## Session Log
-- <YYYY-MM-DD> — Feature doc created

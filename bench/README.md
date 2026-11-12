@@ -1,49 +1,31 @@
 # Bench
 
-Guided, rerunnable hardware checks for the final hardware pass ([`release-plan.md`](../release-plan.md) § Final hardware pass).
-One directory per board; a board is one bench session, finished before the next.
-The adoption and its reasons are recorded in [ADR-011](../docs/adr/011-adopt-rustyfarian-bench.md).
+Guided hardware checks for the final hardware pass, one directory per board ([ADR-011](../docs/adr/011-adopt-rustyfarian-bench.md)).
+The runner is [`rustyfarian-bench`](https://github.com/datenkollektiv/rustyfarian-bench), pinned to `v0.5.0` in the justfile; `RUSTYFARIAN_BENCH=<path>` uses a local checkout.
 
-The runner is the sibling project [`rustyfarian-bench`](../../rustyfarian-bench) (Python + uv).
-The `just bench` recipes pin it to `v0.5.0` through `uvx --from git+https://github.com/datenkollektiv/rustyfarian-bench@v0.5.0`.
-To run against a local checkout instead, set `RUSTYFARIAN_BENCH=/path/to/rustyfarian-bench`.
+| Where | Source of truth for |
+|:--|:--|
+| `<board>/<check>.toml` | what a check does (header comment and `say` lines) |
+| `<board>/README.md` | the board's wiring and its check names |
+| [`release-plan.md`](../release-plan.md) § Final hardware pass | gate results |
+| `bench.toml` | build and flash commands, boards |
 
-| Board                        | Directory    | State                                                                 |
-|:-----------------------------|:-------------|:----------------------------------------------------------------------|
-| CrowPanel 1.28" HMI (S3)     | [s3/](s3/)   | in progress: hal `b3f` passed 2026-11-06; `rotary` and `rotary-isr` not run |
-| ESP32-C3 SuperMini           | [c3/](c3/)   | scenarios written, not run                                            |
-| ESP32-C6-DevKitC-1           | [c6/](c6/)   | scenarios written, not run                                            |
-| ESP32 WROOM-32 / Feather V2  | [esp32/](esp32/) | scenarios written, not run                                        |
-
-## Running a check
+## Running
 
 ```sh
-just bench s3 b3f       # one check (hal, then offers the idf twin)
-just bench hal_s3_b3f   # start at one example
-just bench s3 rotary --no-build   # flags pass through
-just bench s3           # every check for the board
-just bench s3 --unattended   # only the steps the log can judge; walk away
-just bench s3 --attended     # only the steps that need a person
-just bench-list         # all scenarios
-just bench-detect       # chip and MAC per connected port
+just bench <board> <check> --unattended    # log-judged steps only; walk away
+just bench <board> <check> --attended --no-build   # the steps that need a person
+just bench <board>                          # every check of the board
+just bench-list                             # all scenarios
+just bench-detect                           # chip and MAC per port
 ```
 
-The runner builds first, waits for the board (plug it in when asked), flashes, resets, and guides each step with an automatic verdict.
-Steps that need a person carry `attended = true` (or a `confirm`); every `b3f` and `rotary` check starts with a hands-off 5 s no-panic watch, so an unattended run still proves boot on each chip.
-An armed `duration` step accepts a different length for one run (e.g. a longer soak); the result records the scenario value next to it.
+Add `--port <port>` when two boards of the same chip are attached.
+A gate passes only when both modes pass on the same commit; record it as one row in the release plan.
+Logs and `results.jsonl` stay local and git-ignored, because they record board MACs.
 
-## Layout
+## If it hangs
 
-- `bench.toml` — build/flash commands and the boards (chip, optional MAC).
-- `<board>/<check>.toml` — one scenario: the examples it runs and the shared steps.
-- `<board>/logs/` — captured serial output per run; local and git-ignored.
-- `<board>/results.jsonl` — one JSON line per example run; local and git-ignored, because both can record board MAC addresses.
-
-## Recording a result
-
-- A gate passes only when both `--unattended` and `--attended` runs pass; each result records its `mode`, and a pass in one mode is never a full pass.
-- When a check passes on a tier, tick its gate item in `release-plan.md` § Final hardware pass.
-  Each tick carries the commit hash, the board and the date.
-- Record the same `pass (date, commit, board)` in the matching cell of `docs/features/chip-matrix-v1.md` § Hardware pass; a cell that has not run stays `not run`.
-- A build or link result never ticks a hardware cell.
-- Record any non-obvious gotcha in `docs/project-lore.md`.
+- No port: the board sleeps or sits in download mode; replug it, holding BOOT only if it is truly stuck.
+- Output ends in `waiting for download` on the S3: power-cycle it without BOOT (see lore).
+- Ctrl-C ends a run; it is recorded as `aborted`.

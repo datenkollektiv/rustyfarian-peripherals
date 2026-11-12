@@ -92,34 +92,16 @@ Host tests use `tamer::mock::MockI2c`, and every test ends with `.release().done
 Gates: `just test`, `just clippy`, `just doc` and `just verify` run the signwriter tests through `signwriter_flags`.
 `just check-hal`, `just check-idf`, `just deny` (green, no OLED-related ignore), and `just build-example hal_c3_oled` and `idf_c3_oled` cover the tiers.
 
-## Bench plan
-- `bench/c3/oled.toml` runs on both tiers: the SSD1306 is attached after boot and the picture is confirmed, then a live swap to an SH1106 is checked by the logged `controller=` value, which must differ from the first run, then the module is detached and the detach is noticed.
-- `hal_c3_oled_identify` stays as the standalone diagnostic for the read-back on a new panel.
-- The bench gate `c3/oled` in `release-plan.md` ticks only after both modes pass on the same commit.
-
-## Stages
-- **Stage 1, spike (done):** the read-back and the init and address facts were measured on the C3 rig (`hal_c3_oled_identify`).
-- **Stage 2, this feature:** the `signwriter` crate, `tamer` 0.2.0 with `hotplug`, the two C3 examples on `signwriter`, the `c3/oled` scenario, and the release wave.
-- **Stage 3, done (hardware pass pending):** the C6 and classic ESP32 OLED examples on both tiers (`hal_c6_oled`, `idf_c6_oled`, `hal_esp_oled`, `idf_esp_oled`), with their I2C pins taken from a board profile ([ADR-014](../adr/014-board-profiles.md)); the ESP32 pair builds for both the `esp32-wroom` and the `feather-v2` profile; the S3 is `n/a`, because its I2C 6/7 is the touch bus with no free connector.
-  The C3 OLED examples move onto the same profile with no pin change (SDA 6 / SCL 7).
-  The Feather V2 (SDA 22 / SCL 20, socket power on GPIO 2) is a second ESP32 profile, so `hal_esp_oled` and `idf_esp_oled` run unedited on a WROOM-32 and on a Feather V2.
-- **Stage 4, not scoped:** an async runner with a rung-3 machine, once an async consumer needs it ([ADR-010](../adr/010-shared-logic-ladder.md)); and a revisit of periodic re-detection after bench data.
+## Deferred
+- An async runner with a rung-3 machine, once an async consumer needs it ([ADR-010](../adr/010-shared-logic-ladder.md)).
+- Periodic re-detection, revisited after bench data.
 
 ## Open Questions
-- [x] Does the read-back classify correctly with `0x5A` at column 130? Yes: `hal_c3_oled` on the C3 rig classified the SSD1306 and the SH1106 correctly across a live swap SSD1306 → SH1106 → SSD1306 (2026-11-08).
-- [x] Is the SH1106 wire on the rig flaky? Yes, one wire on that module (2026-11-08); fix it before the live swap runs. The driver re-initialises after a brief contact loss.
 - [ ] How often does a clone answer the read-back differently, and is the SSD1306 classification then a wrong column offset on screen?
 - [ ] How long a swap between two probes can go undetected in practice, and does it justify periodic re-detection? Revisit after bench data.
-- [ ] Pins for the C6 and classic ESP32 OLED examples (stage 3) come from their board profiles ([ADR-014](../adr/014-board-profiles.md)) and must be confirmed on each board; the Feather V2 (incl. its GPIO 2 power switch) is deferred to the next release, because the STEMMA QT cable is not on hand.
 
 ## State
 - [x] Design approved
 - [x] Core implementation
 - [x] Tests passing
 - [x] Documentation updated
-
-## Session Log
-- 2026-11-08 — Feature doc created; design approved with the maintainer decisions: manual `redetect()` only, `tamer` 0.2.0 and `signwriter` 0.1.0 in one wave, `signwriter` written from scratch.
-- 2026-11-08 — Version decision changed: `signwriter` joins the lockstep workspace version and ships as 0.2.0 with `tamer` 0.2.0.
-- 2026-11-08 — Stage 3 scoped: board profiles per tier ([ADR-014](../adr/014-board-profiles.md)), C6 and ESP32 OLED examples, S3 recorded `n/a`.
-- 2026-11-08 — Stage 3 done in code: board profiles on both tiers, four new OLED examples, bench scenarios for C6, ESP32 and Feather V2 (split per controller on 2026-11-12); gates and `build-matrix` (16 builds) green; hardware runs pending.

@@ -25,13 +25,8 @@ Shipped work is recorded in [`CHANGELOG.md`](../CHANGELOG.md); this roadmap trac
 timeline
     title rustyfarian-peripherals Roadmap
 
-    Ready     : MPU6050 hardware example twin — repo's first I2C example (hal/idf c3, tamer driver → tilt) (merged; hardware checks in the release pass)
-              : Chip matrix — ESP32/C3/C6/S3 on both tiers + AVR link check of tamer (feature-doc) (code landed; final hardware pass via just bench)
-              : BME680 environmental sensor — pure core + first I2C driver in tamer, after the MPU6050 twin (feature-doc) (core, driver and examples landed; ships experimental in 0.2.0, hardware pass deferred)
-
-    Near term : Docs-sync — align README / AGENTS framing with VISION input+output scope
-              : Hall linear examples — hardware check moved to the final hardware pass (release-plan.md)
-              : OLED plug-and-play — `signwriter` crate for SSD1306 and SH1106 with hot-plug, released with `tamer` 0.2.0 (feature-doc, ADR-013)
+    Near term : BME680 hardware validation — lift `bme680` out of experimental (feature-doc)
+              : Docs-sync — align README / AGENTS framing with VISION input+output scope
 
     Mid term  : IRAM-safe encoder ISR — run from SRAM for OTA / flash-cache-off safety
 
@@ -59,32 +54,11 @@ timeline
 
 ---
 
-## Ready — MPU6050 example twin
+## Near term — BME680 hardware validation
 
-**Goal:** the repo's first I2C example on both tiers, feeding `tamer::mpu6050` burst reads into `tilt`.
-Code merged in `eb14976` (driver in `tamer` per ADR-009, examples are bus setup + printing); remaining: close the feature doc; hardware checks run in the final hardware pass (`release-plan.md`).
-See [Feature: MPU6050 v1](features/mpu6050-imu-v1.md).
-
-## Ready — Chip matrix
-
-**Goal:** every tier compiles, lints and links on ESP32, C3, C6 and S3, `tamer` links on AVR, and chip-sensitive behaviour passes on the bench.
-Recipes, CI, AVR package and the rotary / `b3f` examples are in; remaining: the final hardware pass via `just bench` ([release-plan.md](../release-plan.md) § Final hardware pass, one gate per board and check).
-See [Feature: Chip matrix v1](features/chip-matrix-v1.md).
-
-## Ready — BME680 environmental sensor
-
-**Goal:** temperature, pressure, humidity, and gas resistance from a BME680, as `tamer::bme680` plus the first I2C sensor driver.
-Ported from donated source, with two calibration bugs fixed; follows the MPU6050 twin, which proves the I2C example pattern.
-The core, the driver and the examples `hal_c3_bme680`, `idf_c3_bme680` and `hal_c3_bme680_async` are landed; it ships as experimental in 0.2.0, and the hardware checks move to the next release.
+**Goal:** lift `tamer::bme680` out of experimental (it ships so in 0.2.0) by passing `c3/bme680` and `c3/bme680-async` and the manual register checks.
 SHT3x follows the same placement ([ADR-009](adr/009-i2c-sensor-drivers-in-tamer.md)); HX711 is not I2C and needs its own decision.
 See [Feature: BME680 v1](features/bme680-v1.md).
-
-## Near term — OLED plug-and-play (`signwriter`)
-
-**Goal:** firmware drives whichever 128x64 I2C OLED is fitted, an SSD1306 or an SH1106, and the module can be swapped while the device runs.
-The new graphics-side crate `signwriter` exposes an `embedded-graphics` `DrawTarget` and hot-plug events from `tamer::hotplug`, and it releases together with `tamer` 0.2.0 (`tamer` first, then `signwriter`, both 0.2.0).
-The C3 examples `hal_c3_oled` and `idf_c3_oled` move onto it, and the other chips follow in a separate plan.
-See [Feature: signwriter v1](features/signwriter-v1.md) and [ADR-013](adr/013-signwriter.md).
 
 ## Mid term — IRAM-safe interrupt handler
 
