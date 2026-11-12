@@ -27,7 +27,7 @@ timeline
 
     Ready     : MPU6050 hardware example twin — repo's first I2C example (hal/idf c3, tamer driver → tilt) (merged; hardware checks in the release pass)
               : Chip matrix — ESP32/C3/C6/S3 on both tiers + AVR link check of tamer (feature-doc) (code landed; final hardware pass via just bench)
-              : BME680 environmental sensor — pure core + first I2C driver in tamer, after the MPU6050 twin (feature-doc) (core, driver and examples landed; hardware pass pending)
+              : BME680 environmental sensor — pure core + first I2C driver in tamer, after the MPU6050 twin (feature-doc) (core, driver and examples landed; ships experimental in 0.2.0, hardware pass deferred)
 
     Near term : Docs-sync — align README / AGENTS framing with VISION input+output scope
               : Hall linear examples — hardware check moved to the final hardware pass (release-plan.md)
@@ -75,7 +75,7 @@ See [Feature: Chip matrix v1](features/chip-matrix-v1.md).
 
 **Goal:** temperature, pressure, humidity, and gas resistance from a BME680, as `tamer::bme680` plus the first I2C sensor driver.
 Ported from donated source, with two calibration bugs fixed; follows the MPU6050 twin, which proves the I2C example pattern.
-The core, the driver and the examples `hal_c3_bme680`, `idf_c3_bme680` and `hal_c3_bme680_async` are landed; the hardware checks run in the final hardware pass.
+The core, the driver and the examples `hal_c3_bme680`, `idf_c3_bme680` and `hal_c3_bme680_async` are landed; it ships as experimental in 0.2.0, and the hardware checks move to the next release.
 SHT3x follows the same placement ([ADR-009](adr/009-i2c-sensor-drivers-in-tamer.md)); HX711 is not I2C and needs its own decision.
 See [Feature: BME680 v1](features/bme680-v1.md).
 

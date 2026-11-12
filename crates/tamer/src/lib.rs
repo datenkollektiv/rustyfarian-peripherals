@@ -75,6 +75,7 @@
 //!   raw-block parsing, and Bosch SensorAPI v4.4.8 float compensation
 //!   (temperature, pressure, humidity, gas resistance).
 //!   With `hal` it adds the [`Bme680`] I2C driver.
+//!   Experimental: not yet verified on hardware.
 //! - [`tone`] — a tone/duration sequencer (melody player) stepping a borrowed
 //!   `&[Note]` table into [`ToneOutput`] values;
 //!   `tamer`'s first output/actuator primitive, feeding a buzzer/PWM/DAC
@@ -265,6 +266,9 @@ pub use tilt::{tilt_degrees, tilt_degrees_i32};
 /// typed driver arguments [`Oversampling`] and [`IirFilter`] are
 /// re-exported at the crate root; the other names stay module-scoped
 /// because they would collide with [`mpu6050`]'s.
+///
+/// Experimental: the driver and the compensation are not yet verified on
+/// hardware, so readings and the API may change in a minor release.
 #[cfg(feature = "bme680")]
 pub mod bme680;
 

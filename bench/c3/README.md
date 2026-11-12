@@ -37,7 +37,7 @@ See `docs/hardware-setup.md` § C3 bench rig for the connector pin orders and th
 
 ## Commands
 
-`b3f`, `rotary`, `oled` and `buzzer` steps start without Enter and pass as soon as their line arrives (60 s); the other checks still wait for Enter before a step starts timing.
+`b3f`, `rotary`, `oled`, `buzzer` and `mpu6050` steps start without Enter and pass as soon as their line arrives (60 s); the other checks still wait for Enter before a step starts timing.
 
 Builds, flashes and guides the button check (3 presses) on hal, then offers idf:
 
