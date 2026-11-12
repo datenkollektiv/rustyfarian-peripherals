@@ -1,11 +1,13 @@
-# Device-build config for rustyfarian-peripherals — OPT-IN.
-# Copy to .cargo/config.toml (via `just setup-cargo-config`) only when building
-# the hardware crates for a real board; it forces a device default target, so
-# leaving it in place would redirect plain `cargo` away from the host. The host
-# `just` recipes pass `--target <host>` explicitly and are unaffected.
+# Device-build config for rustyfarian-peripherals.
+# Committed: it carries the ESP_IDF_VERSION pin, the ldproxy linker, build-std and
+# the esp-hal linker scripts, so a fresh clone can build firmware. Cargo never reads
+# it when this workspace is a dependency, so it does not affect consumers.
+# It sets a device default target; the host `just` recipes pass `--target <host>`
+# explicitly and are unaffected. Override a value locally with an environment
+# variable (`MCU=esp32c3`) or a `--config <file>` overlay instead of editing it.
 #
 # Covers both ESP-IDF (std, *-espidf) and bare-metal (esp-hal, *-none-elf)
-# targets for ESP32-C3 / C6 / classic ESP32 / S3. Trim to the chips you use.
+# targets for ESP32-C3 / C6 / classic ESP32 / S3.
 
 [build]
 target = "riscv32imac-esp-espidf"
@@ -99,9 +101,9 @@ build-std = ["std", "panic_abort"]
 [env]
 MCU = "esp32c6"
 # Default chip for bare `cargo` device builds; override per invocation with
-# `MCU=esp32 cargo ...`. Per-chip flash/build helper scripts arrive with the
-# first device example (see ROADMAP.md).
-ESP_IDF_VERSION = "v5.3.3"
+# `MCU=esp32 cargo ...`. scripts/build-example.sh and scripts/check-matrix.sh set
+# MCU per chip.
+ESP_IDF_VERSION = "v6.1"
 ESP_IDF_TOOLS_INSTALL_DIR = "global"
 # embuild (used by esp-idf-sys) checks RUSTC_LINKER to detect ldproxy and emit
 # --ldproxy-linker as a rustc-link-arg.  Cargo only sets RUSTC_LINKER for the

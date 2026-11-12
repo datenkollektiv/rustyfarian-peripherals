@@ -6,13 +6,13 @@
 # Host gates cover the pure `tamer` core — no ESP toolchain required. The
 # `rustyfarian-esp-{hal,idf}-peripherals` tiers now pull in their HALs, so they
 # build only for device targets: use `check-hal` / `check-idf` and the
-# `build-example` / `flash` / `run` family (which need `just setup-toolchain` +
-# `just setup-cargo-config`).
+# `build-example` / `flash` / `run` family (which need `just setup-toolchain`;
+# the device target config is the committed .cargo/config.toml).
 
 host_target := `scripts/host-target.sh`
 
-# Host gates target the pure core explicitly, overriding any device default a
-# copied .cargo/config.toml would otherwise impose. The esp-hal/esp-idf tiers
+# Host gates target the pure core explicitly, overriding the device default
+# .cargo/config.toml would otherwise impose. The esp-hal/esp-idf tiers
 # are excluded here — they do not compile for the host.
 host_flags := "-p tamer --target " + host_target
 tamer_hal_flags := host_flags + " --features hal"
@@ -377,9 +377,8 @@ ci: fmt-check deny check clippy test
 #
 # Example names follow `{hal|idf}_{chip}_{name}` (chip ∈ c3|c6|esp32|esp32s3);
 # the scripts derive the crate, target triple, and required-features from the
-# name and build into the tier's split target dir. These require
-# `just setup-cargo-config`; ESP-IDF and Xtensa builds also need
-# `just setup-toolchain`.
+# name and build into the tier's split target dir. ESP-IDF and Xtensa builds
+# need `just setup-toolchain`.
 
 # list available hardware examples
 examples:
@@ -424,10 +423,6 @@ bench-detect:
     {{ bench }} detect
 
 # --- Setup ----------------------------------------------------------------
-
-# copy the cargo config template for first-time device-build setup
-setup-cargo-config:
-    cp .cargo/config.toml.dist .cargo/config.toml
 
 # install the ESP-IDF / Xtensa toolchain via espup (only needed for device builds)
 setup-toolchain:

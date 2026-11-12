@@ -10,25 +10,16 @@ set -euo pipefail
 # Chip, crate, target triple, and required-features are derived from the name.
 # Bare-metal builds use the stable toolchain with the rustup target (RISC-V) or
 # `cargo +esp -Zbuild-std=core,alloc` (Xtensa, no prebuilt core); ESP-IDF builds
-# always use `cargo +esp`. All builds need `just setup-cargo-config` (the linker
-# scripts); the ESP-IDF and Xtensa paths additionally need `just setup-toolchain`.
+# always use `cargo +esp`. The linker scripts come from the committed
+# .cargo/config.toml; the ESP-IDF and Xtensa paths need `just setup-toolchain`.
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 # shellcheck source=./lib.sh
 . "$SCRIPT_DIR/lib.sh"
 
 if [ $# -lt 1 ]; then
     printf 'Usage: %s <example> [hal_dir [idf_dir [board]]]\n  example: hal_{chip}_{name} | idf_{chip}_{name}\n' "$0" >&2
     exit 2
-fi
-
-# Device builds need the per-target config (the bare-metal linker script
-# `-Tlinkall.x`, the ESP-IDF linker/target, etc.). Without it, the build reaches
-# the link step and fails with cryptic "undefined symbol: _stack_start" errors.
-if [ ! -f "$REPO_ROOT/.cargo/config.toml" ]; then
-    printf 'error: device builds need .cargo/config.toml (linker scripts + target).\n       run: just setup-cargo-config\n' >&2
-    exit 1
 fi
 
 example="$1"

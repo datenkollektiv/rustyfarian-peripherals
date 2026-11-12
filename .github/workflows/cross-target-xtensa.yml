@@ -27,7 +27,7 @@ on:
       - "scripts/check-matrix.sh"
       - "scripts/lib.sh"
       - "scripts/build-example.sh"
-      - ".cargo/config.toml.dist"
+      - ".cargo/config.toml"
       - "scripts/xtensa-toolchain.sh"
       - "Cargo.toml"
       - "justfile"
@@ -40,7 +40,7 @@ on:
       - "scripts/check-matrix.sh"
       - "scripts/lib.sh"
       - "scripts/build-example.sh"
-      - ".cargo/config.toml.dist"
+      - ".cargo/config.toml"
       - "scripts/xtensa-toolchain.sh"
       - "Cargo.toml"
       - "justfile"
@@ -99,9 +99,6 @@ jobs:
         run: just check-matrix-hal-chip esp32s3
 
       # Link each chip's smoke example: `check` never links, so this is the link proof.
-      - name: Install device cargo config
-        run: just setup-cargo-config
-
       - name: Build and link hal_esp_b3f (ESP32)
         run: just build-example hal_esp_b3f
 

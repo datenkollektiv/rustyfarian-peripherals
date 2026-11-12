@@ -4,7 +4,6 @@ Cargo.lock
 # depends on avr-hal by git. Its lockfile pins that dependency set, so `--locked` CI needs it.
 !examples/avr-nano-tamer/Cargo.lock
 .embuild/
-.cargo/config.toml
 
 # --- Developer-local / AI-tooling — never commit (this is a PUBLIC repo) ---
 # Only AGENTS.md (the generic, cross-tool agent guide) is committed. All

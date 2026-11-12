@@ -42,9 +42,9 @@ The hardware tiers do not build for the host. After any esp-* bump:
   - Xtensa bare-metal async (esp-rtos / embassy): `hal_s3_rotary`
   - Xtensa ESP-IDF GPIO ISR + `IsrCriticalSection` path: `idf_s3_rotary`
 
-Device builds need `just setup-cargo-config` (linker scripts / targets) and, for
-ESP-IDF and Xtensa, `just setup-toolchain` (espup `esp` channel). `just doctor`
-reports both plus the resolved (RAM-disk) target dirs.
+Device builds use the committed `.cargo/config.toml` (linker scripts / targets)
+and, for ESP-IDF and Xtensa, `just setup-toolchain` (espup `esp` channel).
+`just doctor` reports the toolchain plus the resolved (RAM-disk) target dirs.
 
 ### Hardware tests
 `just run <example>` builds, flashes, and opens the serial monitor. Pass criteria:
@@ -88,7 +88,7 @@ reflect the actual semantics.
   `cfg`s) at the new tag, plus the FreeRTOS port's `xPortEnterCriticalTimeout` /
   `vPortExitCritical` on an ESP-IDF bump, and record the re-check date in
   `docs/project-lore.md`.
-- `ESP_IDF_VERSION` (`.cargo/config.toml.dist`) is a separate decision from the
+- `ESP_IDF_VERSION` (`.cargo/config.toml`) is a separate decision from the
   crate pins; moving it costs an IDF download and an `sdkconfig` re-validation.
 
 ### esp-hal stack (exact pins)

@@ -63,8 +63,8 @@ behaviour cannot drift. Host work needs only `rustc`, `cargo`, and `just`.
 | `just examples` / `just build-example <name>` / `just run <name>` | List / build / flash+monitor device examples |
 | `just deny` / `just audit` / `just doctor` | License-advisory checks / RUSTSEC audit / tooling report |
 
-The `esp` toolchain (`just setup-toolchain`, via espup) and device target config
-(`just setup-cargo-config`) are needed only for the hardware crates and examples.
+The `esp` toolchain (`just setup-toolchain`, via espup) is needed only for the hardware crates and examples.
+Their device target config, including the ESP-IDF pin, is the committed `.cargo/config.toml`.
 
 ### On-device checks
 
@@ -144,7 +144,7 @@ The rungs and the review rule match `rustyfarian-network` ADR-023, `rustyfarian-
 
 - `justfile` — every standard task; read first when unsure how to build/test
 - `Cargo.toml` (root) — workspace metadata and the exact-pinned hardware-dep stacks
-- `.cargo/config.toml.dist` — device target config (opt-in via `just setup-cargo-config`)
+- `.cargo/config.toml` — device target config: default target, per-target rustflags / runners / linkers, the `ESP_IDF_VERSION` pin
 - `crates/tamer/src/lib.rs` — the pure-core contract and the pattern new primitives follow
 - `docs/key-insights.md` — CI/build conventions and resolved gotchas
 - `docs/project-lore.md` — non-obvious hardware/build discoveries

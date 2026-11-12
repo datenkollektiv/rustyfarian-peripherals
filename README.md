@@ -142,9 +142,10 @@ just doctor    # report tooling status
 ```
 
 Building the hardware crates for a device needs the Espressif toolchain
-(`just setup-toolchain`) and the device target config
-(`just setup-cargo-config`); `just build-example` / `flash` / `run` then build,
+(`just setup-toolchain`); `just build-example` / `flash` / `run` then build,
 flash, and monitor a named example.
+The committed `.cargo/config.toml` pins ESP-IDF v6.1 and configures the linker and target-specific flags for every ESP-IDF and bare-metal target.
+Cargo never reads it when this workspace is a dependency, so it does not affect consumers.
 
 **MSRV:** `tamer` and `signwriter` require Rust **1.88+**, and the host gates above run on it.
 The two hardware tiers require Rust **1.95+** — the floor declared by
