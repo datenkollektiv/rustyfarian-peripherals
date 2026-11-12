@@ -7,7 +7,7 @@ Trigger for implementation: a consumer combines the ESP-IDF `Encoder` with flash
 
 The ISR in `rustyfarian_esp_idf_peripherals::rotary::Encoder` is **not IRAM-resident**, and the driver installs the GPIO ISR service with flags `0` (no `ESP_INTR_FLAG_IRAM`).
 
-Actual behaviour today (verified against ESP-IDF v5.3.2 and esp-idf-hal 0.47.0, 2026-10-24):
+Actual behaviour today (verified against ESP-IDF v5.3.2 and esp-idf-hal 0.47.0, 2026-10-24; the GPIO and IPC sources were re-checked against v6.1 on 2026-11-12):
 
 - ESP-IDF calls `esp_intr_noniram_disable()` before every flash-cache-off window (NVS write, OTA sector erase/write, SPIFFS).
   Non-IRAM interrupts — including ours — are masked for the duration.

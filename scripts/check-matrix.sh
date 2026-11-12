@@ -11,7 +11,7 @@ set -euo pipefail
 #
 # hal  — bare-metal esp-hal tier: stable + rustup target for RISC-V (C3, C6);
 #        `cargo +esp -Zbuild-std=core,alloc` for Xtensa (ESP32, S3).
-# idf  — ESP-IDF tier: always `cargo +esp`, with MCU set; needs `just setup-cargo-config`
+# idf  — ESP-IDF tier: always `cargo +esp`, with MCU set
 #        (ESP_IDF_VERSION and the ldproxy linker live in .cargo/config.toml).
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -43,11 +43,6 @@ case "$chip" in
         exit 2
         ;;
 esac
-
-if [ "$tier" = idf ] && [ ! -f "$REPO_ROOT/.cargo/config.toml" ]; then
-    printf 'error: ESP-IDF builds need .cargo/config.toml (ESP_IDF_VERSION + ldproxy).\n       run: just setup-cargo-config\n' >&2
-    exit 1
-fi
 
 resolve_example "${tier}_${chip}" "$hal_dir" "$idf_dir"
 

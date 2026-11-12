@@ -60,13 +60,14 @@ Steps 1–2 are best-effort: failures are logged (`log::warn!`), never propagate
 
 **Residual risk — fixed and device-validated on ESP32-S3 (2026-10-28, `920d12e`); see the "ISR-safe lock" amendment.**
 The barrier in step 3 only synchronizes with an ISR invocation that has *already entered* its critical section.
-ESP-IDF v5.3.3 does not close the earlier window: `gpio_isr_loop` loads `fn` and `args` from the handler table without a lock (`esp_driver_gpio/src/gpio.c:465-466`), and `gpio_isr_handler_remove` only nulls them under a spinlock the dispatcher never takes (`gpio.c:542-553`).
-The GPIO ISR service runs on the core of the first `gpio_install_isr_service` caller (`gpio.c:597-603`).
+ESP-IDF v6.1 does not close the earlier window: `gpio_isr_loop` loads `fn` and `args` from the handler table without a lock (`esp_driver_gpio/src/gpio.c:531-532`), and `gpio_isr_handler_remove` only nulls them under a spinlock the dispatcher never takes (`gpio.c:608-619`).
+The GPIO ISR service runs on the core of the first `gpio_install_isr_service` caller (`gpio.c:662-663`).
 On dual-core chips (ESP32, ESP32-S3), a `drop` on the other core could therefore free `Box<IsrContext>` after the ISR core loaded `args` but before `encoder_isr` entered its critical section.
 Fix: on dual-core builds, `drop` now runs a no-op `esp_ipc_call_blocking` on each core after steps 1–3 and before the free; the IPC task on a core can only run once any ISR in flight there has returned.
 Because `fn` and `args` are loaded separately, the trampoline also returns early on a null `arg`.
 If either pin fails to disarm or the IPC barrier fails, `drop` leaks the context instead of freeing it, since a still-registered handler could reach it.
-This argument rests on the ESP-IDF v5.3.3 sources cited above (`ESP_IDF_VERSION` in `.cargo/config.toml.dist`); re-verify it on every ESP-IDF bump.
+This argument rests on the ESP-IDF v6.1 sources cited above (`ESP_IDF_VERSION` in `.cargo/config.toml`); re-verify it on every ESP-IDF bump.
+The code is unchanged from v5.3.3, where it sits at `gpio.c:465-466`, `:542-553` and `:597-603` (re-verified 2026-11-12).
 Single-core chips (ESP32-C3, ESP32-C6) were never affected: `drop` runs in task context on the ISR core, so no dispatch can be mid-flight.
 `drop` must run in task context: never from an ISR or an IPC callback, inside a critical section, with interrupts masked, or with the scheduler suspended — `esp_ipc_call_blocking` would block forever.
 

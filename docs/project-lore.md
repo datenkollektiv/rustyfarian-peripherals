@@ -11,6 +11,17 @@ symptom first, then the cause, then the fix.
 
 ## Build & Validation
 
+**`.cargo/config.toml` is committed even though this is a library workspace; before the ESP-IDF v6.1 move it was an opt-in copy of `.cargo/config.toml.dist`.**
+Cause: it carries the `ESP_IDF_VERSION` pin, the `ldproxy` linker, `build-std` and the esp-hal `-Tlinkall.x` rustflags, so a clone without it cannot link firmware.
+The sibling rustyfarian repos commit theirs for the same reason (2026-11-12).
+Cargo reads config only from the invoking directory, its parents and `$CARGO_HOME`, never from a dependency, so committing it cannot affect downstream users.
+Its device default target is overridden by the `--target <host>` the host recipes pass, and stable cargo ignores its `[unstable]` table.
+Fix: keep it tracked; override locally with an env var (`MCU=esp32c3`) or a `--config <file>` overlay instead of editing it.
+
+**Changing `ESP_IDF_VERSION` in a target dir that already holds an IDF build fails in `esp-idf-sys`'s build script with `CMake Error: The source ".../v6.1/components/bootloader/subproject/CMakeLists.txt" does not match the source ".../v5.3.3/..."`.**
+Cause: the bootloader sub-build keeps its old `CMakeCache.txt` (reported by the sibling `rustyfarian-power` on its v6.1 move, 2026-11-12).
+Fix: `just clean-idf` (or delete `<target-dir>/<triple>/*/build/esp-idf-sys-*` for the affected triples) before the first build on the new version.
+
 **`just deny` can fail on `advisories` for crates your change never touched — suspect the esp-idf tier's deep build-dep chain, and note `Cargo.lock` is gitignored so there's no committed lock to diff against.**
 Symptom: `deny` reports `advisories FAILED` (licenses/bans/sources pass), flagging crates like `crossbeam-epoch` or an `anyhow` `downcast_mut` unsoundness that appear nowhere in your diff.
 Cause: RUSTSEC advisories publish continuously and `cargo deny check advisories` resolves them against the *current* graph, not your change; the esp-idf chain (`esp-idf-hal → embuild → globwalk → ignore → crossbeam-deque → crossbeam-epoch`, plus `anyhow`) periodically acquires fresh ones.
@@ -116,6 +127,7 @@ Fix: for edge-dense inputs, call `gpio_isr_handler_add` directly (via `esp_idf_s
 Symptom: `LoadProhibited` (EXCVADDR `0x4`) on the GPIO ISR core in `xTaskRemoveFromEventList` ← `xQueueGiveMutexRecursive` ← `EspCriticalSection::release` ← `encoder_isr`, after a few hundred cross-core `Encoder` construct/drop cycles with the knob turning (ESP32-S3, 2026-10-28).
 Cause: `esp-idf-svc`'s `critical-section` feature forwards to `esp-idf-hal`'s `EspCriticalSection` (`src/task.rs:470-500`, `:780-800` in 0.47.0): `xQueueTakeMutexRecursive(.., portMAX_DELAY)` / `xQueueGiveMutexRecursive`. In an ISR the "current task" is whichever task was interrupted, so the ISR can block, wake a waiter from ISR context (the crash, when task code on the other core waits on the section), or recursively re-enter a section the interrupted task holds (a `RefCell` double borrow, even on single-core chips). The 2026-07 entry here that called this backend "ISR-safe, disables interrupts" confused it with `IsrCriticalSection` in `src/interrupt.rs`.
 Fix: guard ISR-shared state with `IsrCriticalSection` (`xPortEnterCriticalTimeout` on a `portMUX_TYPE` on ESP32/S3, `vPortEnterCritical` on C3/C6 — interrupt mask plus spinlock, valid in ISR and task context), as `rotary::IsrLocked` does. The esp-hal tier's provider (`esp_sync::RawMutex`, interrupt mask + core-owned spinlock) *is* ISR-safe. Repeat this source check on every `esp-idf-hal` bump (see `maintenance-plan.md`).
+The FreeRTOS port side was re-verified unchanged against ESP-IDF v6.1 on 2026-11-12 (Xtensa `port.c:482/509`, RISC-V `port.c:526/553/602/616`).
 
 ## AVR — fresh lockfile fails on the pinned nightly
 

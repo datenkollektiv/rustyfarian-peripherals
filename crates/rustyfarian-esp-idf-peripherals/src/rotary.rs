@@ -223,16 +223,17 @@ fn encoder_isr(ctx: &IsrContext) {
 /// blocking or non-reentrant ESP-IDF API, so it is safe to execute in
 /// interrupt context.
 ///
-/// `arg` may be NULL: ESP-IDF v5.3.3's `gpio_isr_loop` (`gpio.c` lines
-/// 465-466) tests `gpio_isr_func[n].fn != NULL` and then calls
-/// `fn(gpio_isr_func[n].args)`, loading `fn` and `args` separately with no
-/// lock, while `gpio_isr_handler_remove` (lines 542-553) nulls both under a
-/// spinlock the dispatcher never takes. A remove that lands between the two
-/// loads therefore yields a call with a NULL `arg`, which is ignored here.
+/// `arg` may be NULL: ESP-IDF v6.1's `gpio_isr_loop` (`gpio.c` lines
+/// 531-532, the same code as v5.3.3) tests `gpio_isr_func[n].fn != NULL` and
+/// then calls `fn(gpio_isr_func[n].args)`, loading `fn` and `args` separately
+/// with no lock, while `gpio_isr_handler_remove` (lines 608-619) nulls both
+/// under a spinlock the dispatcher never takes. A remove that lands between
+/// the two loads therefore yields a call with a NULL `arg`, which is ignored
+/// here.
 ///
 /// This safety argument depends on that `gpio.c` source and must be
 /// re-verified on every ESP-IDF bump (`ESP_IDF_VERSION` in
-/// `.cargo/config.toml.dist`).
+/// `.cargo/config.toml`).
 unsafe extern "C" fn encoder_isr_trampoline(arg: *mut c_void) {
     if arg.is_null() {
         // A NULL arg means `gpio_isr_handler_remove` raced the dispatcher's
@@ -253,13 +254,13 @@ extern "C" fn noop_ipc(_arg: *mut c_void) {}
 /// Waits until every GPIO ISR dispatch that was in flight on either core has
 /// returned. Returns `true` if the barrier completed on both cores.
 ///
-/// Why this is needed (ESP-IDF v5.3.3, `components/esp_driver_gpio/src/gpio.c`):
-/// `gpio_isr_loop` (lines 465-466) runs
+/// Why this is needed (ESP-IDF v6.1, `components/esp_driver_gpio/src/gpio.c`,
+/// the same code as v5.3.3): `gpio_isr_loop` (lines 531-532) runs
 /// `if (gpio_isr_func[n].fn != NULL) gpio_isr_func[n].fn(gpio_isr_func[n].args);`
 /// with plain, lock-free, separate loads of `fn` and `args` and no copy.
-/// `gpio_isr_handler_remove` (lines 542-553) only nulls them under
+/// `gpio_isr_handler_remove` (lines 608-619) only nulls them under
 /// `gpio_spinlock`, which the dispatcher never takes. The ISR service runs on
-/// the core of the first `gpio_install_isr_service` caller (lines 597-603),
+/// the core of the first `gpio_install_isr_service` caller (lines 662-663),
 /// and IDF does not expose that core id. So on a dual-core chip a `Drop` on
 /// the *other* core can free the context after the ISR core has loaded `args`
 /// but before it has entered [`encoder_isr`]'s critical section, a window the
@@ -272,7 +273,7 @@ extern "C" fn noop_ipc(_arg: *mut c_void) {}
 /// is fine.
 ///
 /// This argument depends on the `gpio.c` source above and must be re-verified
-/// on every ESP-IDF bump (`ESP_IDF_VERSION` in `.cargo/config.toml.dist`).
+/// on every ESP-IDF bump (`ESP_IDF_VERSION` in `.cargo/config.toml`).
 ///
 /// Must be called from task context with the scheduler running (not from an
 /// ISR, not with the scheduler suspended).
@@ -374,9 +375,10 @@ fn install_isr_service() -> Result<(), EncoderError> {
 struct ArmFailure {
     error: EncoderError,
     /// `false` only if the failure happened before `gpio_isr_handler_add`
-    /// stored the handler. In ESP-IDF v5.3.3 that call fails only in its two
-    /// `GPIO_CHECK`s (`gpio.c:529-530`), before it stores the handler; like
-    /// the other `gpio.c` arguments, re-verify on every ESP-IDF bump.
+    /// stored the handler. In ESP-IDF v6.1 (as in v5.3.3) that call fails only
+    /// in its two `GPIO_CHECK`s (`gpio.c:595-596`), before it stores the
+    /// handler; like the other `gpio.c` arguments, re-verify on every ESP-IDF
+    /// bump.
     handler_may_be_registered: bool,
 }
 
@@ -904,14 +906,15 @@ impl Drop for Encoder<'_> {
     /// blocking no-op IPC call to each core, (5) only then free the
     /// `Box<IsrContext>`.
     ///
-    /// Verified against ESP-IDF v5.3.3 (`esp_driver_gpio/src/gpio.c`):
-    /// `gpio_isr_loop` (lines 465-466) loads `fn` and `args` separately with no
-    /// lock and copies nothing, and `gpio_isr_handler_remove` (lines 542-553)
-    /// only nulls them under `gpio_spinlock`, which the dispatcher never takes.
+    /// Verified against ESP-IDF v6.1 and v5.3.3 (`esp_driver_gpio/src/gpio.c`,
+    /// v6.1 lines): `gpio_isr_loop` (lines 531-532) loads `fn` and `args`
+    /// separately with no lock and copies nothing, and `gpio_isr_handler_remove`
+    /// (lines 608-619) only nulls them under `gpio_spinlock`, which the
+    /// dispatcher never takes.
     /// The ISR service runs on the core of the first `gpio_install_isr_service`
-    /// caller (lines 597-603).
+    /// caller (lines 662-663).
     /// This argument depends on that source and must be re-verified on every
-    /// ESP-IDF bump (`ESP_IDF_VERSION` in `.cargo/config.toml.dist`).
+    /// ESP-IDF bump (`ESP_IDF_VERSION` in `.cargo/config.toml`).
     /// Consequences:
     ///
     /// - The lock barrier (3) proves no [`encoder_isr`] is *inside* its
