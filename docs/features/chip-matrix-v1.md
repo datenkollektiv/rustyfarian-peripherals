@@ -18,8 +18,8 @@ Every tier compiles, lints and links on all four ESP32 chips, `tamer` links on A
 |                                                    Feature examples stay on their reference chip | `tamer` logic is host-tested once, not per chip                                    | Per-chip feature examples                                     |
 |             AVR covers `tamer` only, setup copied from ws2812 (`nightly-2025-04-27`, `avr-none`) | VISION lists other MCU families as a non-goal; ws2812 setup is proven              | AVR tier crate (revisit with ws2812 merge)                    |
 |                           Excluded `examples/avr-nano-tamer` package, building `default` + `hal` | A lib `check` never links; smallest useful surface, float features later           | `cargo check -p tamer` only; `tilt` / `bme680` size probe now |
-| CI like ws2812: path-filtered `cross-target-{riscv,xtensa,avr}`, plus weekly AVR upstream canary | Per-PR gate for esp-hal chips and AVR link; the pinned rev hides upstream breakage | Local-only matrix; no canary                                  |
-|                                                   ESP-IDF chips stay in the local `check-matrix` | ws2812 has no IDF CI job; esp-idf-sys is heavy                                     | IDF jobs per PR                                               |
+| CI like ws2812: path-filtered `cross-target-{riscv,xtensa,avr}`, plus weekly AVR upstream canary and an `idf` job | Per-PR gate for esp-hal chips and AVR link; the pinned rev hides upstream breakage | Local-only matrix; no canary                                  |
+|                                    ESP-IDF runs in CI as one `cross-target-idf` cell per chip | One cell per chip keeps cold esp-idf-sys builds within the timeout; the tier was never built in CI before | One IDF job for all four chips; local-only `check-matrix` |
 |                 Rotary examples per chip: `hal_{esp,c3,c6}_rotary_isr`, `idf_{esp,c3,c6}_rotary` | The ISR is the chip-sensitive code                                                 | Rotary on S3 only                                             |
 |                     A chip x tier cell is covered only by its own bench run; build results never tick it | Build and link evidence is not hardware evidence; C3 does not stand in for C6      | Inherit coverage across chips or tiers                        |
 
@@ -57,5 +57,6 @@ The AVR link of `tamer` (`just check-avr-target`, `just build-avr-example`) is n
 - [x] `check-matrix`, `build-matrix` (link proof), `check-avr-target`, `setup-avr`, `build-avr-example` (and `-upstream`) recipes
 - [x] `idf_{esp,c6,s3}_b3f`, the six rotary examples, and `examples/avr-nano-tamer`
 - [x] `cross-target-{riscv,xtensa,avr,avr-upstream}` workflows (written; first GitHub run pending)
+- [x] `cross-target-idf` matrix (`just ci-idf <chip>` for esp, c3, c6, s3; written; first GitHub run pending)
 - [ ] Hardware pass: [`release-plan.md`](../../release-plan.md) § Final hardware pass
 - [x] Documentation updated (AGENTS.md matrix, hardware-setup, CHANGELOG)

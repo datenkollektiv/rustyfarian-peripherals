@@ -51,7 +51,11 @@ behaviour cannot drift. Host work needs only `rustc`, `cargo`, and `just`.
 | `just clippy` | Clippy, warnings denied |
 | `just verify` | Non-modifying gate: fmt-check + check + clippy + test |
 | `just pre-commit` | Same, but auto-formats (modifies files) |
-| `just ci` | CI-equivalent: fmt-check + deny + check + clippy + test (the workflows call these recipes individually, plus `audit`) |
+| `just ci` | CI-equivalent host gate: `ci-fmt`, `ci-clippy`, `ci-test`, `ci-deny`, `ci-audit` |
+| `just ci-fmt` / `ci-clippy` / `ci-test` / `ci-deny` / `ci-audit` | One host CI job each (`ci-test` = check + test); the GitHub host jobs call exactly one of these |
+| `just ci-riscv` / `ci-xtensa` / `ci-avr` / `ci-avr-upstream` | One device CI job each (cross-target workflows); the AVR upstream form is the weekly canary |
+| `just ci-idf <chip>` | ESP-IDF tier for one chip (`esp`, `c3`, `c6` or `s3`): check + clippy, then link `idf_<chip>_b3f` |
+| `just act [job] [matrix]` / `just act-list` | Run workflow jobs locally through `act` (no args: the five host jobs; `just act idf chip:c3` runs one matrix cell); `act-list` lists the jobs |
 | `just test-all-features` / `just clippy-all-features` | Exercise the `hal`, `hal-async`, `bme680` + `tilt` features |
 | `just check-hal` / `just check-idf` | Check a hardware tier on device targets (`check-hal`: C3 + S3; `check-idf`: C3) |
 | `just check-matrix` | Check and clippy both tier libraries on all four ESP32 chips, one at a time (slow, needs `espup`; not part of `verify`) |
@@ -63,6 +67,8 @@ behaviour cannot drift. Host work needs only `rustc`, `cargo`, and `just`.
 | `just examples` / `just build-example <name>` / `just run <name>` | List / build / flash+monitor device examples |
 | `just deny` / `just audit` / `just doctor` | License-advisory checks / RUSTSEC audit / tooling report |
 
+Each GitHub Actions job runs exactly one `just ci-<job>` recipe, so a job reproduces locally with that recipe.
+The workflows call the shared `datenkollektiv/rustyfarian-ci` at `@v1`; `RUSTYFARIAN_CI=../rustyfarian-ci` makes `just act` use a local checkout instead.
 The `esp` toolchain (`just setup-toolchain`, via espup) is needed only for the hardware crates and examples.
 Their device target config, including the ESP-IDF pin, is the committed `.cargo/config.toml`.
 

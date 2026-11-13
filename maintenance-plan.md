@@ -143,15 +143,15 @@ reflect the actual semantics.
   owns; `just update` usually resolves them (lore § Build & Validation).
 
 ## CI/CD
-GitHub Actions workflows in `.github/workflows/`:
-- `audit.yml` — RustSec advisory check (push, PR, weekly schedule).
-- `clippy.yml`, `fmt.yml` — lint and format gates.
-- `rust.yml` — deny + check + test.
+GitHub Actions workflows in `.github/workflows/` build on the shared
+`datenkollektiv/rustyfarian-ci@v1` (conventions in its `CONVENTIONS.md`):
+- `audit.yml`, `clippy.yml`, `fmt.yml`, `rust.yml` — thin callers of `host-checks.yml@v1`.
+- `cross-target-{riscv,xtensa,idf,avr,avr-upstream}.yml` — device gates on the shared setup actions.
 
-All four call `just` recipes. Keep the action versions in step across the four
-files; an action's Node runtime is only knowable from `runs.using` in its
-`action.yml` at the tag in use. `gh run list` needs `gh auth login`; without it,
-CI status is NOT VERIFIED.
+Every job runs one `just ci-<job>` recipe; `just act [job]` runs it locally.
+Toolchain pins (Xtensa, ESP-IDF, AVR nightly) follow the family table in
+rustyfarian-ci; Dependabot bumps the third-party action tags. `gh run list` needs
+`gh auth login`; without it, CI status is NOT VERIFIED.
 
 ## Documentation Freshness
 Review during quarterly cycles:

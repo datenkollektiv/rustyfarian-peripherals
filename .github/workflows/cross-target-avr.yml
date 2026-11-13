@@ -1,6 +1,6 @@
 name: Cross-target AVR
 
-# Gates tamer on the real avr-none target (ATmega328P, Arduino Nano). Two layers:
+# Gates tamer on the real avr-none target (ATmega328P, Arduino Nano). Two layers, via `just ci-avr`:
 #   1. cargo check of tamer with its `hal` adapters on avr-none
 #   2. a real linked build of the workspace-excluded examples/avr-nano-tamer package. tamer
 #      is a lib-only crate, so nothing links until the example binary is built, and the AVR
@@ -15,6 +15,7 @@ on:
     paths:
       - "crates/tamer/**"
       - "examples/avr-nano-tamer/**"
+      - "scripts/**"
       - "Cargo.toml"
       - "justfile"
       - ".github/workflows/cross-target-avr.yml"
@@ -23,6 +24,7 @@ on:
     paths:
       - "crates/tamer/**"
       - "examples/avr-nano-tamer/**"
+      - "scripts/**"
       - "Cargo.toml"
       - "justfile"
       - ".github/workflows/cross-target-avr.yml"
@@ -37,10 +39,13 @@ concurrency:
 
 env:
   CARGO_TERM_COLOR: always
+  # Must equal `avr_nightly` in the justfile and channel in examples/avr-nano-tamer/rust-toolchain.toml.
+  AVR_NIGHTLY: nightly-2025-04-27
 
 jobs:
   avr:
     runs-on: ubuntu-latest
+    timeout-minutes: 30
 
     steps:
       - name: Checkout
@@ -49,17 +54,15 @@ jobs:
       # avr-gcc is required even for a core-only no_std build: AVR 32-bit
       # multiplication intrinsics come from libgcc, which compiler-builtins
       # does not yet provide. binutils-avr supplies avr-ld; avr-libc the crt objects.
-      - name: Install AVR GCC toolchain
-        run: sudo apt-get update && sudo apt-get install -y gcc-avr binutils-avr avr-libc
+      # Installs the pinned nightly with rust-src. This runs before the cache step: rust-cache
+      # keys on the active rustc, so a nightly bump must change the key rather than restore stale build-std artifacts.
+      - name: Install avr-gcc and the pinned AVR nightly
+        uses: datenkollektiv/rustyfarian-ci/.github/actions/setup-avr@v1
+        with:
+          toolchain: ${{ env.AVR_NIGHTLY }}
 
       - name: Setup just
         uses: extractions/setup-just@v4
-
-      # Installs the pinned nightly (`avr_nightly` in the justfile) with rust-src. This runs
-      # before the cache step: rust-cache keys on the active rustc, so a nightly bump must
-      # change the key rather than restore stale build-std artifacts.
-      - name: Install pinned AVR nightly toolchain
-        run: just setup-avr
 
       # The example is workspace-excluded, so it has its own Cargo.lock; its target dir is
       # <repo>/target/avr (`avr_abs_dir`). Hash both lockfiles and cache both target paths.
@@ -69,9 +72,7 @@ jobs:
           workspaces: |
             .
             examples/avr-nano-tamer -> ../../target/avr
+          key: avr-${{ env.AVR_NIGHTLY }}-${{ hashFiles('examples/avr-nano-tamer/Cargo.lock') }}
 
-      - name: Check tamer (default + hal) on avr-none
-        run: just check-avr-target
-
-      - name: Build AVR example (link step)
-        run: just build-avr-example
+      - name: Check tamer on avr-none and link the AVR example
+        run: just ci-avr
