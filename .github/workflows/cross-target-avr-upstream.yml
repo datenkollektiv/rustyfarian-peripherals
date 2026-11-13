@@ -33,22 +33,21 @@ env:
 jobs:
   avr-upstream:
     runs-on: ubuntu-latest
+    timeout-minutes: 30
 
     steps:
       - name: Checkout
         uses: actions/checkout@v5
 
-      - name: Install AVR GCC toolchain
-        run: sudo apt-get update && sudo apt-get install -y gcc-avr binutils-avr avr-libc
+      # Installs avr-gcc and the pinned nightly with rust-src (same family action as the AVR gate).
+      - name: Install avr-gcc and the pinned AVR nightly
+        uses: datenkollektiv/rustyfarian-ci/.github/actions/setup-avr@v1
 
       - name: Setup just
         uses: extractions/setup-just@v4
-
-      - name: Install pinned AVR nightly toolchain
-        run: just setup-avr
 
       # Deliberately uncached: the point is a fresh build against upstream avr-hal's tip.
       # The lockfile is kept (see the recipe's script), so only the avr-hal git packages
       # move; a failure here means upstream moved, not that an unrelated crate published.
       - name: Build AVR example against upstream avr-hal main
-        run: just build-avr-example-upstream
+        run: just ci-avr-upstream

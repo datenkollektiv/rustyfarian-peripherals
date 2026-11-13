@@ -1,0 +1,95 @@
+name: Cross-target IDF
+
+# Gates the ESP-IDF (std) tier on all four ESP32 chips. One matrix cell per chip; each runs
+# `just ci-idf <chip>`: check + clippy -D warnings on the library, then a link of idf_<chip>_b3f.
+# One cell per chip because each builds its own esp-idf-sys tree; one job for all four would not
+# fit the timeout cold. RISC-V cells use the `esp` toolchain too: espup installs it only for an
+# Xtensa target, so they request buildtargets esp32.
+# XTENSA_VERSION and ESP_IDF_VERSION must match .cargo/config.toml.
+
+# NOTE: the push and pull_request `paths:` lists below are duplicated and must stay in
+# sync. GitHub Actions does not support YAML anchors/aliases, so this cannot be factored out.
+on:
+  push:
+    branches: ["main"]
+    paths:
+      - "crates/rustyfarian-esp-idf-peripherals/**"
+      - "crates/tamer/**"
+      - "scripts/**"
+      - ".cargo/config.toml"
+      - "sdkconfig.defaults"
+      - "Cargo.toml"
+      - "justfile"
+      - ".github/workflows/cross-target-idf.yml"
+  pull_request:
+    branches: ["main"]
+    paths:
+      - "crates/rustyfarian-esp-idf-peripherals/**"
+      - "crates/tamer/**"
+      - "scripts/**"
+      - ".cargo/config.toml"
+      - "sdkconfig.defaults"
+      - "Cargo.toml"
+      - "justfile"
+      - ".github/workflows/cross-target-idf.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: cross-idf-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  CARGO_TERM_COLOR: always
+  XTENSA_VERSION: "1.97.0.0"
+  ESP_IDF_VERSION: v6.1
+
+jobs:
+  idf:
+    name: idf ${{ matrix.chip }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { chip: esp, mcu: esp32, buildtargets: esp32 }
+          - { chip: c3, mcu: esp32c3, buildtargets: esp32 }
+          - { chip: c6, mcu: esp32c6, buildtargets: esp32 }
+          - { chip: s3, mcu: esp32s3, buildtargets: esp32s3 }
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Install esp toolchain
+        uses: datenkollektiv/rustyfarian-ci/.github/actions/setup-xtensa@v1
+        with:
+          version: ${{ env.XTENSA_VERSION }}
+          buildtargets: ${{ matrix.buildtargets }}
+
+      # Installs ldproxy and restores ~/.espressif; exports ESP_IDF_VERSION, ESP_IDF_TOOLS_INSTALL_DIR=global and MCU for this cell.
+      - name: Install ldproxy and ESP-IDF tools
+        uses: datenkollektiv/rustyfarian-ci/.github/actions/setup-esp-idf@v1
+        with:
+          idf-version: ${{ env.ESP_IDF_VERSION }}
+          mcu: ${{ matrix.mcu }}
+
+      - name: Setup just
+        uses: extractions/setup-just@v4
+
+      # Per-chip key: matrix cells share a job id and would overwrite each other's cache. The IDF
+      # version and config/sdkconfig hash are in the key, since a restored esp-idf-sys CMake tree
+      # from another IDF version or sdkconfig fails to configure.
+      - name: Cache cargo artifacts
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: ". -> target/idf"
+          key: idf-${{ matrix.chip }}-${{ env.XTENSA_VERSION }}-${{ env.ESP_IDF_VERSION }}-${{ hashFiles('.cargo/config.toml', 'sdkconfig.defaults') }}
+
+      - name: Check, lint and link ${{ matrix.chip }} (ESP-IDF)
+        env:
+          CHIP: ${{ matrix.chip }}
+        run: just ci-idf "$CHIP"

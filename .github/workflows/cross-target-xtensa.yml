@@ -1,8 +1,8 @@
 name: Cross-target Xtensa
 
 # Gates the bare-metal esp-hal tier on the two Xtensa chips: classic ESP32 (WROOM-32 /
-# Feather V2) and ESP32-S3. Each chip runs `check` and `clippy -D warnings` on the library
-# through the same `just check-matrix-hal-chip` recipe a contributor runs locally.
+# Feather V2) and ESP32-S3. `just ci-xtensa` runs `check` and `clippy -D warnings` on the
+# library for each chip, then links each chip's b3f smoke example.
 # This is the most expensive of the cross-target jobs — it installs the Xtensa Rust fork
 # via espup — hence the path filter and the toolchain cache.
 #
@@ -12,9 +12,8 @@ name: Cross-target Xtensa
 #   - red with no relevant source change -> upstream toolchain moved; investigate before
 #     assuming the PR is at fault, and consider pinning back.
 #
-# Toolchain pin: 1.95.0.0, the same `esp` toolchain the local `just check-matrix` runs on,
-# and the floor the esp-hal tier's `rust-version = "1.95"` requires. Keep the version in the
-# cache key below in lockstep with the toolchain install.
+# XTENSA_VERSION is the family toolchain pin (rustyfarian-ci CONVENTIONS.md). It must stay in
+# the cache key below, so a toolchain bump never restores a stale esp toolchain.
 
 # NOTE: the push and pull_request `paths:` lists below are duplicated and must stay in
 # sync. GitHub Actions does not support YAML anchors/aliases, so this cannot be factored out.
@@ -24,11 +23,8 @@ on:
     paths:
       - "crates/rustyfarian-esp-hal-peripherals/**"
       - "crates/tamer/**"
-      - "scripts/check-matrix.sh"
-      - "scripts/lib.sh"
-      - "scripts/build-example.sh"
+      - "scripts/**"
       - ".cargo/config.toml"
-      - "scripts/xtensa-toolchain.sh"
       - "Cargo.toml"
       - "justfile"
       - ".github/workflows/cross-target-xtensa.yml"
@@ -37,11 +33,8 @@ on:
     paths:
       - "crates/rustyfarian-esp-hal-peripherals/**"
       - "crates/tamer/**"
-      - "scripts/check-matrix.sh"
-      - "scripts/lib.sh"
-      - "scripts/build-example.sh"
+      - "scripts/**"
       - ".cargo/config.toml"
-      - "scripts/xtensa-toolchain.sh"
       - "Cargo.toml"
       - "justfile"
       - ".github/workflows/cross-target-xtensa.yml"
@@ -56,51 +49,33 @@ concurrency:
 
 env:
   CARGO_TERM_COLOR: always
+  XTENSA_VERSION: "1.97.0.0"
 
 jobs:
   xtensa:
     runs-on: ubuntu-latest
+    timeout-minutes: 60
 
     steps:
       - name: Checkout
         uses: actions/checkout@v5
 
-      # The version string must stay in the cache key below — scripts/xtensa-toolchain.sh
-      # hard-fails when it finds more than one version under
-      # ~/.rustup/toolchains/esp/xtensa-esp-elf/*, which a version-less key would allow.
-      - name: Cache Xtensa toolchain
-        uses: actions/cache@v6
-        with:
-          path: ~/.rustup/toolchains/esp
-          key: xtensa-esp-${{ runner.os }}-1.95.0.0-esp32-esp32s3
-
       # Installs the Xtensa Rust fork for esp32 and esp32s3 (not the RISC-V or S2 targets).
       # rust-src comes with it, so -Z build-std=core,alloc needs no extra step.
-      - name: Install Rust toolchain for Xtensa
-        uses: esp-rs/xtensa-toolchain@v1.7.0
+      - name: Install esp toolchain (Xtensa)
+        uses: datenkollektiv/rustyfarian-ci/.github/actions/setup-xtensa@v1
         with:
-          default: false
+          version: ${{ env.XTENSA_VERSION }}
           buildtargets: esp32,esp32s3
-          version: "1.95.0.0"
-          ldproxy: false
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Setup just
         uses: extractions/setup-just@v4
 
+      # rust-cache sees the default rustc, not the esp toolchain, so the toolchain version is in the key.
       - name: Cache cargo artifacts
         uses: Swatinem/rust-cache@v2
+        with:
+          key: xtensa-${{ env.XTENSA_VERSION }}-${{ hashFiles('.cargo/config.toml') }}
 
-      - name: Check and lint esp-hal driver (ESP32, Xtensa)
-        run: just check-matrix-hal-chip esp32
-
-      - name: Check and lint esp-hal driver (ESP32-S3, Xtensa)
-        run: just check-matrix-hal-chip esp32s3
-
-      # Link each chip's smoke example: `check` never links, so this is the link proof.
-      - name: Build and link hal_esp_b3f (ESP32)
-        run: just build-example hal_esp_b3f
-
-      - name: Build and link hal_s3_b3f (ESP32-S3)
-        run: just build-example hal_s3_b3f
+      - name: Check, lint and link the Xtensa esp-hal chips
+        run: just ci-xtensa

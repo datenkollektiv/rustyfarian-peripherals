@@ -56,6 +56,10 @@ avr_abs_dir := if ramdisk_mounted == "true" { ramdisk + "/targets/avr/" + file_n
 bench_dir := env("RUSTYFARIAN_BENCH", "")
 bench := if bench_dir != "" { 'uv run --project "' + bench_dir + '" rustyfarian-bench' } else { "uvx --from git+https://github.com/datenkollektiv/rustyfarian-bench@v0.5.0 rustyfarian-bench" }
 
+# act: a local rustyfarian-ci checkout if RUSTYFARIAN_CI points at one, otherwise the pushed @v1.
+ci_dir := env("RUSTYFARIAN_CI", "")
+ci_repo_flag := if ci_dir != "" { "--local-repository " + quote("datenkollektiv/rustyfarian-ci@v1=" + absolute_path(ci_dir)) } else { "" }
+
 # list available recipes (default)
 _default:
     @just --list
@@ -370,8 +374,83 @@ verify:
     cargo test {{ host_flags }}
     cargo test {{ signwriter_flags }}
 
-# CI-equivalent verification (non-modifying): format check, deny, check, lint, test
-ci: fmt-check deny check clippy test
+# CI-equivalent host gate (non-modifying). The device CI jobs are `just ci-riscv`, `ci-xtensa`, `ci-idf <chip>`, `ci-avr`, `ci-avr-upstream`.
+ci: ci-fmt ci-clippy ci-test ci-deny ci-audit
+
+# --- CI jobs --------------------------------------------------------------
+#
+# Each GitHub Actions job runs exactly one of these (rustyfarian-ci CONVENTIONS.md). Host jobs run
+# through rustyfarian-ci's host-checks.yml; device jobs run here too, so `just ci-<job>` reproduces a job.
+
+# CI job: check formatting
+[group('ci')]
+ci-fmt: fmt-check
+
+# CI job: lint the host-buildable crates
+[group('ci')]
+ci-clippy: clippy
+
+# CI job: type-check and test the host-buildable crates
+[group('ci')]
+ci-test: check test
+
+# CI job: licences, advisories, bans and sources
+[group('ci')]
+ci-deny: deny
+
+# CI job: RUSTSEC advisories
+[group('ci')]
+ci-audit: audit
+
+# CI job: esp-hal tier on ESP32-C3 and ESP32-C6 (stable): check + clippy, then link the b3f examples
+[group('ci')]
+ci-riscv: (check-matrix-hal-chip "esp32c3") (check-matrix-hal-chip "esp32c6") (build-example "hal_c3_b3f") (build-example "hal_c6_b3f")
+
+# CI job: esp-hal tier on ESP32 and ESP32-S3 (esp toolchain): check + clippy, then link the b3f examples
+[group('ci')]
+ci-xtensa: (check-matrix-hal-chip "esp32") (check-matrix-hal-chip "esp32s3") (build-example "hal_esp_b3f") (build-example "hal_s3_b3f")
+
+# CI job: ESP-IDF tier for one chip (esp | c3 | c6 | s3): check + clippy, then link idf_<chip>_b3f
+[group('ci')]
+ci-idf chip:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    case "{{ chip }}" in
+        esp) mcu=esp32 ;;
+        c3|c6|s3) mcu="esp32{{ chip }}" ;;
+        *) printf 'error: chip must be esp | c3 | c6 | s3 (got "%s")\n' "{{ chip }}" >&2; exit 2 ;;
+    esac
+    scripts/check-matrix.sh idf "$mcu" "{{ hal_dir }}" "{{ idf_dir }}"
+    scripts/build-example.sh "idf_{{ chip }}_b3f" "{{ hal_dir }}" "{{ idf_dir }}"
+
+# CI job: tamer on avr-none and the AVR example link (needs setup-avr and avr-gcc)
+[group('ci')]
+ci-avr: check-avr-target build-avr-example
+
+# CI job: AVR example against upstream avr-hal main (weekly canary)
+[group('ci')]
+ci-avr-upstream: build-avr-example-upstream
+
+# --- act (local GitHub Actions) -------------------------------------------
+#
+# Runs jobs in Docker through the same workflows CI runs. Needs Docker and act. The event is
+# `workflow_dispatch` because every workflow has it; `push` would skip avr-upstream.
+
+# run the host jobs (no args), or one job: `just act riscv`; one matrix cell: `just act idf chip:c3`
+[group('act')]
+act job="" matrix="":
+    #!/usr/bin/env bash
+    set -euo pipefail
+    for j in {{ if job == "" { "fmt clippy test deny audit" } else { job } }}; do
+        act workflow_dispatch -j "$j" --pull=false --concurrent-jobs 1 \
+            -P ubuntu-latest=catthehacker/ubuntu:act-latest {{ ci_repo_flag }} \
+            {{ if matrix == "" { "" } else { "--matrix " + quote(matrix) } }}
+    done
+
+# list the jobs act sees, starting no containers
+[group('act')]
+act-list:
+    act --list {{ ci_repo_flag }}
 
 # --- Device (examples) ----------------------------------------------------
 #
