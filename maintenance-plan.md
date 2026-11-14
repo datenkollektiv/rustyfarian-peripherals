@@ -18,7 +18,8 @@ when a wave arrives there first.
 
 ### Primary build gate
 - `just verify` — non-modifying: fmt-check, check, clippy (`-D warnings`), host tests
-  (unit + doc) for `tamer`. Exit 0 is the audit's primary PASS signal.
+  (unit + doc) for `tamer`.
+- Exit 0 from `just verify` is the audit's primary PASS signal.
 - `just ci` — the CI-equivalent chain (adds `just deny`).
 - `just test-all-features` / `just clippy-all-features` — `hal` + `tilt` feature
   surfaces; run when a bump touches `embedded-hal` or `micromath`.
@@ -31,19 +32,18 @@ is usually a stale `tamer` rlib in `target/ide` (see `docs/project-lore.md`
 The hardware tiers do not build for the host. After any esp-* bump:
 - `just check-hal` — esp-hal tier, ESP32-C3 (`riscv32imc-unknown-none-elf`, stable) and ESP32-S3 (`xtensa-esp32s3-none-elf`, Xtensa via `cargo +esp -Zbuild-std=core,alloc`).
 - `just check-idf` — ESP-IDF tier, ESP32-C3 (`riscv32imc-esp-espidf`, `cargo +esp`).
-- `just build-example <name>` — examples are where HAL API breakage surfaces; the
-  library crates barely touch the HALs. Spot-check one example per peripheral
-  family the bump could affect **and** one per chip family:
+- `just build-example <name>` — examples are where HAL API breakage surfaces; the library crates barely touch the HALs.
+- Spot-check one example per peripheral family the bump could affect **and** one per chip family:
   - GPIO in/out: `hal_c3_blink`, `idf_c3_blink`, `hal_c6_b3f`
   - ADC + LEDC PWM: `hal_c3_poti_led`, `idf_c3_poti_led`
   - LEDC retune (long-lived timer borrow): `hal_c3_passive_buzzer_arpeggio`
   - I2C: `hal_c3_i2c_scan`, `idf_c3_i2c_scan`
-  - Xtensa bare-metal: `hal_esp_b3f`, `hal_s3_b3f`
+  - Xtensa bare-metal: `hal_esp32_b3f`, `hal_s3_b3f`
   - Xtensa bare-metal async (esp-rtos / embassy): `hal_s3_rotary`
   - Xtensa ESP-IDF GPIO ISR + `IsrCriticalSection` path: `idf_s3_rotary`
 
 Device builds use the committed `.cargo/config.toml` (linker scripts / targets)
-and, for ESP-IDF and Xtensa, `just setup-toolchain` (espup `esp` channel).
+and, for ESP-IDF and Xtensa, `just setup esp` (espup `esp` channel).
 `just doctor` reports the toolchain plus the resolved (RAM-disk) target dirs.
 
 ### Hardware tests
@@ -69,52 +69,39 @@ Cargo treats `"1.0"` as `^1.0` and `"=1.0.0"` as exact pinning — comments must
 reflect the actual semantics.
 
 ### Pure-logic crates (host-buildable, liberal policy)
-- `embedded-hal`, `nb`, `micromath` — caret ranges; patch/minor bumps are safe and
-  covered by host tests. `micromath` is `tamer`'s only floating-point dependency
-  (behind `tilt`; see ADR-003).
-- `log`, `anyhow` — std-only, used by the ESP-IDF tier; caret ranges, refreshed by
-  `just update`.
+- `embedded-hal`, `nb`, `micromath` — caret ranges; patch/minor bumps are safe and covered by host tests.
+- `micromath` is `tamer`'s only floating-point dependency (behind `tilt`; see ADR-003).
+- `log`, `anyhow` — std-only, used by the ESP-IDF tier; caret ranges, refreshed by `just update`.
 
 ### ESP-IDF stack (exact pins)
-- `esp-idf-hal`, `esp-idf-svc`, `esp-idf-sys`, `embuild` move together: each
-  `esp-idf-hal` minor requires a matching `esp-idf-sys` minor and an `embuild`
-  floor, and `esp-idf-svc` requires the same `esp-idf-hal` minor. Bump all four in
-  one diff.
-- `critical-section = "=1.2.0"` stays pinned exactly for the esp-hal tier,
-  whose rotary ISR relies on esp-hal's ISR-safe impl (`esp_sync::RawMutex`).
-  The ESP-IDF tier no longer uses `critical_section` (its provider is a FreeRTOS
-  mutex, not ISR-safe; see ADR-006 "ISR-safe lock"). On every `esp-idf-hal` bump
-  re-read `src/interrupt.rs` (`IsrCriticalSection` enter/exit and its chip
-  `cfg`s) at the new tag, plus the FreeRTOS port's `xPortEnterCriticalTimeout` /
-  `vPortExitCritical` on an ESP-IDF bump, and record the re-check date in
-  `docs/project-lore.md`.
-- `ESP_IDF_VERSION` (`.cargo/config.toml`) is a separate decision from the
-  crate pins; moving it costs an IDF download and an `sdkconfig` re-validation.
+- `esp-idf-hal`, `esp-idf-svc`, `esp-idf-sys`, `embuild` move together.
+- Each `esp-idf-hal` minor requires a matching `esp-idf-sys` minor and an `embuild` floor.
+- `esp-idf-svc` requires the same `esp-idf-hal` minor.
+- Bump all four in one diff.
+- `critical-section = "=1.2.0"` stays pinned exactly for the esp-hal tier, whose rotary ISR relies on esp-hal's ISR-safe impl (`esp_sync::RawMutex`).
+- The ESP-IDF tier no longer uses `critical_section` (its provider is a FreeRTOS mutex, not ISR-safe; see ADR-006 "ISR-safe lock").
+- On every `esp-idf-hal` bump re-read `src/interrupt.rs` (`IsrCriticalSection` enter/exit and its chip `cfg`s) at the new tag.
+- On an ESP-IDF bump also re-read the FreeRTOS port's `xPortEnterCriticalTimeout` / `vPortExitCritical`.
+- Record the re-check date in `docs/project-lore.md`.
+- `ESP_IDF_VERSION` (`.cargo/config.toml`) is a separate decision from the crate pins.
+- Moving `ESP_IDF_VERSION` costs an IDF download and an `sdkconfig` re-validation.
 
 ### esp-hal stack (exact pins)
-- `esp-hal`, `esp-bootloader-esp-idf`, `esp-println` are released from the
-  `esp-rs/esp-hal` monorepo as a coordinated wave; treat them together. `esp-hal`
-  itself often lands a week after the companion crates.
-- Pre-1.0 companions signal breaking changes with minor bumps; `esp-hal` minors
-  (1.1 → 1.2) do too — read the `CHANGELOG.md` at the new tag for the ADC, LEDC,
-  I2C, GPIO, `delay` and `time` entries, the peripherals this tier's examples use.
-- `esp-rtos`, `embassy-executor`, `embassy-time`, `embassy-futures` are exact-pinned
-  (library drivers do not depend on them; only the `embassy`-feature examples do).
-  They move with the esp-hal wave and stay in sync with the sibling repos' release cycle.
-- `esp-hal` may raise its `rust-version`; the hardware tiers follow it, `tamer`
-  does not (see MSRV policy below).
+- `esp-hal`, `esp-bootloader-esp-idf`, `esp-println` are released from the `esp-rs/esp-hal` monorepo as a coordinated wave; treat them together.
+- `esp-hal` itself often lands a week after the companion crates.
+- Pre-1.0 companions signal breaking changes with minor bumps; `esp-hal` minors (1.1 → 1.2) do too.
+- Read the `CHANGELOG.md` at the new tag for the ADC, LEDC, I2C, GPIO, `delay` and `time` entries, the peripherals this tier's examples use.
+- `esp-rtos`, `embassy-executor`, `embassy-time`, `embassy-futures` are exact-pinned (library drivers do not depend on them; only the `embassy`-feature examples do).
+- They move with the esp-hal wave and stay in sync with the sibling repos' release cycle.
+- `esp-hal` may raise its `rust-version`; the hardware tiers follow it, `tamer` does not (see MSRV policy below).
 
 ### MSRV policy
 - The workspace floor (`[workspace.package] rust-version`) is `tamer`'s MSRV and
   stays as low as the pure core allows.
-- The two hardware tiers declare their own `rust-version` when the esp stack
-  demands a higher one (mirrors `rustyfarian-ws2812`). Cargo enforces
-  `rust-version` on every package in the graph against the active toolchain,
-  so stable (used by `check-hal` and the RISC-V examples) and the espup `esp`
-  toolchain (Xtensa, ESP-IDF) must both report a numeric version at or above
-  the tiers' MSRV. Never route RISC-V bare-metal builds through a floating
-  nightly: a nightly older than a stabilisation date satisfies `rust-version`
-  yet cannot compile the crate (lore § Build & Validation).
+- The two hardware tiers declare their own `rust-version` when the esp stack demands a higher one (mirrors `rustyfarian-ws2812`).
+- Cargo enforces `rust-version` on every package in the graph against the active toolchain.
+- So stable (used by `check-hal` and the RISC-V examples) and the espup `esp` toolchain (Xtensa, ESP-IDF) must both report a numeric version at or above the tiers' MSRV.
+- Never route RISC-V bare-metal builds through a floating nightly: a nightly older than a stabilisation date satisfies `rust-version` yet cannot compile the crate (lore § Build & Validation).
 
 ### Coordinated esp-hal upgrade — runbook
 1. **Survey.** Query crates.io for the latest version of every pinned esp-* crate
@@ -125,11 +112,11 @@ reflect the actual semantics.
    `just update`; inspect `Cargo.lock` for the resolved versions.
 4. **Compile check.** `just check-hal`, `just check-idf`, then the example spot-check
    list above.
-5. **Re-audit.** `just audit`, `just deny`. Re-evaluate every `deny.toml` ignore
-   (notably `paste` via `esp-hal`) against the new graph and re-cite the version
-   and date in the comment.
+5. **Re-audit.** `just audit`, `just deny`.
+   Re-evaluate every `deny.toml` ignore (notably `paste` via `esp-hal`) against the new graph and re-cite the version and date in the comment.
 6. **Docs.** `CHANGELOG.md ## [Unreleased] ### Changed` — one bullet per crate bump
-   and one per applied API migration. Update version references in `AGENTS.md`,
+   and one per applied API migration.
+   Update version references in `AGENTS.md`,
    `README.md`, `docs/project-lore.md`, and source comments that cite a pinned
    version (`grep -rn '0\.46\|1\.1\.0'` and friends).
 7. **Hardware retest** per the pass criteria above; record honestly.
@@ -158,10 +145,9 @@ Review during quarterly cycles:
 - `docs/project-lore.md` — remove entries resolved upstream; re-date re-confirmed ones.
 - `docs/ROADMAP.md` — still reflects priorities; drop resolved items.
 - `CHANGELOG.md` — `## [Unreleased]` matches branch state.
-- `AGENTS.md` / `README.md` — MSRV, crate table, feature flags. The README states
-  MSRV in *two* places: the `img.shields.io` Rust badge and the MSRV paragraph
-  under "Development". A tier MSRV raise must update both, or the badge silently
-  advertises the old floor.
+- `AGENTS.md` / `README.md` — MSRV, crate table, feature flags.
+- The README states MSRV in *two* places: the `img.shields.io` Rust badge and the MSRV paragraph under "Development".
+- A tier MSRV raise must update both, or the badge silently advertises the old floor.
 - `docs/key-insights.md` — CI action versions and build conventions.
 
 ## Scheduled Maintenance Cadence

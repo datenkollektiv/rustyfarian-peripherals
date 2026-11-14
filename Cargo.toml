@@ -25,8 +25,8 @@ signwriter = { path = "crates/signwriter", version = "0.2.0" }
 # External — pure, host-buildable.
 # `embedded-hal` is the trait boundary every hardware tier shares: the pure
 # `tamer` logic is fed from `embedded_hal::digital::InputPin` adapters, and the
-# device crates implement against the same traits. Kept at a caret range while
-# pure; the esp-* stacks below switch to exact pins once they are wired.
+# device crates implement against the same traits. Kept at a caret range because
+# it is pure; the esp-* stacks below are pinned exactly.
 embedded-hal = { version = "1.0", default-features = false }
 # Pixel/draw-target traits for `signwriter`; `embedded-graphics-core` carries no fonts or shapes.
 embedded-graphics-core = { version = "0.4", default-features = false }

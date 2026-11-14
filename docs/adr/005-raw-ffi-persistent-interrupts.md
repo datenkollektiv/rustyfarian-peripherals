@@ -5,36 +5,65 @@ Accepted
 
 ## Context
 `rustyfarian-esp-idf-peripherals` is the ESP-IDF `std` hardware tier where drivers bind pure `tamer` logic to real ESP32 GPIO.
-Its skeleton assumed interrupt-driven inputs would use `esp-idf-hal`'s `PinDriver::subscribe` + `enable_interrupt` pattern — a built-in async-notification abstraction where the handler fires once and auto-disables, requiring explicit re-arming after each edge.
+Its skeleton assumed interrupt-driven inputs would use `esp-idf-hal`'s `PinDriver::subscribe` + `enable_interrupt` pattern.
+That pattern is a built-in async-notification abstraction where the handler fires once and auto-disables, requiring explicit re-arming after each edge.
 
 The first downstream driver — an interrupt-driven rotary encoder — exposed a fatal gap: `PinDriver`'s one-shot subscription pattern cannot keep up with edge-dense inputs.
 A rotary encoder generates a burst of quadrature transitions per physical detent.
 If the main-loop tick rate is coarse (e.g., a long display DMA transfer or I2C read blocks the scheduler), edges arriving between ticks are lost.
-The one-shot pattern forces a re-arm after every edge, a race condition where a fast encoder can produce more edges than fit in one polling interval.
+The one-shot pattern forces a re-arm after every edge.
+That is a race condition: a fast encoder can produce more edges than fit in one polling interval.
 
-The encoder driver sidesteps this by calling the underlying ESP-IDF C API directly: `gpio_isr_handler_add` (via `esp_idf_svc::sys`) registers a persistent handler that stays armed after every edge, so no edge is lost regardless of main-loop latency.
+The encoder driver sidesteps this by calling the underlying ESP-IDF C API directly.
+`gpio_isr_handler_add` (via `esp_idf_svc::sys`) registers a persistent handler that stays armed after every edge, so no edge is lost regardless of main-loop latency.
 This correction inverts the skeleton's implicit assumption that polled, one-shot HAL subscriptions are the universal solution for interrupt-driven input.
 
 ## Decision
 Accept raw-FFI persistent `AnyEdge` interrupts (`gpio_install_isr_service`, `gpio_isr_handler_add`, `gpio_intr_enable` / `disable`) via `esp_idf_svc::sys` as the **sanctioned pattern for edge-dense inputs** in the ESP-IDF tier.
 
-This is distinct from polled one-shot HAL subscriptions: choose **polled one-shot** for low-frequency, one-edge-at-a-time signals (e.g. waking on a button press) and **persistent raw-FFI** for edge-dense streams (e.g. quadrature rotation).
-Default to poll (no FFI required) unless a downstream project has an established, hardware-verified need for zero event loss under load — that is a deliberately high bar.
+This is distinct from polled one-shot HAL subscriptions.
+Choose **polled one-shot** for low-frequency, one-edge-at-a-time signals (e.g. waking on a button press).
+Choose **persistent raw-FFI** for edge-dense streams (e.g. quadrature rotation).
+Default to poll (no FFI required) unless a downstream project has an established, hardware-verified need for zero event loss under load.
+That is a deliberately high bar.
 
 ## Consequences
 - Edge-dense inputs (rotary encoders, stepper feedback, quadrature distance sensors) have a correct, non-losing implementation path rather than silently dropping edges under load.
-- The encoder driver correctly defines the per-instance ISR context using a `Box<IsrContext>` (stable heap address, passed to the FFI as a `*mut c_void` argument) and a load-bearing `Drop` implementation with lock and IPC barriers to prevent use-after-free races against ISRs mid-flight on other cores.
-- Raw FFI calls are encapsulated in private helpers (`arm_gpio_isr`, `disarm_gpio_isr`) with `// SAFETY:` comments; the public API exports zero `unsafe`.
-- **ISR lock (amended 2026-10-28):** the ISR synchronizes shared state through esp-idf-hal's `interrupt::IsrCriticalSection` (interrupt mask + `portMUX_TYPE` spinlock), *not* `critical_section::with`. The ESP-IDF `critical-section` provider is a FreeRTOS recursive mutex and is not ISR-safe; using it from the ISR crashed an ESP32-S3 (see ADR-006, amendment "ISR-safe lock").
-- **Link-time contract (historical, still relevant to downstream users of `critical_section`):** `critical_section::with` is an *interface* — some crate must supply the `critical-section` **implementation**. The tier still enables `esp-idf-svc`'s `critical-section` feature (`esp-idf-svc = { workspace = true, features = ["critical-section"] }`), a task-context-only FreeRTOS mutex backend, so downstream binaries keep linking. On the original `critical_section` path this was a hard build requirement: without a provider, linking fails with `undefined reference to _critical_section_1_0_acquire/_release`. It is easy to miss because `cargo check` (and thus `just check-idf`) does **not** link — only a real device build/flash surfaces it — and because promoting the dep to `workspace = true` silently drops per-crate `features`. Verify with `just flash`, not `check-idf` alone. See `docs/project-lore.md`.
+- The encoder driver defines the per-instance ISR context using a `Box<IsrContext>` (stable heap address, passed to the FFI as a `*mut c_void` argument).
+- It also has a load-bearing `Drop` implementation with lock and IPC barriers to prevent use-after-free races against ISRs mid-flight on other cores.
+- Raw FFI calls are encapsulated in private helpers (`arm_gpio_isr`, `disarm_gpio_isr`) with `// SAFETY:` comments.
+- The public API exports zero `unsafe`.
+- **ISR lock (amended 2026-10-28):** the ISR synchronizes shared state through esp-idf-hal's `interrupt::IsrCriticalSection` (interrupt mask + `portMUX_TYPE` spinlock), *not* `critical_section::with`.
+- The ESP-IDF `critical-section` provider is a FreeRTOS recursive mutex and is not ISR-safe; using it from the ISR crashed an ESP32-S3 (see ADR-006, amendment "ISR-safe lock").
+- **Link-time contract (historical, still relevant to downstream users of `critical_section`):** `critical_section::with` is an *interface* — some crate must supply the `critical-section` **implementation**.
+  - The tier still enables `esp-idf-svc`'s `critical-section` feature (`esp-idf-svc = { workspace = true, features = ["critical-section"] }`), a task-context-only FreeRTOS mutex backend, so downstream binaries keep linking.
+  - On the original `critical_section` path this was a hard build requirement: without a provider, linking fails with `undefined reference to _critical_section_1_0_acquire/_release`.
+  - It is easy to miss because `cargo check` (and thus `just check-idf`) does **not** link — only a real device build/flash surfaces it.
+  - It is also easy to miss because promoting the dep to `workspace = true` silently drops per-crate `features`.
+  - Verify with `just flash`, not `check-idf` alone.
+  - See `docs/project-lore.md`.
 - Documentation must distinguish the two patterns clearly (see [`rustyfarian_esp_idf_peripherals`](../../crates/rustyfarian-esp-idf-peripherals/src/lib.rs) module docs).
-- **Operational limitation (v1): the ISR is not IRAM-resident** — an edge during a flash-cache-disabled window (NVS/OTA write) can crash the device. Roadmapped fix and full rationale: [Feature: IRAM-Safe ISR v1](../features/iram-safe-isr-v1.md).
-- This is a **deliberate departure** from `AGENTS.md`'s guideline "every hardware interaction is behind a trait" — the raw-FFI path is too specific to the ESP-IDF C API to be usefully trait-ified without losing the whole point (persistent edge capture). A trait-first polled adapter (`QuadratureInput` in `tamer::rotary` behind the `hal` feature) complements the raw-FFI driver; users pick the right tool for the latency budget.
+- **Operational limitation (v1): the ISR is not IRAM-resident** — an edge during a flash-cache-disabled window (NVS/OTA write) can crash the device.
+- Roadmapped fix and full rationale: [Feature: IRAM-Safe ISR v1](../features/iram-safe-isr-v1.md).
+- This is a **deliberate departure** from `AGENTS.md`'s guideline "every hardware interaction is behind a trait".
+  - The raw-FFI path is too specific to the ESP-IDF C API to be usefully trait-ified without losing the whole point (persistent edge capture).
+  - A trait-first polled adapter (`QuadratureInput` in `tamer::rotary` behind the `hal` feature) complements the raw-FFI driver.
+  - Users pick the right tool for the latency budget.
 
 ## Alternatives Considered
-|                                                        Alternative | Pros                                                     | Cons                                                                                                 | Why Rejected                                                                                              |
-|-------------------------------------------------------------------:|:---------------------------------------------------------|:-----------------------------------------------------------------------------------------------------|:----------------------------------------------------------------------------------------------------------|
-|                       Polled one-shot HAL subscriptions everywhere | Keeps all interrupt logic inside the HAL; trait-friendly | Loses edges under main-loop latency; unusable for quadrature; the whole encoder problem persists     | The encoder proof-of-concept already failed this way; it is not viable for the target use case            |
-|       Polling `pin.is_high()` / `is_low()` from the main loop only | Pure, no ISR; minimal coupling                           | Requires a very fast tick rate to not miss edges; defeats low-power interrupt benefit                | Acceptable for slow inputs (buttons), not for encoders; forces a one-tool-per-latency decision either way |
-|   Trait-ified FFI (async `wait_for_edge().await`, `Handler` trait) | Reusable, composable, matches AGENTS.md guidance         | Speculative without a proven async consumer; preempts the esp-hal twin's async shape; vendor lock-in | The esp-idf tier is `std` and *can* support async, but that shape is decided when the esp-hal twin lands  |
-|                 Continue with the one-shot subscription assumption | Minimal skeleton change                                  | Encoder silently loses edges; no way for a downstream project to discover the bug except on hardware | Blocks the first real driver and misleads future consumers about what "interrupt driven" means            |
+- **Polled one-shot HAL subscriptions everywhere**
+  - Pros: keeps all interrupt logic inside the HAL; trait-friendly.
+  - Cons: loses edges under main-loop latency; unusable for quadrature; the whole encoder problem persists.
+  - Rejected: the encoder proof-of-concept already failed this way; it is not viable for the target use case.
+- **Polling `pin.is_high()` / `is_low()` from the main loop only**
+  - Pros: pure, no ISR; minimal coupling.
+  - Cons: requires a very fast tick rate to not miss edges; defeats low-power interrupt benefit.
+  - Rejected: acceptable for slow inputs (buttons), not for encoders; forces a one-tool-per-latency decision either way.
+- **Trait-ified FFI (async `wait_for_edge().await`, `Handler` trait)**
+  - Pros: reusable, composable, matches AGENTS.md guidance.
+  - Cons: speculative without a proven async consumer; preempts the esp-hal twin's async shape; vendor lock-in.
+  - Rejected: the esp-idf tier is `std` and *can* support async, but that shape is decided when the esp-hal twin lands.
+- **Continue with the one-shot subscription assumption**
+  - Pros: minimal skeleton change.
+  - Cons: encoder silently loses edges; no way for a downstream project to discover the bug except on hardware.
+  - Rejected: blocks the first real driver and misleads future consumers about what "interrupt driven" means.

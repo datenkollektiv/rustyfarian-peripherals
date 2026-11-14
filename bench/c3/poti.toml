@@ -5,7 +5,7 @@ examples = ["hal_c3_poti", "idf_c3_poti"]
 [[step]]
 say = "Wait for the first sample and the calibration prompt"
 expect = ['Waiting for first ADC sample on GPIO 4', 'Calibration: turn the potentiometer']
-reject = 'ADC read failed|PANIC'
+reject = 'ADC read failed|PANIC|panicked|Guru Meditation|abort\(\)|WDT'
 timeout = 15
 optional = true
 arm = false
@@ -23,14 +23,14 @@ expect = [
     'Calibration accepted; using calibrated range',
     'Calibration raw min=Some\((?:\d|\d\d|1\d\d)\) max=Some\((?:39\d\d|40\d\d)\)',
 ]
-reject = 'falling back|Calibration raw|ADC read failed|PANIC'
+reject = 'falling back|Calibration raw|ADC read failed|PANIC|panicked|Guru Meditation|abort\(\)|WDT'
 timeout = 20
 
 # Unattended, nobody turns the knob, so the firmware falls back to the full range first.
 [[step]]
 say = "Wait for the ready line"
 expect = 'Potentiometer ready on GPIO 4: raw=\d+ normalized=\d+ percent=\d+%'
-reject = 'ADC read failed|PANIC'
+reject = 'ADC read failed|PANIC|panicked|Guru Meditation|abort\(\)|WDT'
 timeout = 15
 arm = false
 
@@ -38,47 +38,50 @@ arm = false
 [[step]]
 say = "Turn the potentiometer to the end where it reads about 0 percent and let go"
 attended = true
-expect = 'percent=[0-4]%'
-reject = 'ADC read failed|PANIC'
+expect = '^(?!.*Potentiometer ready).*percent=[0-4]%'
+reject = 'ADC read failed|PANIC|panicked|Guru Meditation|abort\(\)|WDT'
 timeout = 20
+arm = false
 
 [[step]]
 say = "Leave it there"
 attended = true
 duration = 2
-reject = 'percent=(?:[5-9]|[1-9]\d|100)%|ADC read failed|PANIC'
+reject = 'percent=(?:[5-9]|[1-9]\d|100)%|ADC read failed|PANIC|panicked|Guru Meditation|abort\(\)|WDT|ESP-ROM:|rst:0x'
 arm = false
 
 [[step]]
 say = "Turn it to the other end, about 100 percent, and let go"
 attended = true
 expect = 'percent=(?:9[6-9]|100)%'
-reject = 'ADC read failed|PANIC'
+reject = 'ADC read failed|PANIC|panicked|Guru Meditation|abort\(\)|WDT'
 timeout = 20
+arm = false
 
 [[step]]
 say = "Leave it there"
 attended = true
 duration = 2
-reject = 'percent=(?:\d|[1-8]\d|9[0-5])%|ADC read failed|PANIC'
+reject = 'percent=(?:\d|[1-8]\d|9[0-5])%|ADC read failed|PANIC|panicked|Guru Meditation|abort\(\)|WDT|ESP-ROM:|rst:0x'
 arm = false
 
 [[step]]
 say = "Turn it to about the middle and let go"
 attended = true
 expect = 'percent=(?:4\d|5\d|6[0-5])%'
-reject = 'ADC read failed|PANIC'
+reject = 'ADC read failed|PANIC|panicked|Guru Meditation|abort\(\)|WDT'
 timeout = 20
+arm = false
 
 [[step]]
 say = "Leave it there"
 attended = true
 duration = 2
-reject = 'percent=(?:\d|[1-3]\d|6[6-9]|[7-9]\d|100)%|ADC read failed|PANIC'
+reject = 'percent=(?:\d|[1-3]\d|6[6-9]|[7-9]\d|100)%|ADC read failed|PANIC|panicked|Guru Meditation|abort\(\)|WDT|ESP-ROM:|rst:0x'
 arm = false
 
 [[step]]
 say = "Hands off: the firmware keeps running for 5 s"
 duration = 5
-reject = 'PANIC|panicked at|ADC read failed'
+reject = 'PANIC|panicked at|ADC read failed|Guru Meditation|abort\(\)|WDT|ESP-ROM:|rst:0x'
 arm = false

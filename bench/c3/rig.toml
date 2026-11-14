@@ -6,7 +6,7 @@ examples = ["hal_c3_rig_check"]
 [[step]]
 say = "Wait for the rig check to start (nothing attached)"
 expect = 'RIG ready \(button=3 pogo=4 i2c=6/7 buzzer=10\)'
-reject = 'PANIC'
+reject = 'PANIC|panicked|Guru Meditation|abort\(\)|WDT'
 timeout = 15
 arm = false
 
@@ -15,30 +15,34 @@ arm = false
 say = "Attach the I2C device to the 4-pin pogo"
 attended = true
 expect = 'I2C attached sda=6 scl=7 addr=0x(?P<i2c>[0-9A-F]{2})'
-reject = 'PANIC'
+reject = 'PANIC|panicked|Guru Meditation|abort\(\)|WDT'
 timeout = 30
+arm = false
 
 [[step]]
 say = "Detach the I2C device"
 attended = true
 expect = 'I2C detached sda=6 scl=7 addr=0x(?P=i2c)'
-reject = 'PANIC'
+reject = 'PANIC|panicked|Guru Meditation|abort\(\)|WDT'
 timeout = 30
+arm = false
 
 # A driven part (poti wiper, 49E) wins over the internal pulls; WS2812 data-in cannot be sensed.
 [[step]]
 say = "Attach the poti or the 49E to the 3-pin pogo"
 attended = true
 expect = 'POGO attached GPIO4 raw=\d+'
-reject = 'PANIC'
+reject = 'PANIC|panicked|Guru Meditation|abort\(\)|WDT'
 timeout = 30
+arm = false
 
 [[step]]
 say = "Detach the poti or the 49E"
 attended = true
 expect = 'POGO detached GPIO4'
-reject = 'PANIC'
+reject = 'PANIC|panicked|Guru Meditation|abort\(\)|WDT'
 timeout = 30
+arm = false
 
 # The press must start a fresh tone round, so a bump during the earlier steps cannot
 # leave the buzzer step out of step; a retry after 30 s always works.
@@ -46,18 +50,20 @@ timeout = 30
 say = "Press the button"
 attended = true
 expect = ['BUTTON GPIO3 pressed', 'Listen now']
-reject = 'PANIC'
+reject = 'PANIC|panicked|Guru Meditation|abort\(\)|WDT'
 timeout = 30
+arm = false
 
 [[step]]
 say = "Press the button again as soon as you hear a tone (no tone? press once to restart them)"
 attended = true
 expect = 'BUZZER GPIO10 confirmed'
-reject = 'PANIC'
+reject = 'PANIC|panicked|Guru Meditation|abort\(\)|WDT'
 timeout = 45
+arm = false
 
 [[step]]
 say = "Hands off: the firmware keeps running for 5 s"
 duration = 5
-reject = 'PANIC|panicked at'
+reject = 'PANIC|panicked at|Guru Meditation|abort\(\)|WDT|ESP-ROM:|rst:0x'
 arm = false

@@ -55,7 +55,7 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - { chip: esp, mcu: esp32, buildtargets: esp32 }
+          - { chip: esp32, mcu: esp32, buildtargets: esp32 }
           - { chip: c3, mcu: esp32c3, buildtargets: esp32 }
           - { chip: c6, mcu: esp32c6, buildtargets: esp32 }
           - { chip: s3, mcu: esp32s3, buildtargets: esp32s3 }

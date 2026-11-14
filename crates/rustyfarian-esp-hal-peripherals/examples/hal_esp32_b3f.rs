@@ -39,13 +39,13 @@
 //! ## Build
 //!
 //! ```sh
-//! just build-example hal_esp_b3f
+//! just build-example hal_esp32_b3f
 //! ```
 //!
 //! ## Flash
 //!
 //! ```sh
-//! just flash hal_esp_b3f
+//! just flash hal_esp32_b3f
 //! ```
 
 #![no_std]

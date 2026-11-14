@@ -9,7 +9,7 @@ Release process for the `rustyfarian-peripherals` workspace.
 
 - **Scheme:** SemVer (0.x.y — pre-stable; minor bumps may break).
 - **Model:** Single workspace version in `[workspace.package]` — `tamer`, `signwriter` and the two hardware tiers move together.
-  `signwriter` is published right after `tamer`, because it depends on it.
+- **Publish order:** `signwriter` is published right after `tamer`, because it depends on it.
 - **Snapshot convention:** None; crates live at the released version between releases.
 - **Who decides version:** Maintainer; minor bump for new or breaking public API, patch for fixes only.
 
@@ -63,7 +63,7 @@ A gate passes when `--unattended` and `--attended` both pass on one commit; a ch
 | `c6/rotary` | open | | | |
 | `c6/oled-ssd1306` | open | | | |
 | `c6/oled-sh1106` | open: no SH1106 module | | | |
-| `feather-v2/oled-*` | deferred: no STEMMA QT cable | | | |
+| `esp32-feather/oled-*` | deferred: no STEMMA QT cable | | | |
 | `c3/bme680`, `c3/bme680-async` | deferred: `bme680` experimental | | | |
 | `s3/oled` | n/a: I2C is the touch bus | | | |
 
@@ -113,7 +113,7 @@ Both hardware tiers depend on `tamer`, so publishing is staged.
 **Stage 1 — pure core:**
 
 ```sh
-just release-publish-tamer
+just release-publish
 ```
 
 Verify `https://crates.io/crates/tamer` shows `X.Y.Z` before continuing.

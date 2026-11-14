@@ -14,14 +14,14 @@ arm = false
 [[step]]
 say = "Listen: the sequencer steps through notes 0-3 and loops back to note 0"
 expect = ['note 0', 'note 1', 'note 2', 'note 3', 'note 0']
-reject = 'failed to|not representable|PANIC'
+reject = 'failed to|not representable|PANIC|panicked|Guru Meditation|abort\(\)|WDT'
 timeout = 20
 arm = false
 
 [[step]]
 say = "Let it loop for 10 s without a retune or duty failure"
 duration = 10
-reject = 'failed to|not representable|PANIC'
+reject = 'failed to|not representable|PANIC|panicked|Guru Meditation|abort\(\)|WDT|ESP-ROM:|rst:0x'
 arm = false
 
 [[step]]

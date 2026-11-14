@@ -52,8 +52,8 @@ in embedded Rust.
   [`tamer`](crates/tamer) — plain `no_std` Rust with no hardware dependency,
   always compiled, fully testable on the host.
 - **Thin hardware wrappers:** the `rustyfarian-esp-*` crates are minimal
-  translation layers between `embedded-hal` pins and the pure logic. Real logic
-  stays in the core.
+  translation layers between `embedded-hal` pins and the pure logic.
+  - Real logic stays in the core.
 - **Trait-first design:** every hardware interaction is behind a trait, with a
   `Noop*` mock shipped beside it so consumer crates test against the library's
   mocks rather than inventing their own.
@@ -98,19 +98,29 @@ Dotted edge: a natural fit, not adopted yet.
 
 ## Crates
 
-| Crate                                                                       | Tier                  | Target   | Contents                                                                                                                                                                        | crates.io                                                                                                                                     | Docs                                                                                                                         |
-|:----------------------------------------------------------------------------|:----------------------|:---------|:--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|:----------------------------------------------------------------------------------------------------------------------------------------------|:-----------------------------------------------------------------------------------------------------------------------------|
-| [`tamer`](crates/tamer)                                                     | Pure / host-buildable | `no_std` | Debounce, digital presence detection, rotary decoding, analog normalization, tone sequencing, and button-event logic behind traits, with `Noop*` mocks. No hardware dependency. | [![crates.io](https://img.shields.io/crates/v/tamer.svg)](https://crates.io/crates/tamer)                                                     | [![docs.rs](https://img.shields.io/docsrs/tamer)](https://docs.rs/tamer)                                                     |
-| [`signwriter`](crates/signwriter)                                           | Graphics driver (host-testable) | `no_std` | 128x64 I2C OLED driver for SSD1306 and SH1106 behind `embedded-graphics` `DrawTarget`, with hot-plug over `tamer::hotplug`. Not part of the `tamer` core. | Planned for 0.1.0 (after `tamer` 0.2.0) | Docs on docs.rs after 0.1.0 |
-| [`rustyfarian-esp-hal-peripherals`](crates/rustyfarian-esp-hal-peripherals) | esp-hal (bare-metal)  | `no_std` | Async `Encoder` and ISR-decoded `InterruptEncoder`. Re-exports `tamer`. Examples on ESP32, ESP32-C3, C6, S3.                                                                    | [![crates.io](https://img.shields.io/crates/v/rustyfarian-esp-hal-peripherals.svg)](https://crates.io/crates/rustyfarian-esp-hal-peripherals) | [![docs.rs](https://img.shields.io/docsrs/rustyfarian-esp-hal-peripherals)](https://docs.rs/rustyfarian-esp-hal-peripherals) |
-| [`rustyfarian-esp-idf-peripherals`](crates/rustyfarian-esp-idf-peripherals) | ESP-IDF (std)         | `std`    | Interrupt-driven rotary encoder with persistent raw-FFI edge capture. Re-exports `tamer`. First library driver shipping beyond the skeleton.                                    | [![crates.io](https://img.shields.io/crates/v/rustyfarian-esp-idf-peripherals.svg)](https://crates.io/crates/rustyfarian-esp-idf-peripherals) | [![readme](https://img.shields.io/badge/docs-readme-blue)](crates/rustyfarian-esp-idf-peripherals/README.md)                 |
+| Crate | Tier / target | crates.io | Docs |
+|:------|:--------------|:----------|:-----|
+| [`tamer`](crates/tamer) | Pure / host-buildable, `no_std` | [![crates.io](https://img.shields.io/crates/v/tamer.svg)](https://crates.io/crates/tamer) | [![docs.rs](https://img.shields.io/docsrs/tamer)](https://docs.rs/tamer) |
+| [`signwriter`](crates/signwriter) | Graphics driver (host-testable), `no_std` | [![crates.io](https://img.shields.io/crates/v/signwriter.svg)](https://crates.io/crates/signwriter) | [![docs.rs](https://img.shields.io/docsrs/signwriter)](https://docs.rs/signwriter) |
+| [`rustyfarian-esp-hal-peripherals`](crates/rustyfarian-esp-hal-peripherals) | esp-hal (bare-metal), `no_std` | [![crates.io](https://img.shields.io/crates/v/rustyfarian-esp-hal-peripherals.svg)](https://crates.io/crates/rustyfarian-esp-hal-peripherals) | [![docs.rs](https://img.shields.io/docsrs/rustyfarian-esp-hal-peripherals)](https://docs.rs/rustyfarian-esp-hal-peripherals) |
+| [`rustyfarian-esp-idf-peripherals`](crates/rustyfarian-esp-idf-peripherals) | ESP-IDF (std), `std` | [![crates.io](https://img.shields.io/crates/v/rustyfarian-esp-idf-peripherals.svg)](https://crates.io/crates/rustyfarian-esp-idf-peripherals) | [![readme](https://img.shields.io/badge/docs-readme-blue)](crates/rustyfarian-esp-idf-peripherals/README.md) |
+
+- `tamer`: debounce, digital presence detection, rotary decoding, analog normalization, tone sequencing, and button-event logic behind traits, with `Noop*` mocks.
+- `tamer` has no hardware dependency.
+- `signwriter`: 128x64 I2C OLED driver for SSD1306 and SH1106 behind `embedded-graphics` `DrawTarget`, with hot-plug over `tamer::hotplug`.
+- `signwriter` is not part of the `tamer` core.
+- `rustyfarian-esp-hal-peripherals`: async `Encoder` and ISR-decoded `InterruptEncoder`.
+- `rustyfarian-esp-hal-peripherals` re-exports `tamer`, with examples on ESP32, ESP32-C3, C6, S3.
+- `rustyfarian-esp-idf-peripherals`: interrupt-driven rotary encoder with persistent raw-FFI edge capture.
+- `rustyfarian-esp-idf-peripherals` re-exports `tamer`.
 
 > `rustyfarian-esp-idf-peripherals` links to its crate README rather than docs.rs — `esp-idf-sys` cannot build in the docs.rs sandbox.
 
 `signwriter` is the one graphics-side crate: it drives the OLED and implements `embedded-graphics` `DrawTarget`.
 `tamer` never depends on `signwriter` or on `embedded-graphics`, so the pure core stays graphics-free ([ADR-008](docs/adr/008-display-scope.md), [ADR-013](docs/adr/013-signwriter.md)).
 
-Each hardware tier has a `board-*` feature per board (for example `board-feather-v2`), and its `board` module names that board's I2C pins, so one example runs on every board of a chip ([ADR-014](docs/adr/014-board-profiles.md)).
+Each hardware tier has a `board-*` feature per board (for example `board-feather-v2`).
+Its `board` module names that board's I2C pins, so one example runs on every board of a chip ([ADR-014](docs/adr/014-board-profiles.md)).
 
 The pure core uses the rustyfarian family's funfair naming (`tamer`, joining
 `bunting` / `pennant` / `ferriswheel` / `juggler` / `stoker`); the hardware
@@ -146,17 +156,17 @@ just doctor    # report tooling status
 ```
 
 Building the hardware crates for a device needs the Espressif toolchain
-(`just setup-toolchain`); `just build-example` / `flash` / `run` then build,
+(`just setup esp`); `just build-example` / `flash` / `run` then build,
 flash, and monitor a named example.
 The committed `.cargo/config.toml` pins ESP-IDF v6.1 and configures the linker and target-specific flags for every ESP-IDF and bare-metal target.
 Cargo never reads it when this workspace is a dependency, so it does not affect consumers.
 
-**MSRV:** `tamer` and `signwriter` require Rust **1.88+**, and the host gates above run on it.
-The two hardware tiers require Rust **1.95+** — the floor declared by
-`esp-hal 1.2` and its companion crates. Cargo checks `rust-version` against the
-active toolchain, so a device build on an older stable (or an older nightly,
-whose `-nightly` suffix Cargo ignores) fails with "not supported by the
-following package".
+**MSRV:**
+
+- `tamer` and `signwriter` require Rust **1.88+**, and the host gates above run on it.
+- The two hardware tiers require Rust **1.95+** — the floor declared by `esp-hal 1.2` and its companion crates.
+- Cargo checks `rust-version` against the active toolchain.
+- A device build on an older stable (or an older nightly, whose `-nightly` suffix Cargo ignores) fails with "not supported by the following package".
 
 ## License
 

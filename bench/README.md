@@ -10,6 +10,16 @@ The runner is [`rustyfarian-bench`](https://github.com/datenkollektiv/rustyfaria
 | [`release-plan.md`](../release-plan.md) § Final hardware pass | gate results |
 | `bench.toml` | build and flash commands, boards |
 
+| Board | Directory | Last full pass |
+|:--|:--|:--|
+| CrowPanel 1.28" HMI (ESP32-S3) | [s3/](s3/) | 2026-11-11 |
+| ESP32-C3 SuperMini | [c3/](c3/) | open |
+| ESP32-C6-DevKitC-1 | [c6/](c6/) | open |
+| ESP32-WROOM-32 DevKit | [esp32/](esp32/) | open |
+| Adafruit ESP32 Feather V2 | [esp32-feather/](esp32-feather/) | open |
+
+A full pass is every gate of the board in both modes, as recorded in the release plan; the date is taken from those rows, never ahead of the run.
+
 ## Running
 
 ```sh

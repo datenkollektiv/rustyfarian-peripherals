@@ -204,7 +204,7 @@ name = "hal_c6_passive_buzzer_arpeggio"
 required-features = ["esp32c6", "rt", "unstable"]
 
 [[example]]
-name = "hal_esp_b3f"
+name = "hal_esp32_b3f"
 required-features = ["esp32", "rt", "unstable"]
 
 [[example]]
@@ -220,7 +220,7 @@ name = "hal_s3_rotary"
 required-features = ["esp32s3", "rt", "unstable", "embassy"]
 
 [[example]]
-name = "hal_esp_rotary_isr"
+name = "hal_esp32_rotary_isr"
 required-features = ["esp32", "rt", "unstable", "embassy"]
 
 [[example]]
@@ -240,5 +240,5 @@ name = "hal_c6_oled"
 required-features = ["esp32c6", "rt", "unstable", "board"]
 
 [[example]]
-name = "hal_esp_oled"
+name = "hal_esp32_oled"
 required-features = ["esp32", "rt", "unstable", "board"]

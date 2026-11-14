@@ -1,7 +1,6 @@
 [package]
 name = "signwriter"
-# Own version, not the lockstep workspace version: signwriter is released after
-# `tamer` 0.2.0 (see `release-plan.md`).
+# Lockstep with the workspace version; published right after `tamer` (see `release-plan.md`).
 version.workspace = true
 authors.workspace = true
 edition.workspace = true

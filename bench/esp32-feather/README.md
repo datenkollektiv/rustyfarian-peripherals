@@ -1,4 +1,4 @@
-# Bench — Adafruit Feather V2 (ESP32)
+# Bench — Adafruit ESP32 Feather V2
 
 Same chip as `esp32`, built with the `feather-v2` board profile ([ADR-014](../../docs/adr/014-board-profiles.md)).
 

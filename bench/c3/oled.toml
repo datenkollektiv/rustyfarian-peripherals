@@ -10,7 +10,7 @@ examples = ["hal_c3_oled", "idf_c3_oled"]
 [[step]]
 say = "Wait for the example to start (OLED detached)"
 expect = 'OLED waiting on .*SDA 6 / SCL 7'
-reject = 'PANIC'
+reject = 'PANIC|panicked|Guru Meditation|abort\(\)|WDT'
 timeout = 15
 arm = false
 
@@ -21,7 +21,7 @@ expect = [
     'OLED ready addr=0x(?P<addr>3C) controller=(?P<first>Ssd1306|Sh1106) size=128x64',
     'OLED frame n=\d+',
 ]
-reject = 'PANIC'
+reject = 'PANIC|panicked|Guru Meditation|abort\(\)|WDT'
 timeout = 60
 arm = false
 
@@ -35,7 +35,7 @@ confirm = "Does the OLED show the border, `rustyfarian`, the tier name and a cou
 say = "Unplug the OLED and wait until the detach is logged"
 attended = true
 expect = 'OLED detached addr=0x(?P=addr)'
-reject = 'PANIC'
+reject = 'PANIC|panicked|Guru Meditation|abort\(\)|WDT'
 timeout = 60
 arm = false
 
@@ -46,7 +46,7 @@ expect = [
     'OLED ready addr=0x(?P=addr) controller=(?!(?P=first))(?:Ssd1306|Sh1106) size=128x64',
     'OLED frame n=\d+',
 ]
-reject = 'PANIC'
+reject = 'PANIC|panicked|Guru Meditation|abort\(\)|WDT'
 timeout = 60
 arm = false
 
@@ -58,12 +58,12 @@ confirm = "Does the other OLED show the border, `rustyfarian`, the tier name and
 say = "Detach the OLED"
 attended = true
 expect = 'OLED detached addr=0x(?P=addr)'
-reject = 'PANIC'
+reject = 'PANIC|panicked|Guru Meditation|abort\(\)|WDT'
 timeout = 60
 arm = false
 
 [[step]]
 say = "Hands off: the firmware keeps running for 5 s"
 duration = 5
-reject = 'PANIC|panicked at'
+reject = 'PANIC|panicked at|Guru Meditation|abort\(\)|WDT|ESP-ROM:|rst:0x'
 arm = false

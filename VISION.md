@@ -9,26 +9,23 @@ logic behind a thin hardware wrapper, so a new device never means a new repo.
 ## Long-Term Goals
 
 - **Pure, host-testable peripheral logic.**
-  Debounce, rotary quadrature decoding, button-event timing, tone/duration
-  sequencing, text layout and framebuffer diffing — all live in `tamer` as plain
-  `no_std` Rust with no hardware dependency, fully unit-testable on a laptop. No
-  peripheral lands without its decode/render logic in the pure core.
+  - Debounce, rotary quadrature decoding, button-event timing, tone/duration sequencing, text layout and framebuffer diffing all live in `tamer`.
+  - `tamer` is plain `no_std` Rust with no hardware dependency, fully unit-testable on a laptop.
+  - No peripheral lands without its decode/render logic in the pure core.
 
 - **Thin, trait-first hardware tiers.**
-  Keep `rustyfarian-esp-hal-peripherals` (bare-metal) and
-  `rustyfarian-esp-idf-peripherals` (std) thin: they read pins and push bytes,
-  and delegate all logic to `tamer`. Every hardware interaction sits behind a
-  trait, and every trait ships with a `Noop*` mock.
+  - Keep `rustyfarian-esp-hal-peripherals` (bare-metal) and `rustyfarian-esp-idf-peripherals` (std) thin: they read pins and push bytes, and delegate all logic to `tamer`.
+  - Every hardware interaction sits behind a trait.
+  - Every trait ships with a `Noop*` mock.
 
 - **One repo, many peripherals — input *and* output.**
-  Buttons, switches, rotary encoders, piezo buzzers, 7-segment and OLED
-  displays, addressable LEDs all live here. New device types are added in place
-  rather than as new repos. `rustyfarian-ws2812` is a candidate to fold in.
+  - Buttons, switches, rotary encoders, piezo buzzers, 7-segment and OLED displays, addressable LEDs all live here.
+  - New device types are added in place rather than as new repos.
+  - `rustyfarian-ws2812` is a candidate to fold in.
 
 - **A catalogue that grows on demand.**
-  The set of peripherals is not predefined — it grows in response to real
-  downstream requests. "Done" is the state where rustyfarian apps consistently
-  find the peripheral driver they need without forking or copying code.
+  - The set of peripherals is not predefined — it grows in response to real downstream requests.
+  - "Done" is the state where rustyfarian apps consistently find the peripheral driver they need without forking or copying code.
 
 - **Ecosystem currency.**
   Timely adoption of new ESP32 chip variants and HAL releases on both the
@@ -56,15 +53,14 @@ genuine use case arises and the pure-logic discipline can be preserved.
 ## Non-Goals
 
 - **Network and radio.**
-  Wi-Fi, MQTT, LoRaWAN, and ESP-NOW belong in `rustyfarian-network`. Network
-  chips are not peripherals in this repo.
+  - Wi-Fi, MQTT, LoRaWAN, and ESP-NOW belong in `rustyfarian-network`.
+  - Network chips are not peripherals in this repo.
 - **Application-level business logic.**
   Deciding *what* a button press means, or *what* a display should show, is the
   application's job, not the library's.
 - **Hardware-only drivers with no pure core.**
-  A peripheral shipped as a thin esp wrapper with no host-testable logic in
-  `tamer` violates the discipline. The pure-core / thin-tier split is
-  non-negotiable, output peripherals included.
+  - A peripheral shipped as a thin esp wrapper with no host-testable logic in `tamer` violates the discipline.
+  - The pure-core / thin-tier split is non-negotiable, output peripherals included.
 - **Predefined exhaustive peripheral catalogues.**
   Peripherals are added on demand, not speculatively.
 - **Proactive expansion to additional MCU families** beyond ESP32.
@@ -83,19 +79,18 @@ genuine use case arises and the pure-logic discipline can be preserved.
 
 ## Open Questions
 
-- **`ws2812` merge:** should the WS2812 / NeoPixel effects fold into this repo as
-  just-another-output-peripheral, or stay a sibling? It was the first peripheral
-  and predates this repo's broadened scope. Decide when the boundary is next
-  tested by real use.
-- **Power / charging grey zone:** do battery-charging and power-management
-  devices count as peripherals here, or stay in `rustyfarian-power`? Currently
-  leaning `rustyfarian-power`; revisit if a charging IC needs a driver.
+- **`ws2812` merge:** should the WS2812 / NeoPixel effects fold into this repo as just-another-output-peripheral, or stay a sibling?
+  - It was the first peripheral and predates this repo's broadened scope.
+  - Decide when the boundary is next tested by real use.
+- **Power / charging grey zone:** do battery-charging and power-management devices count as peripherals here, or stay in `rustyfarian-power`?
+  - Currently leaning `rustyfarian-power`.
+  - Revisit if a charging IC needs a driver.
 - **Interrupt vs. polling boundary:** resolved by ADR-010 — `tamer` machines
   take samples and `now` as inputs, so a polled adapter and an ISR feed the same
   machine (the rotary encoder does both).
-- **Where generic pin/bus abstractions stop and `embedded-hal` begins.** The pure
-  core should lean on `embedded-hal` traits rather than reinventing them; revisit
-  if a downstream need exposes a gap.
+- **Where generic pin/bus abstractions stop and `embedded-hal` begins.**
+  - The pure core should lean on `embedded-hal` traits rather than reinventing them.
+  - Revisit if a downstream need exposes a gap.
 
 ## Vision History
 
@@ -103,10 +98,7 @@ genuine use case arises and the pure-logic discipline can be preserved.
   peripherals (pins, debounce, rotary, button events), with all output pushed to
   `rustyfarian-ws2812` and a deliberate input/output split.
 - 2026-06-22 — Vision **re-derived from scratch** (AI onboarding draft dropped).
-  Scope broadened from "input peripherals" to **all hardware peripherals — input
-  and output** (piezo buzzers, 7-segment / OLED displays, addressable LEDs now
-  included), motivated by not wanting to spawn a new repo per device type;
-  `ws2812` may fold in. Network chips remain out of scope (`rustyfarian-network`);
-  battery / power is recorded as a named grey zone. The pure-`tamer`-core plus
-  thin-hardware-tier discipline is retained and reaffirmed as non-negotiable —
-  now the project's true spine, in place of "input".
+  - Scope broadened from "input peripherals" to **all hardware peripherals — input and output** (piezo buzzers, 7-segment / OLED displays, addressable LEDs now included).
+  - Motivation: not wanting to spawn a new repo per device type; `ws2812` may fold in.
+  - Network chips remain out of scope (`rustyfarian-network`); battery / power is recorded as a named grey zone.
+  - The pure-`tamer`-core plus thin-hardware-tier discipline is retained and reaffirmed as non-negotiable — now the project's true spine, in place of "input".

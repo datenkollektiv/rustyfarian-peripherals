@@ -3,7 +3,7 @@ set -euo pipefail
 # build-example.sh — build a named example (no flash).
 # Usage: scripts/build-example.sh <example> [hal_dir [idf_dir [board]]]
 #   example: hal_{chip}_{name} (bare-metal) | idf_{chip}_{name} (ESP-IDF)
-#   chip ∈ {c3, c6, esp, s3} (long forms esp32c3, esp32c6, esp32, esp32s3 also accepted)
+#   chip ∈ {c3, c6, esp32, s3} (long forms esp32c3, esp32c6, esp32s3 also accepted)
 #   board: optional profile (c3-supermini | c6-devkitc | esp32-wroom | feather-v2);
 #          default per chip, see resolve_example in lib.sh (ADR-014)
 #
@@ -11,7 +11,7 @@ set -euo pipefail
 # Bare-metal builds use the stable toolchain with the rustup target (RISC-V) or
 # `cargo +esp -Zbuild-std=core,alloc` (Xtensa, no prebuilt core); ESP-IDF builds
 # always use `cargo +esp`. The linker scripts come from the committed
-# .cargo/config.toml; the ESP-IDF and Xtensa paths need `just setup-toolchain`.
+# .cargo/config.toml; the ESP-IDF and Xtensa paths need `just setup esp`.
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=./lib.sh

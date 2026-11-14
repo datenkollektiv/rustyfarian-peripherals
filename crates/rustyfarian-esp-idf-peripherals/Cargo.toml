@@ -68,7 +68,7 @@ name = "idf_c3_b3f"
 name = "idf_c6_b3f"
 
 [[example]]
-name = "idf_esp_b3f"
+name = "idf_esp32_b3f"
 
 [[example]]
 name = "idf_s3_b3f"
@@ -110,7 +110,7 @@ name = "idf_c3_rotary"
 name = "idf_c6_rotary"
 
 [[example]]
-name = "idf_esp_rotary"
+name = "idf_esp32_rotary"
 
 [[example]]
 name = "idf_c3_tilt_motion"
@@ -140,5 +140,5 @@ name = "idf_c6_oled"
 required-features = ["board"]
 
 [[example]]
-name = "idf_esp_oled"
+name = "idf_esp32_oled"
 required-features = ["board"]

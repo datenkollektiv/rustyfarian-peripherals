@@ -12,14 +12,15 @@ arm = false       # must read the backlog from the reset
 [[step]]
 say = "Hands off: the firmware keeps running for 5 s"
 duration = 5
-reject = 'PANIC|panicked at|Guru Meditation|abort\(\) was called'
+reject = 'PANIC|panicked at|Guru Meditation|abort\(\) was called|WDT|ESP-ROM:|rst:0x'
 arm = false
 
 [[step]]
 say = "Press the button 3 times, then keep your hands off for 2 s"
 attended = true
 expect = ["pressed", "released", "pressed", "released", "pressed", "released"]
-reject = "pressed|released|PANIC"
+# First step of an --attended run, so it reads the boot banner: no reboot markers (ESP-ROM:, rst:0x) in the reject.
+reject = 'pressed|released|PANIC|panicked|Guru Meditation|abort\(\)|WDT'
 timeout = 60
 settle = 2
 arm = false

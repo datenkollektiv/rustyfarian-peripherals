@@ -19,7 +19,7 @@ arm = false
 say = "Turn at least 10 detents clockwise without pausing, then stop for 2 s"
 attended = true
 expect = 'WINDOW \d+ .* cw=[1-9]\d+ ccw=0 .*skipped=0 '
-reject = 'WINDOW .*skipped=[1-9]|PANIC'
+reject = 'WINDOW .*skipped=[1-9]|PANIC|panicked|Guru Meditation|abort\(\)|WDT'
 timeout = 60
 arm = false
 
@@ -27,7 +27,7 @@ arm = false
 say = "Turn at least 10 detents counter-clockwise without pausing, then stop for 2 s"
 attended = true
 expect = 'WINDOW \d+ .* cw=0 ccw=[1-9]\d+ .*skipped=0 '
-reject = 'WINDOW .*skipped=[1-9]|PANIC'
+reject = 'WINDOW .*skipped=[1-9]|PANIC|panicked|Guru Meditation|abort\(\)|WDT'
 timeout = 60
 arm = false
 
@@ -35,14 +35,14 @@ arm = false
 say = "Spin fast but not flat out (about one turn, any direction), then stop for 2 s"
 attended = true
 expect = 'WINDOW \d+ .* delta=-?[1-9]\d+ .*skipped=0 '
-reject = 'WINDOW .*skipped=[1-9]|PANIC'
+reject = 'WINDOW .*skipped=[1-9]|PANIC|panicked|Guru Meditation|abort\(\)|WDT'
 timeout = 60
 arm = false
 
 [[step]]
 say = "Leave the knob alone until the 10 s heartbeat"
 expect = 'HB pos=-?\d+ edges=\d+ skipped=\d+ '
-reject = 'WINDOW|PANIC'
+reject = 'WINDOW|PANIC|panicked|Guru Meditation|abort\(\)|WDT'
 timeout = 15
 arm = false
 

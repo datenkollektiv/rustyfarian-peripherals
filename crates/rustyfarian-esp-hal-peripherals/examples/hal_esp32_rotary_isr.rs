@@ -34,13 +34,13 @@
 //! ## Build
 //!
 //! ```sh
-//! just build-example hal_esp_rotary_isr
+//! just build-example hal_esp32_rotary_isr
 //! ```
 //!
 //! ## Flash
 //!
 //! ```sh
-//! just flash hal_esp_rotary_isr
+//! just flash hal_esp32_rotary_isr
 //! ```
 
 #![no_std]

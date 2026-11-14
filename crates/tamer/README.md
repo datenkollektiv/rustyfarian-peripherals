@@ -18,8 +18,8 @@ fully unit-testable on the host — no ESP32, no ESP toolchain.
   testing.
 - **`hal` feature** (optional): thin adapters over
   `embedded_hal::digital::InputPin`, and sensor drivers over
-  `embedded_hal::i2c::I2c` + `DelayNs`, that feed the pure logic. Off by default, so
-  the core stays hardware-free.
+  `embedded_hal::i2c::I2c` + `DelayNs`, that feed the pure logic.
+  - Off by default, so the core stays hardware-free.
 
 The chip-specific drivers live in the companion crates
 `rustyfarian-esp-hal-peripherals` (bare-metal) and

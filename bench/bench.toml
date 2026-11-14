@@ -19,13 +19,13 @@ name = "ESP32-C6-DevKitC-1"
 
 [boards.esp32]
 chip = "esp32"
-name = "ESP32 WROOM-32 (board profile esp32-wroom)"
+name = "ESP32-WROOM-32 DevKit (board profile esp32-wroom)"
 
 # Same chip as `esp32`, built with the Feather V2 board profile (ADR-014): I2C on the
 # STEMMA QT socket (SDA 22 / SCL 20) with its power switched on via GPIO 2.
 # With both boards attached, pin each one's `mac` so the runner picks the right port.
-[boards.feather-v2]
+[boards.esp32-feather]
 chip = "esp32"
-name = "Adafruit Feather V2 (board profile feather-v2)"
+name = "Adafruit ESP32 Feather V2 (board profile feather-v2)"
 build = ["just", "build-example", "{example}", "feather-v2"]
 flash = ["just", "flash", "{example}", "{port}", "feather-v2"]

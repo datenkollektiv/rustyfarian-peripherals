@@ -13,7 +13,8 @@ All kinds of contributions are welcome — code, documentation, bug reports, ide
 
 - **[`just`](https://github.com/casey/just)** — the task runner behind every build/test/lint command; install it before running any `just …` recipe.
 - **Rust (stable)** — host work (`just verify`) builds on stable; install via [rustup](https://rustup.rs).
-- **The `esp` toolchain** — only needed for the hardware crates; install via [`espup`](https://github.com/esp-rs/espup) (or `just setup-toolchain`). Pure host-side work needs none of it.
+- **The `esp` toolchain** — only needed for the hardware crates; install via [`espup`](https://github.com/esp-rs/espup) (or `just setup esp`).
+- Pure host-side work needs none of the `esp` toolchain.
 - Optional: `cargo-deny` and `cargo-audit` (for `just deny` / `just audit`) — CI installs these automatically.
 
 Run `just doctor` for a one-glance check of your environment.
@@ -62,7 +63,8 @@ For changes to the hardware crates once their drivers land, also validate the cr
 just check-idf
 ```
 
-`just audit` (and the scheduled Audit workflow) scans dependencies for security advisories. Note it generates a `Cargo.lock` if one isn't present — the lockfile is gitignored for this library, so this is expected and not something to commit.
+`just audit` (and the scheduled Audit workflow) scans dependencies for security advisories.
+Note it generates a `Cargo.lock` if one isn't present — the lockfile is gitignored for this library, so this is expected and not something to commit.
 
 ### 4. Open a Pull Request
 - Describe **what** you changed and **why**
