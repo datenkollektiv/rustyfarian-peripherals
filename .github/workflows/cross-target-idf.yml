@@ -62,7 +62,7 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v5
+        uses: actions/checkout@v7
 
       - name: Install esp toolchain
         uses: datenkollektiv/rustyfarian-ci/.github/actions/setup-xtensa@v1
