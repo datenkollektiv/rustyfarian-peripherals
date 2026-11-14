@@ -160,7 +160,7 @@ Review during quarterly cycles:
 - `CHANGELOG.md` — `## [Unreleased]` matches branch state.
 - `AGENTS.md` / `README.md` — MSRV, crate table, feature flags. The README states
   MSRV in *two* places: the `img.shields.io` Rust badge and the MSRV paragraph
-  under "Common Tasks". A tier MSRV raise must update both, or the badge silently
+  under "Development". A tier MSRV raise must update both, or the badge silently
   advertises the old floor.
 - `docs/key-insights.md` — CI action versions and build conventions.
 
