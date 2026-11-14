@@ -49,7 +49,7 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v5
+        uses: actions/checkout@v7
 
       # avr-gcc is required even for a core-only no_std build: AVR 32-bit
       # multiplication intrinsics come from libgcc, which compiler-builtins
