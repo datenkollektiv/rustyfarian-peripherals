@@ -18,7 +18,7 @@
 //! Wire VCC, GND, SDA and SCL to the 4-pin OLED module.
 //! The `feather-v2` profile uses the STEMMA QT socket and drives GPIO 2 high to power it
 //! (GPIO 2 is a strapping pin; it is driven only after boot, so it does not affect boot mode).
-//! Select it with `just build-example idf_esp_oled feather-v2`.
+//! Select it with `just build-example idf_esp32_oled feather-v2`.
 //! Most OLED modules carry their own SDA/SCL pull-ups; if the display does not
 //! answer on a bare bus, fit external 4.7 kΩ pull-ups from SDA and SCL to 3V3.
 //!
@@ -46,13 +46,13 @@
 //! ## Build
 //!
 //! ```sh
-//! just build-example idf_esp_oled
+//! just build-example idf_esp32_oled
 //! ```
 //!
 //! ## Flash
 //!
 //! ```sh
-//! just flash idf_esp_oled
+//! just flash idf_esp32_oled
 //! ```
 
 use embedded_graphics::{

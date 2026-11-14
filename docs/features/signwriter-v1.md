@@ -9,17 +9,24 @@ The decision and its alternatives are recorded in [ADR-013](../adr/013-signwrite
 ## Decisions
 | Decision | Reason | Rejected Alternative |
 |----------|--------|----------------------|
-| New workspace crate `crates/signwriter`, `no_std`, alloc-free, `MIT OR Apache-2.0`, MSRV `1.88` | Graphics stay out of `tamer` ([ADR-008](../adr/008-display-scope.md)); the crate is a graphics-side driver | A display driver inside `tamer` behind a feature |
-| One in-house driver for both controllers | They differ only in the init table and a column offset of 0 or 2 | Upstream `ssd1306` (advisory, bus errors erased, no read path) plus `sh1106` (on `embedded-hal` 0.2) |
+| New workspace crate `crates/signwriter` | Graphics-side driver; graphics stay out of `tamer` ([ADR-008](../adr/008-display-scope.md)) | A display driver inside `tamer` behind a feature |
+| One in-house driver for both controllers | They differ only in the init table and a column offset of 0 or 2 | Upstream `ssd1306` plus `sh1106` (see note below) |
 | Written from scratch, no code copied | Keeps the licence and provenance clean; the driver is small | Adapting an existing SH1106 driver |
 | Controller detected by a RAM read-back before every init | Neither controller has an ID register; the read-back only works on the SH1106 | Status-byte matching (a log line only, it varies between clones) |
 | Hot-plug through `tamer::hotplug::Hotplug` | The attach/detach state machine is already pure and host-tested | A second debounce implementation in the driver |
-| Manual `redetect()` for a swap that happens between two probes | Keeps idle bus traffic at zero; a fast swap is rare and the bench data is not in yet | Periodic re-detection every N ms |
-| Owned generic `I2c` bus, no auto-scan of the address | Sharing is the application's choice through `embedded-hal-bus`; the address is known per board | A bus wrapper inside the driver; scanning 0x3C and 0x3D at boot |
+| Manual `redetect()` for a swap that happens between two probes | Idle bus traffic stays zero; a fast swap is rare and bench data is not in yet | Periodic re-detection every N ms |
+| Owned generic `I2c` bus, no auto-scan of the address | The application shares the bus via `embedded-hal-bus`; the address is known per board | A bus wrapper inside the driver; scanning 0x3C and 0x3D at boot |
 | `tamer` and `signwriter` 0.2.0 released in one wave (lockstep version) | `signwriter` needs `tamer::hotplug`, which is not yet on crates.io | Publishing `signwriter` on a path dependency only |
 
+Why upstream drivers were rejected:
+- `ssd1306` has an advisory on its dependency tree.
+- `ssd1306` erases bus errors and has no read path.
+- `sh1106` is on `embedded-hal` 0.2.
+
 ## Constraints
-- `signwriter` is `no_std` and allocation-free; every write is at most 31 bytes, which fits the 32-byte ESP FIFO.
+- `signwriter` is `no_std` and allocation-free.
+- `signwriter` is licensed `MIT OR Apache-2.0` with MSRV `1.88`.
+- Every write is at most 31 bytes, which fits the 32-byte ESP FIFO.
 - No `unwrap`, `expect` or `panic` on library paths; the only documented panic is `Oled::new` with `detach_errors == 0`, as in `Hotplug`.
 - `tamer` takes no `embedded-graphics` dependency, not even feature-gated.
 - `signwriter` depends on `tamer` for `hotplug` only; the `hal` feature of `tamer` is a dev-dependency for `MockI2c`.
@@ -39,7 +46,9 @@ The decision and its alternatives are recorded in [ADR-013](../adr/013-signwrite
 - Controller and events: `Controller::{Ssd1306, Sh1106}` with `column_offset()` and `init_commands()`; `Event::{Attached(Controller), Detached}`.
 - Errors: `Error<E>` with `Bus(E)` and `Detached`, `is_nack()` and `Display`.
 - Stateless functions: `probe`, `detect`, `init`, `display_on` and `write_page`, each taking `&mut I2C` and an address.
-- Runner: `Oled::new(i2c, address, attach_debounce_ms, detach_errors, probe_every_ms)` and `Oled::with_controller(..)` with a pinned controller, `tick(now_ms) -> Option<Event>`, `flush()`, `redetect(now_ms) -> Option<Event>`, `framebuffer()`, `controller()`, `is_attached()`, `last_error()` and `release()`.
+- Runner constructors: `Oled::new(i2c, address, attach_debounce_ms, detach_errors, probe_every_ms)` and `Oled::with_controller(..)` with a pinned controller.
+- Runner methods: `tick(now_ms) -> Option<Event>`, `flush()`, `redetect(now_ms) -> Option<Event>`.
+- Runner accessors: `framebuffer()`, `controller()`, `is_attached()`, `last_error()` and `release()`.
 
 An application loop draws into the framebuffer on every pass and lets `tick` decide what reaches the panel.
 The loop never blocks on the bus, because `tick` is the only call that touches it.
@@ -55,9 +64,11 @@ For each of the two test values `0xA5` and `0x5A`, the driver:
 
 The panel is an SH1106 only when both values read back unchanged.
 Any other result classifies it as an SSD1306, including a clone that answers differently.
-A read that the device rejects after its writes were acknowledged also classifies it as an SSD1306, because the datasheet documents its serial mode as write-only while the SH1106 always supports RAM read-back.
+A read that the device rejects after its writes were acknowledged also classifies it as an SSD1306.
+The datasheet documents its serial mode as write-only, while the SH1106 always supports RAM read-back.
 A failure of the address-select or test-value writes is returned to the caller and the panel is not classified.
-`Oled::with_controller(i2c, address, controller, attach_debounce_ms, detach_errors, probe_every_ms)` pins the controller and skips detection; attach and `redetect()` then go straight to init.
+`Oled::with_controller(i2c, address, controller, attach_debounce_ms, detach_errors, probe_every_ms)` pins the controller and skips detection.
+Attach and `redetect()` then go straight to init.
 The status byte read after control `0x00` is logged for diagnosis and is never used to decide.
 
 Column 130 is off-screen on the SH1106, and the full flush on attach overwrites it on the SSD1306.
@@ -66,15 +77,16 @@ Column 130 is off-screen on the SH1106, and the full flush on attach overwrites 
 - `tick` probes with `probe` (NOP command `0xE3`) only while detached, and only once `probe_every_ms` has elapsed.
 - A successful probe is fed to `Hotplug::observe`; the panel attaches after `attach_debounce_ms` of continuous successes.
 - On attach, the driver runs detect, init, marks every page dirty, does a full flush of the framebuffer, and then sends display-on (`AF`).
-  The first visible frame is therefore the application's current buffer, and `AF` is sent only after the first full flush.
+  - The first visible frame is therefore the application's current buffer.
+  - `AF` is sent only after the first full flush.
 - If any attach step fails, the attach is treated as a failed probe and retried.
 - While attached, every write result is fed to `Hotplug::observe`.
-  `detach_errors` consecutive failures detach the panel and set `controller` to `None`.
+  - `detach_errors` consecutive failures detach the panel and set `controller` to `None`.
 - While attached and idle, the driver sends a NOP probe every `probe_every_ms`, so an unplug is noticed on a static screen.
 - While detached, drawing continues into the framebuffer, and the next attach shows it.
 - `flush()` while detached returns `Error::Detached` and does not touch the bus.
 - `redetect(now_ms)` forces detect, init, full flush and display-on, and returns `Attached(controller)` when the controller changed.
-  It is the only way to pick up a swap between two probes.
+  - It is the only way to pick up a swap between two probes.
 
 ## Test plan
 Host tests use `tamer::mock::MockI2c`, and every test ends with `.release().done()`.
@@ -86,7 +98,8 @@ Host tests use `tamer::mock::MockI2c`, and every test ends with `.release().done
 - Framebuffer: `pixel_bit_mapping`, `pixel_clipping`, `dirty_only_on_byte_change`.
 - Hot-plug: `tick_attach_after_debounce_full_flush_then_af`, `tick_detach_after_n_errors`, `tick_draws_while_detached_appear_on_reattach`, `tick_swap_sh1106_to_ssd1306_uses_offset_0`.
 - Idle and retry: `tick_idle_probe_respects_interval`, `tick_attach_failure_retries`.
-- Runner: `redetect_reports_changed_controller`, `last_error_set_on_detach`, `tick_attaches_ssd1306_that_rejects_reads`, `fixed_controller_skips_detect`, `fixed_controller_redetect_reinits_without_detect`.
+- Runner: `redetect_reports_changed_controller`, `last_error_set_on_detach`, `tick_attaches_ssd1306_that_rejects_reads`.
+- Pinned controller: `fixed_controller_skips_detect`, `fixed_controller_redetect_reinits_without_detect`.
 - Plus the crate doctest.
 
 Gates: `just test`, `just clippy`, `just doc` and `just verify` run the signwriter tests through `signwriter_flags`.
@@ -98,7 +111,8 @@ Gates: `just test`, `just clippy`, `just doc` and `just verify` run the signwrit
 
 ## Open Questions
 - [ ] How often does a clone answer the read-back differently, and is the SSD1306 classification then a wrong column offset on screen?
-- [ ] How long a swap between two probes can go undetected in practice, and does it justify periodic re-detection? Revisit after bench data.
+- [ ] How long a swap between two probes can go undetected in practice, and does it justify periodic re-detection?
+  - Revisit after bench data.
 
 ## State
 - [x] Design approved

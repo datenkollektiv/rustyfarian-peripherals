@@ -1,6 +1,6 @@
 //! ESP32 — B3F Tactile Push Button (ESP-IDF / std)
 //!
-//! ESP-IDF (`std`) counterpart to `hal_esp_b3f`.
+//! ESP-IDF (`std`) counterpart to `hal_esp32_b3f`.
 //! Reads a B3F-style momentary tactile push button through an internal pull-up,
 //! debounces it with [`EdgeDetector`], and logs press / release events plus a
 //! running press count via `log::info!`.
@@ -37,13 +37,13 @@
 //! ## Build
 //!
 //! ```sh
-//! just build-example idf_esp_b3f
+//! just build-example idf_esp32_b3f
 //! ```
 //!
 //! ## Flash
 //!
 //! ```sh
-//! just flash idf_esp_b3f
+//! just flash idf_esp32_b3f
 //! ```
 
 use esp_idf_hal::{

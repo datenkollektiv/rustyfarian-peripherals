@@ -8,11 +8,10 @@ The application only sees an [`embedded-graphics`](https://docs.rs/embedded-grap
 
 ## Design
 
-- **Runtime detection.** Both controllers answer at `0x3C` and have no ID
-  register.
-  Only the SH1106 can read its display RAM back, so `signwriter` writes two
-  different values to an off-screen column and reads them back.
-  Both returned means SH1106; anything else means SSD1306.
+- **Runtime detection.**
+  - Both controllers answer at `0x3C` and have no ID register.
+  - Only the SH1106 can read its display RAM back, so `signwriter` writes two different values to an off-screen column and reads them back.
+  - Both returned means SH1106; anything else means SSD1306.
 - **Hot-plug.** `Oled::tick(now_ms)` probes the address, debounces attach and
   detach through `tamer::hotplug::Hotplug`, re-detects and re-initialises on
   every attach, and keeps accepting draw calls while the panel is gone.

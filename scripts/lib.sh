@@ -51,7 +51,7 @@ get_example_features_from_toml() {
 # Parses a `{hal|idf}_{chip}_{name}` example name and exports the build context
 # as globals: EX_TIER EX_CHIP EX_MCU EX_TARGET EX_PKG EX_TARGET_DIR EX_FEATURES EX_XTENSA.
 # [board] (e.g. feather-v2) selects the `board-<board>` profile feature; empty
-# picks the chip's default profile (c3 supermini, c6 devkitc, esp wroom, s3 none).
+# picks the chip's default profile (c3 supermini, c6 devkitc, esp32 wroom, s3 none).
 resolve_example() {
     local example="$1" hal_dir="$2" idf_dir="$3" board="${4:-}"
     EX_TIER="${example%%_*}"
@@ -65,10 +65,10 @@ resolve_example() {
             case "$EX_CHIP" in
                 c3|esp32c3) EX_TARGET="riscv32imc-unknown-none-elf"; EX_MCU="esp32c3" ;;
                 c6|esp32c6) EX_TARGET="riscv32imac-unknown-none-elf"; EX_MCU="esp32c6" ;;
-                esp|esp32) EX_TARGET="xtensa-esp32-none-elf"; EX_MCU="esp32"; EX_XTENSA=1 ;;
+                esp32) EX_TARGET="xtensa-esp32-none-elf"; EX_MCU="esp32"; EX_XTENSA=1 ;;
                 s3|esp32s3) EX_TARGET="xtensa-esp32s3-none-elf"; EX_MCU="esp32s3"; EX_XTENSA=1 ;;
                 *)
-                    printf 'Unknown chip "%s" in "%s" (expected c3|c6|esp|s3|esp32|esp32s3|esp32c3|esp32c6).\n' "$EX_CHIP" "$example" >&2
+                    printf 'Unknown chip "%s" in "%s" (expected c3|c6|s3|esp32|esp32s3|esp32c3|esp32c6).\n' "$EX_CHIP" "$example" >&2
                     return 1
                     ;;
             esac
@@ -79,10 +79,10 @@ resolve_example() {
             case "$EX_CHIP" in
                 c3|esp32c3) EX_TARGET="riscv32imc-esp-espidf"; EX_MCU="esp32c3" ;;
                 c6|esp32c6) EX_TARGET="riscv32imac-esp-espidf"; EX_MCU="esp32c6" ;;
-                esp|esp32) EX_TARGET="xtensa-esp32-espidf"; EX_MCU="esp32"; EX_XTENSA=1 ;;
+                esp32) EX_TARGET="xtensa-esp32-espidf"; EX_MCU="esp32"; EX_XTENSA=1 ;;
                 s3|esp32s3) EX_TARGET="xtensa-esp32s3-espidf"; EX_MCU="esp32s3"; EX_XTENSA=1 ;;
                 *)
-                    printf 'Unknown chip "%s" in "%s" (expected c3|c6|esp|s3|esp32|esp32s3|esp32c3|esp32c6).\n' "$EX_CHIP" "$example" >&2
+                    printf 'Unknown chip "%s" in "%s" (expected c3|c6|s3|esp32|esp32s3|esp32c3|esp32c6).\n' "$EX_CHIP" "$example" >&2
                     return 1
                     ;;
             esac

@@ -13,14 +13,14 @@ arm = false
 [[step]]
 say = "Hands off: the firmware keeps running for 5 s"
 duration = 5
-reject = 'PANIC|panicked at|Guru Meditation|abort\(\) was called'
+reject = 'PANIC|panicked at|Guru Meditation|abort\(\) was called|WDT|ESP-ROM:|rst:0x'
 arm = false
 
 [[step]]
 say = "Turn the knob 3 detents clockwise, slowly"
 attended = true
 expect = ['rotated CW position 1 \(edges [1-9]\d*, skipped 0\)', 'rotated CW position 2 ', 'rotated CW position 3 \(edges [1-9]\d*, skipped 0\)']
-reject = 'rotated CCW|skipped [1-9]|PANIC'
+reject = 'rotated CCW|skipped [1-9]|PANIC|panicked|Guru Meditation|abort\(\)|WDT'
 timeout = 60
 arm = false
 
@@ -28,7 +28,7 @@ arm = false
 say = "Turn it 3 detents back counter-clockwise"
 attended = true
 expect = ['rotated CCW position 2 ', 'rotated CCW position 1 ', 'rotated CCW position 0 \(edges [1-9]\d*, skipped 0\)']
-reject = 'rotated CW\b|skipped [1-9]|PANIC'
+reject = 'rotated CW\b|skipped [1-9]|PANIC|panicked|Guru Meditation|abort\(\)|WDT'
 timeout = 60
 arm = false
 
@@ -36,7 +36,7 @@ arm = false
 say = "Click the knob button once"
 attended = true
 expect = '(?i)(?<!double )\bclick\b'
-reject = '(?i)double|PANIC'
+reject = '(?i)double|PANIC|panicked|Guru Meditation|abort\(\)|WDT'
 timeout = 60
 arm = false
 
@@ -44,7 +44,7 @@ arm = false
 say = "Double-click the knob button"
 attended = true
 expect = '(?i)double ?click'
-reject = "PANIC"
+reject = 'PANIC|panicked|Guru Meditation|abort\(\)|WDT'
 timeout = 60
 arm = false
 
@@ -52,7 +52,7 @@ arm = false
 say = "Long-press the knob button (hold ~1 s)"
 attended = true
 expect = '(?i)long ?press'
-reject = "PANIC"
+reject = 'PANIC|panicked|Guru Meditation|abort\(\)|WDT'
 timeout = 60
 arm = false
 

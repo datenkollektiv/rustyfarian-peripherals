@@ -20,10 +20,9 @@ no-default-features = false
 ignore = ["RUSTSEC-2024-0436", "RUSTSEC-2024-0449"]
 
 [licenses]
-# Allow-list shared with the sibling rustyfarian repos. The pure skeleton graph
-# (tamer + embedded-hal) only needs MIT / Apache-2.0 today; the rest of the list
-# is pre-approved for the esp-hal / esp-idf dependency trees the hardware crates
-# pull in once their drivers land, so this file does not need revisiting then.
+# Allow-list shared with the sibling rustyfarian repos. The pure graph
+# (tamer + embedded-hal) only needs MIT / Apache-2.0; the rest of the list
+# covers the esp-hal / esp-idf dependency trees the hardware crates pull in.
 allow = [
   "MIT",
   "Apache-2.0",

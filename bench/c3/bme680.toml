@@ -12,14 +12,16 @@ arm = false
 [[step]]
 say = "Leave the sensor alone: two plausible readings (10-39 degC, 900-1100 hPa)"
 expect = ['T: [1-3]\d\.\d degC  P: (?:9|10)\d\d\.\d hPa  RH: \d+\.\d %', 'T: [1-3]\d\.\d degC  P: (?:9|10)\d\d\.\d hPa  RH: \d+\.\d %']
-reject = 'no BME680|bus fault|measurement failed|PANIC'
+reject = 'no BME680|bus fault|measurement failed|PANIC|panicked|Guru Meditation|abort\(\)|WDT'
 timeout = 30
+arm = false
 
 [[step]]
 say = "Wait for a valid gas reading (heater stable, heat_stab_r)"
 expect = 'gas: \d+ ohm'
-reject = 'no BME680|bus fault|measurement failed|PANIC'
+reject = 'no BME680|bus fault|measurement failed|PANIC|panicked|Guru Meditation|abort\(\)|WDT'
 timeout = 90
+arm = false
 
 [[step]]
 say = "Breathe gently on the sensor for a few seconds"

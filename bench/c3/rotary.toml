@@ -16,7 +16,7 @@ arm = false
 [[step]]
 say = "Hands off: the firmware keeps running for 5 s"
 duration = 5
-reject = 'PANIC|panicked at|Guru Meditation|abort\(\) was called'
+reject = 'PANIC|panicked at|Guru Meditation|abort\(\) was called|WDT|ESP-ROM:|rst:0x'
 arm = false
 
 # Extra clockwise detents during the 2 s settle are fine; the next step turns back to 0.
@@ -24,7 +24,8 @@ arm = false
 say = "Turn the knob 3 detents clockwise, slowly, then hands off for 2 s"
 attended = true
 expect = ['rotated CW\b', 'rotated CW\b', 'rotated CW\b.*edges [1-9]\d*, skipped 0\)']
-reject = 'rotated CCW|skipped [1-9]|PANIC'
+# First step of an --attended run, so it reads the boot banner: no reboot markers (ESP-ROM:, rst:0x) in the reject.
+reject = 'rotated CCW|skipped [1-9]|PANIC|panicked|Guru Meditation|abort\(\)|WDT'
 timeout = 60
 settle = 2
 arm = false
@@ -33,7 +34,7 @@ arm = false
 say = "Turn it back counter-clockwise to where you started (position 0)"
 attended = true
 expect = 'rotated CCW position 0 \(edges [1-9]\d*, skipped 0\)'
-reject = 'rotated CW\b|skipped [1-9]|PANIC'
+reject = 'rotated CW\b|skipped [1-9]|PANIC|panicked|Guru Meditation|abort\(\)|WDT'
 timeout = 60
 arm = false
 
@@ -42,7 +43,8 @@ say = "The board restarts: then spin the knob fast but not flat out (10+ detents
 attended = true
 reset = true
 expect = 'rotated (?:CW|CCW) position -?[1-9]\d+ \(edges \d+, skipped 0\)'
-reject = 'skipped [1-9]|PANIC'
+# Resets the board, so it reads the boot banner: no reboot markers (ESP-ROM:, rst:0x) in the reject.
+reject = 'skipped [1-9]|PANIC|panicked|Guru Meditation|abort\(\)|WDT'
 timeout = 60
 settle = 2
 arm = false
@@ -51,7 +53,7 @@ arm = false
 say = "Click the knob button once"
 attended = true
 expect = 'button: Click\b'
-reject = 'DoubleClick|skipped [1-9]|PANIC'
+reject = 'DoubleClick|skipped [1-9]|PANIC|panicked|Guru Meditation|abort\(\)|WDT'
 timeout = 60
 arm = false
 
@@ -59,7 +61,7 @@ arm = false
 say = "Double-click the knob button"
 attended = true
 expect = 'button: DoubleClick'
-reject = 'skipped [1-9]|PANIC'
+reject = 'skipped [1-9]|PANIC|panicked|Guru Meditation|abort\(\)|WDT'
 timeout = 60
 arm = false
 
@@ -67,6 +69,6 @@ arm = false
 say = "Long-press the knob button (hold ~1 s)"
 attended = true
 expect = 'button: LongPress'
-reject = 'skipped [1-9]|PANIC'
+reject = 'skipped [1-9]|PANIC|panicked|Guru Meditation|abort\(\)|WDT'
 timeout = 60
 arm = false

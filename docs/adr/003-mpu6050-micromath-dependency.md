@@ -31,28 +31,22 @@ dependency list, and gate it behind a new, opt-in `tilt` feature.
   floats); and the `atan2`-based angle functions live in a new `tamer::tilt`
   module (feature-gated, depends on `micromath`).
 
-- **Feature gating:** `tilt = ["dep:micromath"]` in `Cargo.toml`. The module,
-  its types, and its functions are conditional (`#[cfg(feature = "tilt")]`).
-  Consumers who do not enable `tilt` pull no CORDIC dependency — the default
-  `tamer` build remains dependency-free.
+- **Feature gating:** `tilt = ["dep:micromath"]` in `Cargo.toml`.
+  - The module, its types, and its functions are conditional (`#[cfg(feature = "tilt")]`).
+  - Consumers who do not enable `tilt` pull no CORDIC dependency — the default `tamer` build remains dependency-free.
 
-- **Why not a monolithic gate?** Keeping `mpu6050` and `smoothing` ungated
-  allows consumers to use register constants and offset calibration without
-  buying into floating-point trigonometry. Conversely, a consumer may want EMA
-  smoothing on ADC readings without touching an IMU. The split respects the
-  separation of concerns: device parsing, generic smoothing, and the specific
-  math that only some applications need.
+- **Why not a monolithic gate?**
+  - Keeping `mpu6050` and `smoothing` ungated allows consumers to use register constants and offset calibration without buying into floating-point trigonometry.
+  - Conversely, a consumer may want EMA smoothing on ADC readings without touching an IMU.
+  - The split respects the separation of concerns: device parsing, generic smoothing, and the specific math that only some applications need.
 
 ## Consequences
 
 - `tamer` gains its first optional dependency (`micromath`), but only under an
   opt-in feature; the default build is unaffected.
-- `tamer` ships its first public floating-point API (`f32` in `EmaFilter` and
-  `tilt_degrees`/`tilt_degrees_i32`). This is accepted as a **documented,
-  contained exception** to the existing integer-only discipline — the `tilt`
-  feature gate is the containment boundary. Future maintainers should treat
-  this as a precedent-setting decision: floating-point logic belongs behind a
-  dedicated feature, not silently in the default build.
+- `tamer` ships its first public floating-point API (`f32` in `EmaFilter` and `tilt_degrees`/`tilt_degrees_i32`).
+- This is accepted as a **documented, contained exception** to the existing integer-only discipline — the `tilt` feature gate is the containment boundary.
+- Future maintainers should treat this as precedent-setting: floating-point logic belongs behind a dedicated feature, not silently in the default build.
 - Documentation explicitly notes `micromath`'s CORDIC approximation accuracy
   (±0.1%) and the host-test idiom (epsilon-based assertions, never exact
   `f32` equality).
@@ -64,12 +58,26 @@ dependency list, and gate it behind a new, opt-in `tilt` feature.
 
 ## Alternatives Considered
 
-|  Alternative | Pros | Cons  | Why Rejected  |
-|-------------:|-----:|:------|:--------------|
-| Gate the entire `mpu6050` module behind a `mpu6050` feature, with `micromath` unconditional | Simpler `Cargo.toml`; no new feature | Couples register parsing and smoothing (both integer) to a float library; consumers who calibrate offsets pull in CORDIC whether they use it or not. Wastes space on platforms that measure orientation via other means (e.g. a tilt-triggered threshold without reporting the angle). |
-| Full `libm` crate for CORDIC instead of `micromath` | Authoritative math; bit-exact vs. `std`'s `atan2` | Larger code size (~8 KB vs. micromath's ~2 KB); heavier than the use case needs (tilt-angle reporting is ±0.1% tolerance, not scientific computing); pulls in more transitive dependencies. |
-| Hand-rolled fixed-point / Q-format `atan2` to keep tilt integer-only | No external dependency; deterministic results | Over-engineering for one consumer; adds maintenance burden for the minimal precision benefit when CORDIC approximation is adequate. Tilt measurement is inherently `f32` domain (radians, degrees); converting back to integer adds noise. |
-| Always enable the `tilt` feature (make `micromath` unconditional in the default build) | Single, simpler API surface | Breaks the dependency-free promise for consumers who never use angle calculation; wastes binary size; contradicts the philosophy of opt-in hardware seams. |
+- **Gate the entire `mpu6050` module behind a `mpu6050` feature, with `micromath` unconditional**
+  - Pros: simpler `Cargo.toml`; no new feature.
+  - Cons: couples register parsing and smoothing (both integer) to a float library.
+  - Cons: consumers who calibrate offsets pull in CORDIC whether they use it or not.
+  - Cons: wastes space on platforms that measure orientation via other means (e.g. a tilt-triggered threshold without reporting the angle).
+- **Full `libm` crate for CORDIC instead of `micromath`**
+  - Pros: authoritative math; bit-exact vs. `std`'s `atan2`.
+  - Cons: larger code size (~8 KB vs. micromath's ~2 KB).
+  - Cons: heavier than the use case needs (tilt-angle reporting is ±0.1% tolerance, not scientific computing).
+  - Cons: pulls in more transitive dependencies.
+- **Hand-rolled fixed-point / Q-format `atan2` to keep tilt integer-only**
+  - Pros: no external dependency; deterministic results.
+  - Cons: over-engineering for one consumer.
+  - Cons: adds maintenance burden for the minimal precision benefit when CORDIC approximation is adequate.
+  - Cons: tilt measurement is inherently `f32` domain (radians, degrees); converting back to integer adds noise.
+- **Always enable the `tilt` feature (make `micromath` unconditional in the default build)**
+  - Pros: single, simpler API surface.
+  - Cons: breaks the dependency-free promise for consumers who never use angle calculation.
+  - Cons: wastes binary size.
+  - Cons: contradicts the philosophy of opt-in hardware seams.
 
 ## Verification
 
@@ -81,11 +89,8 @@ dependency list, and gate it behind a new, opt-in `tilt` feature.
   math library.
 - `#[forbid(unsafe_code)]` in `micromath` (verified via crate docs) means no
   FFI or platform-specific unsafety.
-- The pure module ships with host unit tests and runnable doctests covering the
-  `mpu6050` + `calibration` + `tilt` workflow (147 unit + 18 doctests on the
-  default build; 184 + 25 with `--all-features`). Hardware-tier example twins
-  (`rustyfarian-esp-hal-peripherals`, `rustyfarian-esp-idf-peripherals`) are
-  deferred to an on-demand follow-up per the feature doc's open questions.
+- The pure module ships with host unit tests and runnable doctests covering the `mpu6050` + `calibration` + `tilt` workflow (147 unit + 18 doctests on the default build; 184 + 25 with `--all-features`).
+- Hardware-tier example twins (`rustyfarian-esp-hal-peripherals`, `rustyfarian-esp-idf-peripherals`) are deferred to an on-demand follow-up per the feature doc's open questions.
 - `micromath`'s advisory-clean status is independent of a separate, pre-existing
   `just deny` advisories failure in the esp-idf tier's build-dependency chain
   (`crossbeam-epoch`, an `anyhow`-family `downcast_mut` unsoundness); that finding

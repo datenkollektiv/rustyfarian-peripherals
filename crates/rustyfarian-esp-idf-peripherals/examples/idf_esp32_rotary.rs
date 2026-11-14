@@ -35,13 +35,13 @@
 //! Requires espup + device target configuration.
 //!
 //! ```sh
-//! just build-example idf_esp_rotary
+//! just build-example idf_esp32_rotary
 //! ```
 //!
 //! ## Flash
 //!
 //! ```sh
-//! just flash idf_esp_rotary
+//! just flash idf_esp32_rotary
 //! ```
 
 #![deny(clippy::unwrap_used)]

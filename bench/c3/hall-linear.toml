@@ -10,16 +10,17 @@ examples = ["hal_c3_hall_linear", "idf_c3_hall_linear"]
 [[step]]
 say = "Wait for the calibration (keep the magnet away)"
 expect = ['Calibrating', 'Calibrated: midpoint=(?:[12]\d{3}|3000), threshold=\d+']
-reject = 'Calibrated: midpoint=|Calibration error|ADC read failed|PANIC'
+reject = 'Calibrated: midpoint=|Calibration error|ADC read failed|PANIC|panicked|Guru Meditation|abort\(\)|WDT'
 timeout = 20
 arm = false
 
 [[step]]
 say = "Keep the magnet away: the tag stays absent"
 expect = 'raw=\d+\s+avg=\d+\s+mid=\d+\s+dev=-?\d+\s+---'
-reject = 'SOUTH|NORTH|ADC read failed|PANIC'
+reject = 'SOUTH|NORTH|ADC read failed|PANIC|panicked|Guru Meditation|abort\(\)|WDT|ESP-ROM:|rst:0x'
 timeout = 10
 settle = 2
+arm = false
 
 # The first pole may be either; its name is captured, and the next step asks for the other one,
 # so the log proves both poles without an operator answer.
@@ -28,33 +29,36 @@ settle = 2
 say = "Bring the magnet close until the log reads NORTH or SOUTH, and hold it there"
 attended = true
 expect = 'dev=-?\d+\s+(?P<pole>SOUTH|NORTH)'
-reject = 'ADC read failed|PANIC'
+reject = 'ADC read failed|PANIC|panicked|Guru Meditation|abort\(\)|WDT'
 timeout = 30
+arm = false
 
 [[step]]
 say = "Hold the magnet still"
 attended = true
 duration = 2
-reject = 'dev=-?\d+\s+(?:---|(?!(?P=pole))(?:SOUTH|NORTH))|ADC read failed|PANIC'
+reject = 'dev=-?\d+\s+(?:---|(?!(?P=pole))(?:SOUTH|NORTH))|ADC read failed|PANIC|panicked|Guru Meditation|abort\(\)|WDT|ESP-ROM:|rst:0x'
 arm = false
 
 [[step]]
 say = "Take the magnet away, flip it, and bring the other pole close, and hold it there"
 attended = true
 expect = ['dev=-?\d+\s+---', 'dev=-?\d+\s+(?!(?P=pole))(?:SOUTH|NORTH)']
-reject = 'ADC read failed|PANIC'
+reject = 'ADC read failed|PANIC|panicked|Guru Meditation|abort\(\)|WDT'
 timeout = 30
+arm = false
 
 [[step]]
 say = "Hold the magnet still"
 attended = true
 duration = 2
-reject = 'dev=-?\d+\s+(?:---|(?P=pole))|ADC read failed|PANIC'
+reject = 'dev=-?\d+\s+(?:---|(?P=pole))|ADC read failed|PANIC|panicked|Guru Meditation|abort\(\)|WDT|ESP-ROM:|rst:0x'
 arm = false
 
 [[step]]
 say = "Take the magnet away again"
 attended = true
 expect = 'dev=-?\d+\s+---'
-reject = 'ADC read failed|PANIC'
+reject = 'ADC read failed|PANIC|panicked|Guru Meditation|abort\(\)|WDT'
 timeout = 15
+arm = false

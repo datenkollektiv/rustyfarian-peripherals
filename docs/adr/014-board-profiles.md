@@ -32,7 +32,7 @@ Each hardware tier gains one Cargo feature per board, and a public `board` modul
 |:------------------------|:-------|:----------|:-----------|:------------|
 | `board-c3-supermini`    | C3     | 6 / 7     | none       | `c3`        |
 | `board-c6-devkitc`      | C6     | 21 / 22   | none       | `c6`        |
-| `board-esp32-wroom`     | ESP32  | 21 / 22   | none       | `esp`       |
+| `board-esp32-wroom`     | ESP32  | 21 / 22   | none       | `esp32`     |
 | `board-feather-v2`      | ESP32  | 22 / 20   | GPIO 2 high | opt-in      |
 
 The `board` module of each tier exposes the following.
@@ -42,7 +42,9 @@ The `board` module of each tier exposes the following.
 - `board_i2c_power!(peripherals)` switches the bus power on where the board has a switch, as the Feather V2 does on GPIO 2, and expands to nothing on the other boards.
 
 The default profile for each chip is added by `scripts/lib.sh` when a build passes no profile.
-`just build-example <ex> <profile>` (the profile is a positional argument; `just flash` and `just run` take it too) overrides the default, so `just build-example hal_esp_oled feather-v2` builds the same example for the Feather V2.
+`just build-example <ex> <profile>` overrides the default.
+The profile is a positional argument; `just flash` and `just run` take it too.
+`just build-example hal_esp32_oled feather-v2` builds the same example for the Feather V2.
 The `board` module emits a `compile_error!` when two `board-*` features are enabled, and when a profile does not match the chip of the target.
 
 The scope today is the I2C bus only.
@@ -51,30 +53,33 @@ The profile is extended with further pins (for example a button or a buzzer) whe
 The OLED examples (the C3 pair, and the new C6 and ESP32 pairs) take their pins from the profile, and the other C3 examples keep their ADR-012 constants until they need it.
 
 ## Consequences
-- The ESP32 OLED examples run unedited on the Feather V2 and on a WROOM-32, and the C6 and C3 OLED examples run on their own boards.
-  The examples are portable across the boards of one chip.
-- The bench gains a `feather-v2` board beside `esp32`, with the same chip and per-board build and flash commands that pass the `feather-v2` profile.
+- The ESP32 OLED examples run unedited on the Feather V2 and on a WROOM-32.
+  - The C6 and C3 OLED examples run on their own boards.
+  - The examples are portable across the boards of one chip.
+- The bench gains an `esp32-feather` board beside `esp32`, with the same chip and per-board build and flash commands that pass the `feather-v2` profile.
 - The example names stay `{driver}_{chip}_{name}`, so no example file is duplicated per board.
 - Other C3 examples keep their ADR-012 constants for now, so the C3 pin map is the same whether a profile is named or not.
 - Libraries build without a profile, so a consumer that depends on a tier does not have to pick a board.
-  Only examples and the `board` module need one.
+  - Only examples and the `board` module need one.
 - A profile is a compile-time choice.
-  Moving one physical board to another profile is a rebuild, not a runtime switch.
+  - Moving one physical board to another profile is a rebuild, not a runtime switch.
 - The `board` module is public API of each tier crate.
-  Adding a profile or a pin to a profile is additive, but renaming a profile feature or a `board_i2c!` argument is a breaking change for the tier.
+  - Adding a profile or a pin to a profile is additive.
+  - Renaming a profile feature or a `board_i2c!` argument is a breaking change for the tier.
 - Each profile is a claim about one board's wiring.
-  A board that differs from the profile needs a new profile, and the wrong profile fails at the pin level, not at compile time.
+  - A board that differs from the profile needs a new profile.
+  - The wrong profile fails at the pin level, not at compile time.
 
 ## Alternatives Considered
 
 |                                                        Alternative | Pros                                                                 | Cons                                                                                  | Why Rejected                                                                                  |
 |-------------------------------------------------------------------:|:---------------------------------------------------------------------|:--------------------------------------------------------------------------------------|:----------------------------------------------------------------------------------------------|
-|                          Per-board example files (`hal_esp_oled_feather_v2`) | No feature flags; each file is plain and obvious                     | Duplicates each example per board; the same logic is copied and drifts                | Multiplies examples with each board, against the demand-driven and single-example rule         |
-|                        Runtime configuration (pin choice read at boot) | One binary for every board                                           | esp-hal pins are distinct types, so a runtime choice cannot return a typed pin without `unsafe` or `steal()` | Cannot meet the no-`unsafe` and no-`steal()` constraints                                      |
-|                                  A board support crate (BSP) per board | Hides every pin behind a named type                                  | A new crate per board is heavy for a two-line pin choice; the repo is demand-driven     | Too much structure for the I2C bus alone; revisit if the profiles grow past pins              |
+|                          Per-board example files (`hal_esp32_oled_feather_v2`) | No feature flags; each file is plain and obvious                     | Duplicates each example per board; the same logic is copied and drifts                | Multiplies examples per board; breaks the demand-driven, single-example rule                  |
+|                        Runtime configuration (pin choice read at boot) | One binary for every board                                           | esp-hal pins are distinct types; a runtime choice needs `unsafe` or `steal()`         | Cannot meet the no-`unsafe` and no-`steal()` constraints                                      |
+|                                  A board support crate (BSP) per board | Hides every pin behind a named type                                  | A crate per board is heavy for a two-line pin choice; repo is demand-driven           | Too much structure for the I2C bus alone; revisit if profiles outgrow pins                    |
 
 ## Verification
-- `just build-example hal_esp_oled feather-v2` and `just build-example idf_esp_oled feather-v2` succeed, and so do the default-profile builds of the other OLED examples.
-- `just build-matrix` links the OLED examples for each chip, with `esp` built for both ESP32 profiles.
+- `just build-example hal_esp32_oled feather-v2` and `just build-example idf_esp32_oled feather-v2` succeed, and so do the default-profile builds of the other OLED examples.
+- `just build-matrix` links the OLED examples for each chip, with `esp32` built for both ESP32 profiles.
 - Building with two `board-*` features, or with a profile for another chip, fails with the `compile_error!` message.
-- `RUSTYFARIAN_BENCH=../rustyfarian-bench just bench-list` lists the `feather-v2` board and its `oled` scenario.
+- `RUSTYFARIAN_BENCH=../rustyfarian-bench just bench-list` lists the `esp32-feather` board and its `oled` scenarios.

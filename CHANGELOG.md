@@ -12,8 +12,16 @@ This project follows [Semantic Versioning](https://semver.org/) (pre-1.0: minor 
 ### Changed
 - The workspace builds its ESP-IDF examples against ESP-IDF v6.1 (was v5.3.3); the libraries still do not pin an ESP-IDF version.
 - `.cargo/config.toml` (ESP-IDF pin, `ldproxy` linker, `build-std`, esp-hal linker scripts) is now committed, replacing `just setup-cargo-config`; Cargo never reads it for downstream users.
-- CI: the host workflows call the shared `rustyfarian-ci` `host-checks.yml@v1`, and the device workflows use its shared setup actions, with one `just ci-<job>` recipe per job; `just act` runs the jobs locally.
+- CI: the host workflows call the shared `rustyfarian-ci` `host-checks.yml@v1`, and the device workflows use its shared setup actions.
+- CI: one `just ci-<job>` recipe per job; `just act` runs the jobs locally.
 - CI: a new `Cross-target IDF` workflow builds the ESP-IDF tier for ESP32, C3, C6 and S3, and the Xtensa toolchain moves to `1.97.0.0`.
+- just: `pre-commit` is `fmt verify`, `verify` depends on `fmt-check`, and `ci` is `verify deny` (no longer `audit`, which runs as `just audit`) (family recipe contract).
+- just: `setup-toolchain` → `setup esp` (family recipe contract).
+- just: `setup-avr` → `setup avr` (family recipe contract).
+- just: `act-list` → `act list`, and `act`'s `matrix` parameter folds into `job` (`just act idf:chip:c3`) (family recipe contract).
+- just: `release-publish-tamer` → `release-publish`, and a new `semver` recipe runs `cargo semver-checks` (family recipe contract).
+- bench: board key `feather-v2` → `esp32-feather`; the `feather-v2` board profile is unchanged (family bench catalogue).
+- examples: the classic ESP32 chip token `esp` → `esp32` (`hal_esp32_b3f`, `idf_esp32_oled`, …), and `just ci-idf esp` → `just ci-idf esp32` (family chip tokens).
 
 ## [0.2.0] - 2026-11-12
 

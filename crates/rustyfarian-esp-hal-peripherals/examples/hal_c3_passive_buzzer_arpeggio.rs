@@ -61,7 +61,7 @@
 //!   `LedcDriver`, which only copies two `Copy` values out of the timer
 //!   driver at construction time and retains no borrow). That retained borrow
 //!   makes retuning the *same* timer while a *long-lived* channel still holds
-//!   it a compile error (verified against the pinned esp-hal 1.1.0 sources —
+//!   it a compile error (verified against the then-pinned esp-hal 1.1.0 sources —
 //!   `rustc` rejects it: "cannot borrow `timer` as mutable because it is also
 //!   borrowed as immutable" — and re-checked on 1.2.2, whose `Channel` still
 //!   holds `Option<&'a dyn TimerIFace<S>>`). Declaring the channel fresh inside

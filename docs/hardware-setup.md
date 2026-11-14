@@ -5,11 +5,12 @@ Board wiring lives with the bench, one page per board:
 | Board | Wiring |
 |:--|:--|
 | CrowPanel 1.28" HMI (ESP32-S3) | [`bench/s3/README.md`](../bench/s3/README.md) |
-| ESP32-C3 bench rig and SuperMini | [`bench/c3/README.md`](../bench/c3/README.md); pin map in [ADR-012](adr/012-esp32-c3-pin-map.md) |
+| ESP32-C3 bench rig and SuperMini | [`bench/c3/README.md`](../bench/c3/README.md) |
 | ESP32-C6-DevKitC-1 | [`bench/c6/README.md`](../bench/c6/README.md) |
 | ESP32 WROOM-32 | [`bench/esp32/README.md`](../bench/esp32/README.md) |
-| Adafruit Feather V2 | [`bench/feather-v2/README.md`](../bench/feather-v2/README.md) |
+| Adafruit ESP32 Feather V2 | [`bench/esp32-feather/README.md`](../bench/esp32-feather/README.md) |
 
+The ESP32-C3 pin map is in [ADR-012](adr/012-esp32-c3-pin-map.md).
 This page keeps only what the bench pages do not cover.
 Each example's doc comment lists its own pins.
 

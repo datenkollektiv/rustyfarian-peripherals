@@ -9,14 +9,14 @@ examples = ["hal_c3_mpu6050_tilt", "idf_c3_mpu6050_tilt"]
 [[step]]
 say = "Wait for the banner and the calibration (sensor flat and still, MPU6050 chip facing up; on a GY-521 the header pins point down)"
 expect = ['MPU6050 WHO_AM_I OK \(0x68\) at address 0x68', 'calibrating', 'offsets: AccelOffsets \{ y: -?\d+, z: -?\d{1,4} \}']
-reject = 'no MPU6050|bus fault|calibration failed|PANIC'
+reject = 'no MPU6050|bus fault|calibration failed|PANIC|panicked|Guru Meditation|abort\(\)|WDT'
 timeout = 60
 arm = false
 
 [[step]]
 say = "Keep it level: the tilt reads about 0 degrees"
 expect = 'tilt: -?[0-4]\.\d°'
-reject = 'read failed|PANIC'
+reject = 'read failed|PANIC|panicked|Guru Meditation|abort\(\)|WDT'
 timeout = 15
 arm = false
 
@@ -24,7 +24,7 @@ arm = false
 say = "Tip the sensor about the X axis to the side that reads positive, about +90 degrees, and hold"
 attended = true
 expect = 'tilt: [7-9]\d\.\d°'
-reject = 'read failed|PANIC'
+reject = 'read failed|PANIC|panicked|Guru Meditation|abort\(\)|WDT'
 timeout = 60
 arm = false
 
@@ -32,14 +32,14 @@ arm = false
 say = "Hold it at +90 degrees"
 attended = true
 duration = 2
-reject = 'tilt: (?!(?:[7-9]\d|10\d)\.\d°)|read failed|PANIC'
+reject = 'tilt: (?!(?:[7-9]\d|10\d)\.\d°)|read failed|PANIC|panicked|Guru Meditation|abort\(\)|WDT|ESP-ROM:|rst:0x'
 arm = false
 
 [[step]]
 say = "Tip it to the other side, about -90 degrees, and hold"
 attended = true
 expect = 'tilt: -[7-9]\d\.\d°'
-reject = 'read failed|PANIC'
+reject = 'read failed|PANIC|panicked|Guru Meditation|abort\(\)|WDT'
 timeout = 60
 arm = false
 
@@ -47,14 +47,14 @@ arm = false
 say = "Hold it at -90 degrees"
 attended = true
 duration = 2
-reject = 'tilt: (?!-(?:[7-9]\d|10\d)\.\d°)|read failed|PANIC'
+reject = 'tilt: (?!-(?:[7-9]\d|10\d)\.\d°)|read failed|PANIC|panicked|Guru Meditation|abort\(\)|WDT|ESP-ROM:|rst:0x'
 arm = false
 
 [[step]]
 say = "Put it back level"
 attended = true
 expect = 'tilt: -?[0-4]\.\d°'
-reject = 'read failed|PANIC'
+reject = 'read failed|PANIC|panicked|Guru Meditation|abort\(\)|WDT'
 timeout = 60
 arm = false
 
@@ -62,5 +62,5 @@ arm = false
 say = "Keep it level and still for 5 s"
 attended = true
 duration = 5
-reject = 'tilt: (?!-?[0-4]\.\d°)|read failed|PANIC'
+reject = 'tilt: (?!-?[0-4]\.\d°)|read failed|PANIC|panicked|Guru Meditation|abort\(\)|WDT|ESP-ROM:|rst:0x'
 arm = false
