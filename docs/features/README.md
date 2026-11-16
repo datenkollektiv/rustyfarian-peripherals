@@ -10,4 +10,5 @@ Name files `feature-name-vN.md` and start from [`template.md`](template.md).
 | [signwriter](signwriter-v1.md) | ships in 0.2.0 |
 | [MPU6050 accelerometer / IMU](mpu6050-imu-v1.md) | ships in 0.2.0 |
 | [BME680 environmental sensor](bme680-v1.md) | experimental in 0.2.0 |
+| [Staged timer](staged-timer-v1.md) | implemented, unreleased |
 | [IRAM-safe ISR](iram-safe-isr-v1.md) | designed, not started |

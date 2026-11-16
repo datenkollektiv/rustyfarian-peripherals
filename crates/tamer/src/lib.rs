@@ -84,6 +84,10 @@
 //!   [`KeyState`] on/off values per ITU-R M.1677-1 timing;
 //!   `tamer`'s second output/actuator primitive, feeding an active-buzzer/LED
 //!   adapter downstream.
+//! - [`staged`] — a staged step timer: a borrowed `&[Stage]` table of
+//!   `count` steps of `interval_ticks` each, reported as `Step` events and,
+//!   in `Once` mode, one `Finished`, or repeated forever in `Loop` mode,
+//!   on a caller-driven tick clock; it only says when, never what a step does.
 //! - [`touch`] — touch event detection: raw `Down`/`Move`/`Up` contact edges
 //!   plus derived `Tap`/`LongPress`/`Swipe` gestures from per-frame
 //!   `Option<TouchPoint>` samples; chip-agnostic, works on controllers
@@ -297,6 +301,14 @@ pub use tone::{Note, SequenceEvent, SequenceMode, ToneOutput, ToneSequencer};
 pub mod morse;
 pub use morse::{KeyState, MorseEvent, MorseKeyer, MorseMode};
 
+/// Staged step timer — [`StagedTimer`], [`Stage`], [`StagedMode`], and [`StagedEvent`].
+///
+/// This module is HAL-agnostic and imports nothing outside `tamer`; it only
+/// reports when a step is due and leaves the per-step work to the caller.
+/// A schedule primitive beside [`tone`] and [`morse`].
+pub mod staged;
+pub use staged::{Stage, StagedEvent, StagedMode, StagedTimer};
+
 /// Touch-panel event detection — [`TouchTracker`](touch::TouchTracker),
 /// [`TouchEvent`](touch::TouchEvent), [`TouchPoint`](touch::TouchPoint), and
 /// [`SwipeDirection`](touch::SwipeDirection).
@@ -344,6 +356,7 @@ pub mod prelude {
         DetentStepsError, EncoderDirection, NoopRotaryEncoder, QuadratureDecoder, RotaryEncoder,
     };
     pub use crate::smoothing::{EmaFilter, SlidingAverage};
+    pub use crate::staged::{Stage, StagedMode, StagedTimer};
     pub use crate::tone::{Note, SequenceMode, ToneSequencer};
     pub use crate::touch::{SwipeDirection, TouchEvent, TouchPoint, TouchTracker};
 
