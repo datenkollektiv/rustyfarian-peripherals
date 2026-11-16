@@ -37,7 +37,7 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v5
+        uses: actions/checkout@v7
 
       # Installs avr-gcc and the pinned nightly with rust-src (same family action as the AVR gate).
       - name: Install avr-gcc and the pinned AVR nightly

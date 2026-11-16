@@ -58,7 +58,7 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v5
+        uses: actions/checkout@v7
 
       # Installs the Xtensa Rust fork for esp32 and esp32s3 (not the RISC-V or S2 targets).
       # rust-src comes with it, so -Z build-std=core,alloc needs no extra step.

@@ -48,7 +48,7 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v5
+        uses: actions/checkout@v7
 
       # Stable + clippy, just, and the cargo cache. The recipe runs `rustup target add` for each triple.
       - name: Setup Rust, just and cargo cache
