@@ -9,6 +9,13 @@ This project follows [Semantic Versioning](https://semver.org/) (pre-1.0: minor 
 
 ## [Unreleased]
 
+### Added
+- `tamer::staged`: `StagedTimer` steps a borrowed `&[Stage]` table of `count` steps of `interval_ticks` each on a caller-driven tick clock.
+- It reports `StagedEvent::Step` when a step is due (the first at the start tick) and `StagedEvent::Finished` once at the end.
+- `StagedTimer::new(stages, StagedMode)` takes `StagedMode::Once` or `StagedMode::Loop`; `Loop` wraps to the first non-empty stage and never finishes, for endless props.
+- `StagedTimer::stage()` returns the table index of the stage the latest `Step` belongs to, so a caller can single out a final hold stage.
+- An empty or all-zero table reports `Finished` on the first `update`, unlike `ToneSequencer`.
+
 ### Changed
 - The workspace builds its ESP-IDF examples against ESP-IDF v6.1 (was v5.3.3); the libraries still do not pin an ESP-IDF version.
 - `.cargo/config.toml` (ESP-IDF pin, `ldproxy` linker, `build-std`, esp-hal linker scripts) is now committed, replacing `just setup-cargo-config`; Cargo never reads it for downstream users.

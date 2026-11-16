@@ -23,7 +23,7 @@
 Four workspace members under `crates/`:
 
 - `tamer` (`no_std`): pure logic behind traits with `Noop*` mocks.
-- `tamer` modules: `debounce`, `presence`, `rotary`, `button`, `analog`, `range_map`, `smoothing`, `hall`, `tilt`, `mpu6050`, `bme680`, `tone`, `morse`, `touch`, `hotplug`.
+- `tamer` modules: `debounce`, `presence`, `rotary`, `button`, `analog`, `range_map`, `smoothing`, `hall`, `tilt`, `mpu6050`, `bme680`, `tone`, `morse`, `staged`, `touch`, `hotplug`.
 - `signwriter` (`no_std`): graphics-side driver for 128x64 I2C OLEDs (SSD1306 and SH1106) behind `embedded-graphics` `DrawTarget`.
 - `signwriter` hot-plugs through `tamer::hotplug`; see [ADR-013](docs/adr/013-signwriter.md).
 - `rustyfarian-esp-hal-peripherals` (`no_std`): bare-metal esp-hal drivers plus device examples.
