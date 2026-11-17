@@ -25,6 +25,13 @@ It also ships `rustyfarian_esp_hal_peripherals::rotary::InterruptEncoder`:
 - The [`hal_s3_rotary_isr`](examples/hal_s3_rotary_isr.rs) example shows the wiring, and the `rotary` module docs state the handler requirements.
 - Build it with `just build-example hal_s3_rotary_isr`.
 
+With the opt-in `ir` feature it also ships `rustyfarian_esp_hal_peripherals::ir`:
+
+- `IrTransmitter` and `IrReceiver` run on the RMT peripheral and delegate all pulse encoding, decoding and carrier arithmetic to `tamer::ir`.
+- The examples [`hal_c3_ir_tx`](examples/hal_c3_ir_tx.rs) (GPIO 10) and [`hal_c3_ir_rx`](examples/hal_c3_ir_rx.rs) (GPIO 4) are ESP32-C3 only.
+- The carrier timing is not yet confirmed on hardware; see [`docs/features/ir-codec-v1.md`](../../docs/features/ir-codec-v1.md).
+- Build them with `just build-example hal_c3_ir_tx` and `just build-example hal_c3_ir_rx`.
+
 Contract:
 
 - `Encoder` awaits rotation asynchronously.

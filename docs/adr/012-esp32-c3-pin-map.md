@@ -26,9 +26,9 @@ The C3 bench rig and every ESP32-C3 example use the following map.
 | Part                                      | C3 GPIO | Notes                                                        |
 |:------------------------------------------|:--------|:-------------------------------------------------------------|
 | Button (B3F to GND, internal pull-up)     | 3       | wake-capable                                                 |
-| 3-pin pogo (analog sensor, PIR, RGB data) | 4       | ADC1, wake-capable; unchanged                                |
+| 3-pin pogo (analog sensor, PIR, RGB data, IR receiver) | 4       | ADC1, wake-capable; unchanged                                |
 | I2C SDA / SCL                             | 6 / 7   | 100 kHz; rig adds 4.7 kΩ pull-ups (the OLED module has none) |
-| Buzzer (passive, NPN driver)              | 10      | no wake duty                                                 |
+| Buzzer (passive, NPN driver), IR LED (NPN) | 10      | no wake duty                                                 |
 | LED, active-low (anode→330 Ω→3V3)         | 8       | strapping pin kept high at boot; on-board LED mirrors it     |
 | Rotary A / B / click                      | 0/1/5   | click moves 10→5 (wake-capable)                              |
 

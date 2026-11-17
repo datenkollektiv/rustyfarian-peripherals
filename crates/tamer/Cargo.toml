@@ -34,6 +34,10 @@ tilt = ["dep:micromath"]
 # float code; adds no dependency (`core` `f32` arithmetic only). The I2C
 # driver additionally needs `hal` (ADR-009).
 bme680 = []
+# `ir`: opt-in infrared pulse codec (`tamer::ir`): table-driven encode/decode
+# with a NEC preset, plus a sans-io edge-to-pulse frame assembler. Kept
+# optional so the default build carries no IR code; adds no dependency.
+ir = []
 
 [dependencies]
 embedded-hal = { workspace = true, optional = true }

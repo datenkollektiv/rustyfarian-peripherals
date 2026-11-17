@@ -95,6 +95,10 @@
 //! - [`hotplug`] — attach/detach decisions for a removable device from
 //!   per-probe `ok` outcomes: an attach debounce window plus a consecutive
 //!   failure count for detach.
+//! - `ir` (feature `ir`) — an infrared pulse codec whose timings are data
+//!   (standard NEC is one preset, with address/command helpers and a repeat
+//!   check), plus a sans-io frame assembler that turns edge timestamps into
+//!   a pulse list. Pure; the RMT/GPIO feed lives in the hardware tiers.
 //!
 //! Still pending (arrive on demand, driven by real downstream needs):
 //!
@@ -330,6 +334,23 @@ pub use touch::{SwipeDirection, TouchEvent, TouchPoint, TouchTracker};
 pub mod hotplug;
 pub use hotplug::{Hotplug, Transition};
 
+/// Infrared pulse codec — `PulseCodec`, `NecFrame`, `PulseBuf`, and the
+/// sans-io `FrameAssembler`.
+///
+/// Gated behind the `ir` feature, which adds no dependency. The pulse list
+/// (`&[u32]` microseconds, mark first) and the edge feed are the test seam, so
+/// the `PulseSink` / `PulseSource` traits (with `MockPulseSink` / `MockPulseSource`)
+/// abstract the hardware bridge. Only the headline types are re-exported at the
+/// crate root; the rest stays under `tamer::ir::`.
+#[cfg(feature = "ir")]
+pub mod ir;
+
+#[cfg(feature = "ir")]
+pub use ir::{
+    FrameAssembler, MockPulseSink, MockPulseSource, NecFrame, PulseBuf, PulseCodec, PulseSink,
+    PulseSource,
+};
+
 /// Curated re-exports of the most-used types, for `use tamer::prelude::*;`.
 ///
 /// Covers the pure types unconditionally and the `hal` adapters when the
@@ -368,6 +389,11 @@ pub mod prelude {
     pub use crate::button::ButtonInput;
     #[cfg(feature = "hal")]
     pub use crate::debounce::DebouncedInput;
+    #[cfg(feature = "ir")]
+    pub use crate::ir::{
+        FrameAssembler, MockPulseSink, MockPulseSource, NecFrame, PulseBuf, PulseCodec, PulseSink,
+        PulseSource,
+    };
     #[cfg(feature = "hal")]
     pub use crate::mock::{MockI2c, MockInputPin, NoopDelay};
     #[cfg(feature = "hal")]

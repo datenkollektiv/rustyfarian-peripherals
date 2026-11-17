@@ -10,6 +10,20 @@ This project follows [Semantic Versioning](https://semver.org/) (pre-1.0: minor 
 ## [Unreleased]
 
 ### Added
+- `tamer::ir` (opt-in `ir` feature, no dependency): an infrared pulse codec whose timings are data.
+- `PulseCodec` (header, zero/one bit timings, trailer, 1..=32 bits, bit order, `Tolerance`) offers `encode_into`/`encode` and a tolerant `decode` that accepts a truncated first header mark.
+- `PulseCodec::nec()`, `NecFrame` (address/command packing with inverted-byte check, extended 16-bit address) and `NEC_REPEAT`/`is_nec_repeat` cover standard NEC.
+- `FrameAssembler` turns edge timestamps into a pulse list with a glitch filter and an end-of-frame gap, in the caller-driven `update(now)` style.
+- `PulseBuf` and `pulse_pairs` carry pulse lists across to a hardware tier.
+- `FrameAssembler::feed_segments` assembles a delimited capture (such as RMT entries) in one call, and `validate_pulses` checks a pulse list for a transmitter; both keep that logic host-tested.
+- `PulseSink` / `PulseSource` traits abstract the transmit and receive bridges, with `MockPulseSink` / `MockPulseSource` for host tests; `FrameAssembler` derives `Clone` and `Debug`.
+- Only `PulseCodec`, `NecFrame`, `PulseBuf`, `FrameAssembler`, the two traits and the mocks are re-exported at the crate root; `Tolerance`, `BitOrder`, the error types, `carrier_ticks`, `pulse_pairs`, `validate_pulses`, `is_nec_repeat` and `NEC_REPEAT` stay under `tamer::ir::`.
+- `ir::carrier_ticks` converts a carrier frequency and duty into high/low clock ticks for a hardware modulator (`(694, 1411)` for 38 kHz / 33 % at 80 MHz).
+- `rustyfarian-esp-hal-peripherals` (opt-in `ir` feature): `ir::IrTransmitter` and `ir::IrReceiver` bridge `tamer::ir` to the RMT peripheral.
+- `IrTransmitter::send` modulates a pulse list onto a carrier (default 38 kHz / 33 %) on any RMT TX channel.
+- `IrReceiver::receive` captures one frame from an active-low demodulated module, delimited by the RMT idle threshold (default 20 ms), and returns the pulse list for `PulseCodec::decode`.
+- Examples `hal_c3_ir_tx` (GPIO 10, NEC and an 8-bit candle code) and `hal_c3_ir_rx` (GPIO 4).
+- The bridge is compile-verified on all four chips; carrier timing is source-derived and needs a scope or TSOP check on hardware.
 - `tamer::staged`: `StagedTimer` steps a borrowed `&[Stage]` table of `count` steps of `interval_ticks` each on a caller-driven tick clock.
 - It reports `StagedEvent::Step` when a step is due (the first at the start tick) and `StagedEvent::Finished` once at the end.
 - `StagedTimer::new(stages, StagedMode)` takes `StagedMode::Once` or `StagedMode::Loop`; `Loop` wraps to the first non-empty stage and never finishes, for endless props.

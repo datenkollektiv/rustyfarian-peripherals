@@ -85,14 +85,14 @@ check-hal:
     echo "==> check-hal: ESP32-C3 ({{ hal_target }}, stable)"
     rustup target add {{ hal_target }}
     cargo check --target {{ hal_target }} \
-        --target-dir "{{ hal_dir }}" --no-default-features --features esp32c3,unstable \
+        --target-dir "{{ hal_dir }}" --no-default-features --features esp32c3,unstable,ir \
         -p rustyfarian-esp-hal-peripherals
     echo "==> check-hal: ESP32-S3 (xtensa-esp32s3-none-elf, esp toolchain)"
     # shellcheck source=./scripts/xtensa-toolchain.sh
     . "{{ justfile_directory() }}/scripts/xtensa-toolchain.sh"
     setup_xtensa_toolchain
     cargo +esp check -Zbuild-std=core,alloc --target xtensa-esp32s3-none-elf \
-        --target-dir "{{ hal_dir }}" --no-default-features --features esp32s3,unstable \
+        --target-dir "{{ hal_dir }}" --no-default-features --features esp32s3,unstable,ir \
         -p rustyfarian-esp-hal-peripherals
 
 # lint the esp-hal crate (lib + examples) for ESP32-C3 and ESP32-S3, denying warnings
@@ -103,14 +103,17 @@ clippy-hal:
     echo "==> clippy-hal: ESP32-C3 ({{ hal_target }}, stable)"
     rustup target add {{ hal_target }}
     cargo clippy --target {{ hal_target }} \
-        --target-dir "{{ hal_dir }}" --no-default-features --features esp32c3,unstable \
+        --target-dir "{{ hal_dir }}" --no-default-features --features esp32c3,unstable,ir \
         -p rustyfarian-esp-hal-peripherals -- -D warnings
+    cargo clippy --target {{ hal_target }} \
+        --target-dir "{{ hal_dir }}" --no-default-features --features esp32c3,unstable,rt,ir \
+        -p rustyfarian-esp-hal-peripherals --lib --examples -- -D warnings
     echo "==> clippy-hal: ESP32-S3 (xtensa-esp32s3-none-elf, esp toolchain)"
     # shellcheck source=./scripts/xtensa-toolchain.sh
     . "{{ justfile_directory() }}/scripts/xtensa-toolchain.sh"
     setup_xtensa_toolchain
     cargo +esp clippy -Zbuild-std=core,alloc --target xtensa-esp32s3-none-elf \
-        --target-dir "{{ hal_dir }}" --no-default-features --features esp32s3,unstable,rt,embassy \
+        --target-dir "{{ hal_dir }}" --no-default-features --features esp32s3,unstable,rt,embassy,ir \
         -p rustyfarian-esp-hal-peripherals --lib --examples -- -D warnings
 
 # build the esp-hal crate's rustdoc for ESP32-C3 (the docs.rs target), denying warnings
@@ -118,7 +121,7 @@ clippy-hal:
 doc-hal:
     rustup target add {{ hal_target }}
     RUSTDOCFLAGS="-D warnings" cargo doc --no-deps --target {{ hal_target }} \
-        --target-dir "{{ hal_dir }}" --no-default-features --features esp32c3,unstable \
+        --target-dir "{{ hal_dir }}" --no-default-features --features esp32c3,unstable,ir \
         -p rustyfarian-esp-hal-peripherals
 
 # check the ESP-IDF (std) crate for the ESP32-C3 device target (requires the ESP toolchain)
@@ -238,7 +241,7 @@ clippy:
     cargo clippy {{ host_flags }} -- -D warnings
     cargo clippy {{ signwriter_flags }} --all-targets -- -D warnings
 
-# run clippy with every tamer feature enabled (hal + tilt), denying warnings
+# run clippy with every tamer feature enabled (hal + tilt + bme680 + ir), denying warnings
 [group('quality')]
 clippy-all-features:
     cargo clippy {{ tamer_all_features_flags }} -- -D warnings
@@ -261,7 +264,13 @@ test-bme680:
     cargo test {{ host_flags }} --features bme680
     cargo test {{ host_flags }} --features bme680,hal
 
-# run host-side unit tests with every tamer feature enabled (hal + tilt + bme680)
+# `--all-features` also never builds `ir` alone; this pins the dependency-free build.
+[group('quality')]
+[doc('run host-side unit tests for the IR codec module alone')]
+test-ir:
+    cargo test {{ host_flags }} --features ir
+
+# run host-side unit tests with every tamer feature enabled (hal + tilt + bme680 + ir)
 [group('quality')]
 test-all-features:
     cargo test {{ tamer_all_features_flags }}
@@ -419,7 +428,7 @@ pre-commit: fmt verify
 
 # non-modifying, offline host verification: format check, check, lint, test
 [group('gates')]
-verify: fmt-check check clippy test
+verify: fmt-check check clippy test test-ir
 
 # CI-equivalent host gate: verify + deny (device jobs: `just ci-riscv`, `ci-xtensa`, `ci-idf <chip>`, `ci-avr`, `ci-avr-upstream`)
 [group('gates')]
@@ -440,7 +449,7 @@ ci-clippy: clippy
 
 # CI job: type-check and test the host-buildable crates
 [group('ci')]
-ci-test: check test
+ci-test: check test test-ir
 
 # CI job: licences, advisories, bans and sources
 [group('ci')]
@@ -452,7 +461,7 @@ ci-audit: audit
 
 # CI job: esp-hal tier on ESP32-C3 and ESP32-C6 (stable): check + clippy, then link the b3f examples
 [group('ci')]
-ci-riscv: (check-matrix-hal-chip "esp32c3") (check-matrix-hal-chip "esp32c6") (build-example "hal_c3_b3f") (build-example "hal_c6_b3f")
+ci-riscv: (check-matrix-hal-chip "esp32c3") (check-matrix-hal-chip "esp32c6") (build-example "hal_c3_b3f") (build-example "hal_c6_b3f") (build-example "hal_c3_ir_tx") (build-example "hal_c3_ir_rx")
 
 # CI job: esp-hal tier on ESP32 and ESP32-S3 (esp toolchain): check + clippy, then link the b3f examples
 [group('ci')]
