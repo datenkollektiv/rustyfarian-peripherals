@@ -43,6 +43,16 @@ The C3 piezo is on the bench rig, GPIO 10 through an NPN.
 - Drive a larger buzzer through an NPN with a flyback diode.
 - Keep the `Relaxed` preset (100 ms dot) as the default; a 60 ms `Standard` dot is near the buzzer's acoustic response time.
 
+## Wiring — infrared transmit and receive (ESP32-C3)
+
+Both pins reuse existing ADR-012 roles, so there is no new ADR.
+
+- `hal_c3_ir_tx` drives an IR LED from GPIO 10, the NPN output row: GPIO to a base resistor, NPN, IR LED plus a series resistor to 3V3.
+- The buzzer and the IR LED cannot be connected to GPIO 10 at the same time.
+- `hal_c3_ir_rx` reads a 3-pin demodulating receiver (GND, 3V3, OUT) on GPIO 4, the 3-pin pogo row.
+- The receiver output is active low; the examples need no pull-up.
+- The 38 kHz / 33 % carrier is source-derived and not yet confirmed: put a scope or a second board with a TSOP on the LED before relying on it.
+
 ## Wiring — Arduino Nano button (examples/avr-nano-tamer)
 
 A button from D2 to GND (internal pull-up, active-low); the on-board LED on D13 toggles on each click; serial at 57600 baud through the ravedude runner.

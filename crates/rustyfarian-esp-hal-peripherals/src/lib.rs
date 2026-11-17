@@ -12,6 +12,8 @@
 //! local item wins over a glob import); each local module re-exports the
 //! matching `tamer` items, and the flattened top-level re-export stays intact.
 //! [`analog::AdcReader`] is the one-line raw-count ADC1 reader.
+//! With the `ir` feature, [`ir`] adds RMT-based [`ir::IrTransmitter`] and
+//! [`ir::IrReceiver`] bridges over `tamer::ir`.
 //!
 //! With a `board-*` feature, the [`board`] module names the board's I2C pins
 //! and bus power (ADR-014).
@@ -40,6 +42,8 @@ pub mod analog;
     feature = "board-feather-v2"
 ))]
 pub mod board;
+#[cfg(feature = "ir")]
+pub mod ir;
 pub mod rotary;
 
 // Compile-time guard: fails to build if the concrete type stops implementing
@@ -74,6 +78,23 @@ const _: fn() = || {
     assert_impl::<analog::AdcReader<'static, esp_hal::peripherals::GPIO4<'static>>>();
     let _: core::marker::PhantomData<tamer::analog::MockAnalogRead> =
         core::marker::PhantomData::<analog::MockAnalogRead>;
+};
+
+// Conformance guard: the local `ir` module shadows the glob re-export, so its
+// `PulseCodec` must still be the tamer item.
+#[cfg(feature = "ir")]
+const _: fn() = || {
+    let _: core::marker::PhantomData<tamer::ir::PulseCodec> =
+        core::marker::PhantomData::<ir::PulseCodec>;
+    // The tier types implement the shared traits, and the mocks are tamer's.
+    fn assert_sink<S: tamer::ir::PulseSink>() {}
+    fn assert_source<S: tamer::ir::PulseSource>() {}
+    assert_sink::<ir::IrTransmitter<'static>>();
+    assert_source::<ir::IrReceiver<'static>>();
+    let _: core::marker::PhantomData<tamer::ir::MockPulseSink<8>> =
+        core::marker::PhantomData::<ir::MockPulseSink<8>>;
+    let _: core::marker::PhantomData<tamer::ir::MockPulseSource<'static>> =
+        core::marker::PhantomData::<ir::MockPulseSource<'static>>;
 };
 
 #[doc(inline)]

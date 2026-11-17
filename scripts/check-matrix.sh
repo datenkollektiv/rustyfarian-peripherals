@@ -67,8 +67,8 @@ if [ "$tier" = hal ]; then
     if [ "$EX_XTENSA" = 0 ]; then
         rustup target add "$EX_TARGET"
     fi
-    # esp-hal lib feature set mirrors `just check-hal`: the chip feature plus `unstable`.
-    feat="${EX_MCU},unstable"
+    # esp-hal lib feature set mirrors `just check-hal`: the chip feature plus `unstable` and `ir`.
+    feat="${EX_MCU},unstable,ir"
 
     printf '==> check-matrix: hal %s (%s, features=%s) check\n' "$chip" "$EX_TARGET" "$feat"
     "${cargo_bin[@]}" check --lib ${std_args[@]+"${std_args[@]}"} \
