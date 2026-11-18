@@ -29,6 +29,15 @@ This project follows [Semantic Versioning](https://semver.org/) (pre-1.0: minor 
 - `StagedTimer::new(stages, StagedMode)` takes `StagedMode::Once` or `StagedMode::Loop`; `Loop` wraps to the first non-empty stage and never finishes, for endless props.
 - `StagedTimer::stage()` returns the table index of the stage the latest `Step` belongs to, so a caller can single out a final hold stage.
 - An empty or all-zero table reports `Finished` on the first `update`, unlike `ToneSequencer`.
+- `tamer::sht3x` (opt-in `sht3x` feature, no dependency): the Sensirion SHT3x command set, CRC-8, and fixed-point conversion to centi-degrees Celsius and centi-percent relative humidity, rounded to nearest.
+- `sht3x::SingleShot` is a sans-IO action machine: `poll(ShotInput)` returns the next `ShotAction`, and the terminal action is `Done(Measurement)` or `Fail(CrcError)`.
+- With `hal`, `sht3x::Sht3x` is a blocking I2C driver with `init`, `soft_reset`, `status` and `measure`, where `measure` takes a `Repeatability` and waits the datasheet maximum before its single read; `release` returns the bus.
+- With `hal-async`, `Sht3x::measure_async` drives the same machine over `embedded-hal-async`.
+- Driver errors are `sht3x::Error::{Bus, Crc, Sequence}`, and `is_nack()` tells an absent sensor from a bus fault.
+- `Sht3x` and `Repeatability` are re-exported at the crate root; `Measurement`, `Status`, `Error` and `CrcError` stay under `tamer::sht3x::`.
+- `just test-sht3x` runs the host tests for the `sht3x`, `sht3x,hal` and `sht3x,hal-async` builds, and `verify` and `ci-test` include it.
+- Examples `hal_c3_sht3x` and `idf_c3_sht3x` read an SHT3x at address 0x44 on GPIO 6 / 7, and `bench/c3/sht3x.toml` adds the `c3/sht3x` bench check.
+- The SHT3x support is experimental: not yet verified on hardware.
 
 ### Changed
 - The workspace builds its ESP-IDF examples against ESP-IDF v6.1 (was v5.3.3); the libraries still do not pin an ESP-IDF version.

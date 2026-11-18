@@ -26,6 +26,7 @@ timeline
     title rustyfarian-peripherals Roadmap
 
     Near term : BME680 hardware validation — lift `bme680` out of experimental (feature-doc)
+              : SHT3x temperature / humidity driver — beekeeper brood sensor, ADR-009 placement (feature-doc)
               : Docs-sync — align README / AGENTS framing with VISION input+output scope
 
     Mid term  : IRAM-safe encoder ISR — run from SRAM for OTA / flash-cache-off safety
@@ -58,8 +59,14 @@ timeline
 ## Near term — BME680 hardware validation
 
 **Goal:** lift `tamer::bme680` out of experimental (it ships so in 0.2.0) by passing `c3/bme680` and `c3/bme680-async` and the manual register checks.
-SHT3x follows the same placement ([ADR-009](adr/009-i2c-sensor-drivers-in-tamer.md)); HX711 is not I2C and needs its own decision.
+HX711 is not I2C and needs its own decision.
 See [Feature: BME680 v1](features/bme680-v1.md).
+
+## Near term — SHT3x temperature / humidity driver
+
+**Goal:** `tamer::sht3x` (pure core, `Sht3x` driver, async runner) plus C3 example twins and a bench check, for the beekeeper's brood temperature within 0.5 °C.
+Same placement as the BME680 ([ADR-009](adr/009-i2c-sensor-drivers-in-tamer.md)); single-shot mode only.
+See [Feature: SHT3x v1](features/sht3x-v1.md).
 
 ## Mid term — IRAM-safe interrupt handler
 

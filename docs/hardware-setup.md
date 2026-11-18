@@ -23,12 +23,14 @@ The 4-pin header uses the Qwiic / STEMMA QT order GND, 3V3, SDA (GPIO 6), SCL (G
 | BME680 | 0x76 (SDO low) | 0x77 |
 | SSD1306 / SH1106 OLED | 0x3C | 0x3D |
 | MPU6050 (GY-521) | 0x68 (AD0 low or open) | 0x69 |
+| SHT3x (SHT30 / SHT31 / SHT35) | 0x44 (ADDR low) | 0x45 (ADDR high) |
 
 - Breakout pull-ups add in parallel; two or three boards are fine at 100 kHz.
 - The C3 rig adds 4.7 kΩ pull-ups, because the OLED module has none.
 - The GY-521 header order is VCC, GND, SCL, SDA, so a pin-for-pin lead to the pogo crosses SDA and SCL.
 - Calibrate a GY-521 chip up (header pins down); pins up calibrates −1 g and caps tilt at about ±26°.
 - Isolated `AcknowledgeCheckFailed` reads while the power LED dims mean a loose VCC or GND jumper.
+- The SHT3x ADDR pin must be tied to GND or 3V3, never left floating (datasheet section 3.4, Table 8); a bare sensor needs that tie made explicitly.
 
 ## Wiring — passive piezo (C6)
 

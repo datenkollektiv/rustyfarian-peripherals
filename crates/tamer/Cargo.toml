@@ -20,7 +20,7 @@ default = []
 # on any host. See README "Architecture" for the seam.
 hal = ["dep:embedded-hal"]
 # `hal-async`: opt-in async runners (`Bme680::measure_async`,
-# `Mpu6050::calibrate_async`) over `embedded-hal-async` `I2c` + `DelayNs`,
+# `Mpu6050::calibrate_async`, `Sht3x::measure_async`) over `embedded-hal-async` `I2c` + `DelayNs`,
 # plus the matching async impls on `tamer::mock`. Implies `hal`; not default.
 # The runners drive the same state machines as the blocking ones (ADR-010)
 # and need no executor dependency.
@@ -34,6 +34,11 @@ tilt = ["dep:micromath"]
 # float code; adds no dependency (`core` `f32` arithmetic only). The I2C
 # driver additionally needs `hal` (ADR-009).
 bme680 = []
+# `sht3x`: opt-in Sensirion SHT3x command set, CRC-8, fixed-point conversion
+# and sans-io single-shot machine (`tamer::sht3x`). Kept optional so the
+# default build carries no SHT3x code; adds no dependency. The I2C driver
+# additionally needs `hal` (ADR-009).
+sht3x = []
 # `ir`: opt-in infrared pulse codec (`tamer::ir`): table-driven encode/decode
 # with a NEC preset, plus a sans-io edge-to-pulse frame assembler. Kept
 # optional so the default build carries no IR code; adds no dependency.

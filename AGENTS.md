@@ -23,7 +23,7 @@
 Four workspace members under `crates/`:
 
 - `tamer` (`no_std`): pure logic behind traits with `Noop*` mocks.
-- `tamer` modules: `debounce`, `presence`, `rotary`, `button`, `analog`, `range_map`, `smoothing`, `hall`, `tilt`, `mpu6050`, `bme680`, `tone`, `morse`, `staged`, `touch`, `hotplug`.
+- `tamer` modules: `debounce`, `presence`, `rotary`, `button`, `analog`, `range_map`, `smoothing`, `hall`, `tilt`, `mpu6050`, `bme680`, `sht3x`, `tone`, `morse`, `staged`, `touch`, `hotplug`.
 - `signwriter` (`no_std`): graphics-side driver for 128x64 I2C OLEDs (SSD1306 and SH1106) behind `embedded-graphics` `DrawTarget`.
 - `signwriter` hot-plugs through `tamer::hotplug`; see [ADR-013](docs/adr/013-signwriter.md).
 - `rustyfarian-esp-hal-peripherals` (`no_std`): bare-metal esp-hal drivers plus device examples.
@@ -36,11 +36,12 @@ The hardware crates are thin wrappers that delegate all decoding/rendering to it
 `embedded-hal`'s `InputPin` (and the relevant output/bus traits) is the seam, behind `tamer`'s optional `hal` feature.
 Each hardware tier has a `board` module, selected by one `board-*` feature per board, that names the board's I2C pins for examples ([ADR-014](docs/adr/014-board-profiles.md)).
 
-`tamer` has four opt-in features:
+`tamer` has these opt-in features:
 
 - `hal`: embedded-hal adapters.
 - `hal-async`: implies `hal`; async runners over `embedded-hal-async`.
 - `bme680`: BME680 register map and compensation.
+- `sht3x`: SHT3x command set, CRC-8, fixed-point conversion and single-shot machine; the I2C driver needs `hal`.
 - `tilt`: `atan2` trig via `micromath`.
 - The default build is dependency-free.
 
@@ -66,7 +67,7 @@ Host work needs only `rustc`, `cargo`, and `just`.
 - `just act` with no args runs the five host jobs.
 - `just act idf:chip:c3` runs one matrix cell.
 - `just act list` lists the jobs.
-- `just test-all-features` / `just clippy-all-features`: exercise the `hal`, `hal-async`, `bme680` + `tilt` features.
+- `just test-all-features` / `just clippy-all-features`: exercise the `hal`, `hal-async`, `bme680`, `sht3x` + `tilt` features.
 - `just check-hal` / `just check-idf`: check a hardware tier on device targets (`check-hal`: C3 + S3; `check-idf`: C3).
 - `just check-matrix`: check and clippy both tier libraries on all four ESP32 chips, one at a time.
 - `check-matrix` is slow, needs `espup`, and is not part of `verify`.
