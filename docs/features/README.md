@@ -12,4 +12,5 @@ Name files `feature-name-vN.md` and start from [`template.md`](template.md).
 | [BME680 environmental sensor](bme680-v1.md) | experimental in 0.2.0 |
 | [Staged timer](staged-timer-v1.md) | implemented, unreleased |
 | [IR codec](ir-codec-v1.md) | `tamer::ir` and the esp-hal RMT bridge implemented, unreleased; hardware unverified |
+| [SHT3x temperature / humidity](sht3x-v1.md) | implemented, unreleased; hardware unverified |
 | [IRAM-safe ISR](iram-safe-isr-v1.md) | designed, not started |

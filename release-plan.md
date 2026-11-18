@@ -57,6 +57,7 @@ A gate passes when `--unattended` and `--attended` both pass on one commit; a ch
 | `c3/poti` | pass | 2026-11-08 | 9430069 | C3 SuperMini |
 | `c3/oled` | rerun: `signwriter` P1 fix | 2026-11-08 | 2d04fbd | C3 bench rig |
 | `c3/mpu6050` | open: idf attended | 2026-11-12 | d905622 | C3 SuperMini |
+| `c3/sht3x` | open | | | C3 SuperMini |
 | `c3/rotary` | open | | | |
 | `c3/rig` | open | | | |
 | `c6/b3f` | open | | | |

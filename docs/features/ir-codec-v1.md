@@ -1,7 +1,7 @@
 # Feature: IR codec v1
 
 A pure infrared pulse codec, `tamer::ir` (feature `ir`), for the Krampusnacht props that drive and read consumer IR remotes.
-The hardware bridge is `rustyfarian-esp-hal-peripherals::ir` (feature `ir`), `IrTransmitter` and `IrReceiver` on the RMT peripheral; the request is `review-queue/rustyfarian-peripherals-ir-codec-v1.md`.
+The hardware bridge is `rustyfarian-esp-hal-peripherals::ir` (feature `ir`), `IrTransmitter` and `IrReceiver` on the RMT peripheral.
 
 Status: implemented, hardware unverified.
 

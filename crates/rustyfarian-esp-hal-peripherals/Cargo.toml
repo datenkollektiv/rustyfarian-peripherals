@@ -126,7 +126,7 @@ embassy-futures  = { workspace = true, optional = true }
 esp-println = { workspace = true, features = ["auto"] }
 # Dev-dependency features only apply to examples/tests under resolver 2, so the
 # library itself keeps the pure `tamer` (no `hal`/`tilt`).
-tamer = { workspace = true, features = ["hal", "hal-async", "tilt", "bme680"] }
+tamer = { workspace = true, features = ["hal", "hal-async", "tilt", "bme680", "sht3x"] }
 # OLED examples only (`hal_c3_oled`): SSD1306/SH1106 driver and its draw API.
 signwriter = { workspace = true }
 embedded-graphics = { workspace = true }
@@ -193,6 +193,10 @@ required-features = ["esp32c3", "rt", "unstable"]
 
 [[example]]
 name = "hal_c3_reed"
+required-features = ["esp32c3", "rt", "unstable"]
+
+[[example]]
+name = "hal_c3_sht3x"
 required-features = ["esp32c3", "rt", "unstable"]
 
 [[example]]

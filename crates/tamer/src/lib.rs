@@ -33,7 +33,8 @@
 //!   sensor drivers such as [`Mpu6050`]; the default build pulls in nothing
 //!   hardware-related.
 //! - **`hal-async` adds opt-in async runners.** It implies `hal` and pulls in
-//!   `embedded-hal-async`; `Bme680::measure_async` and `Mpu6050::calibrate_async`
+//!   `embedded-hal-async`; `Bme680::measure_async`, `Mpu6050::calibrate_async` and
+//!   `Sht3x::measure_async`
 //!   drive the same sans-io machines as their blocking twins, for executors
 //!   such as embassy. It is not a default feature.
 //!
@@ -75,6 +76,11 @@
 //!   raw-block parsing, and Bosch SensorAPI v4.4.8 float compensation
 //!   (temperature, pressure, humidity, gas resistance).
 //!   With `hal` it adds the [`Bme680`] I2C driver.
+//!   Experimental: not yet verified on hardware.
+//! - `sht3x` (feature `sht3x`) — Sensirion SHT3x temperature / humidity
+//!   command set, CRC-8, fixed-point conversion (centi-degrees, centi-percent,
+//!   rounded to nearest), and the sans-io `SingleShot` action machine.
+//!   With `hal` it adds the [`Sht3x`] I2C driver.
 //!   Experimental: not yet verified on hardware.
 //! - [`tone`] — a tone/duration sequencer (melody player) stepping a borrowed
 //!   `&[Note]` table into [`ToneOutput`] values;
@@ -285,6 +291,26 @@ pub use bme680::Bme680;
 #[cfg(feature = "bme680")]
 pub use bme680::{IirFilter, Oversampling};
 
+/// Sensirion SHT3x (SHT30 / SHT31 / SHT35) protocol constants, CRC-8,
+/// fixed-point conversion, and the sans-io `SingleShot` action machine.
+///
+/// Gated behind the `sht3x` feature, which adds no dependency: the output is
+/// fixed point (centi-degrees Celsius, centi-percent RH), so no float code
+/// is needed. The driver arguments [`Repeatability`] and, under `hal`,
+/// [`Sht3x`] are re-exported at the crate root; the other names stay
+/// module-scoped because `Measurement`, `Status`, `Error`, `crc8` and
+/// `I2C_ADDR` would collide with [`mpu6050`]'s and [`bme680`]'s.
+///
+/// Experimental: not yet verified on hardware, so readings and the API may
+/// change in a minor release.
+#[cfg(feature = "sht3x")]
+pub mod sht3x;
+
+#[cfg(feature = "sht3x")]
+pub use sht3x::Repeatability;
+#[cfg(all(feature = "sht3x", feature = "hal"))]
+pub use sht3x::Sht3x;
+
 /// Tone/duration sequencer (melody player) — [`ToneSequencer`], [`Note`],
 /// [`SequenceMode`], [`ToneOutput`], and [`SequenceEvent`].
 ///
@@ -404,4 +430,8 @@ pub mod prelude {
     pub use crate::presence::DigitalPresenceInput;
     #[cfg(feature = "hal")]
     pub use crate::rotary::QuadratureInput;
+    #[cfg(feature = "sht3x")]
+    pub use crate::sht3x::Repeatability;
+    #[cfg(all(feature = "sht3x", feature = "hal"))]
+    pub use crate::sht3x::Sht3x;
 }

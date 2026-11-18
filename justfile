@@ -241,7 +241,7 @@ clippy:
     cargo clippy {{ host_flags }} -- -D warnings
     cargo clippy {{ signwriter_flags }} --all-targets -- -D warnings
 
-# run clippy with every tamer feature enabled (hal + tilt + bme680 + ir), denying warnings
+# run clippy with every tamer feature enabled (hal + tilt + bme680 + sht3x + ir), denying warnings
 [group('quality')]
 clippy-all-features:
     cargo clippy {{ tamer_all_features_flags }} -- -D warnings
@@ -264,13 +264,21 @@ test-bme680:
     cargo test {{ host_flags }} --features bme680
     cargo test {{ host_flags }} --features bme680,hal
 
+# `--all-features` never builds the `sht3x`-without-`hal` combination.
+[group('quality')]
+[doc('run host-side unit tests for the SHT3x module alone, with its I2C driver and with the async runner')]
+test-sht3x:
+    cargo test {{ host_flags }} --features sht3x
+    cargo test {{ host_flags }} --features sht3x,hal
+    cargo test {{ host_flags }} --features sht3x,hal-async
+
 # `--all-features` also never builds `ir` alone; this pins the dependency-free build.
 [group('quality')]
 [doc('run host-side unit tests for the IR codec module alone')]
 test-ir:
     cargo test {{ host_flags }} --features ir
 
-# run host-side unit tests with every tamer feature enabled (hal + tilt + bme680 + ir)
+# run host-side unit tests with every tamer feature enabled (hal + tilt + bme680 + sht3x + ir)
 [group('quality')]
 test-all-features:
     cargo test {{ tamer_all_features_flags }}
@@ -428,7 +436,7 @@ pre-commit: fmt verify
 
 # non-modifying, offline host verification: format check, check, lint, test
 [group('gates')]
-verify: fmt-check check clippy test test-ir
+verify: fmt-check check clippy test test-sht3x test-ir
 
 # CI-equivalent host gate: verify + deny (device jobs: `just ci-riscv`, `ci-xtensa`, `ci-idf <chip>`, `ci-avr`, `ci-avr-upstream`)
 [group('gates')]
@@ -449,7 +457,7 @@ ci-clippy: clippy
 
 # CI job: type-check and test the host-buildable crates
 [group('ci')]
-ci-test: check test test-ir
+ci-test: check test test-sht3x test-ir
 
 # CI job: licences, advisories, bans and sources
 [group('ci')]
