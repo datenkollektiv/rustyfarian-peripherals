@@ -54,7 +54,7 @@ avr_abs_dir := if ramdisk_mounted == "true" { ramdisk + "/targets/avr/" + file_n
 # Guided bench runner: a local rustyfarian-bench checkout if RUSTYFARIAN_BENCH points at one,
 # otherwise the pinned release from GitHub.
 bench_dir := env("RUSTYFARIAN_BENCH", "")
-bench := if bench_dir != "" { 'uv run --project "' + bench_dir + '" rustyfarian-bench' } else { "uvx --from git+https://github.com/datenkollektiv/rustyfarian-bench@v0.5.0 rustyfarian-bench" }
+bench := if bench_dir != "" { 'uv run --project "' + bench_dir + '" rustyfarian-bench' } else { "uvx --from git+https://github.com/datenkollektiv/rustyfarian-bench@v0.6.0 rustyfarian-bench" }
 
 # act: a local rustyfarian-ci checkout if RUSTYFARIAN_CI points at one, otherwise the pushed @v1.
 ci_dir := env("RUSTYFARIAN_CI", "")
@@ -195,6 +195,50 @@ build-matrix-idf:
         scripts/ramdisk-guard.sh "{{ ramdisk }}" "{{ ramdisk_mounted }}" "idf_${chip}_oled ${board}"
         scripts/build-example.sh "idf_${chip}_oled" "{{ hal_dir }}" "{{ idf_dir }}" "${board}"
     done
+
+# Release gate: `cargo check` cannot see an SDK function ESP-IDF declares but does not build
+# (rustyfarian-power bug 001); only a link can. Stops at the first failure unless KEEP_GOING=1.
+[doc('build and link every example of both tiers on its chip, flashing nothing; filter = name prefix')]
+[group('matrix')]
+build-all-examples filter="":
+    #!/usr/bin/env bash
+    set -uo pipefail
+    trap 'exit 130' INT
+    prefix={{ quote(filter) }}
+    names=()
+    for f in crates/rustyfarian-esp-hal-peripherals/examples/*.rs crates/rustyfarian-esp-idf-peripherals/examples/*.rs; do
+        [ -e "$f" ] || continue
+        name="$(basename "$f" .rs)"
+        case "$name" in
+            "$prefix"*) names+=("$name") ;;
+        esac
+    done
+    total=${#names[@]}
+    if [ "$total" -eq 0 ]; then
+        echo "build-all-examples: no example matches prefix '$prefix'" >&2
+        exit 1
+    fi
+    passed=0
+    failed=()
+    i=0
+    for name in "${names[@]}"; do
+        i=$((i + 1))
+        echo "==> [$i/$total] $name"
+        # A full RAM disk stops the run: every later build would fail the same way.
+        scripts/ramdisk-guard.sh "{{ ramdisk }}" "{{ ramdisk_mounted }}" "$name" || exit 1
+        if scripts/build-example.sh "$name" "{{ hal_dir }}" "{{ idf_dir }}"; then
+            passed=$((passed + 1))
+        else
+            failed+=("$name")
+            [ "${KEEP_GOING:-0}" = 1 ] || break
+        fi
+    done
+    echo
+    echo "build-all-examples: $passed built, ${#failed[@]} failed, $((total - passed - ${#failed[@]})) not attempted (of $total)"
+    for name in ${failed[@]+"${failed[@]}"}; do
+        echo "  FAILED: $name"
+    done
+    [ ${#failed[@]} -eq 0 ]
 
 # check and clippy the esp-hal library for one chip: esp32 | esp32c3 | esp32c6 | esp32s3
 [group('matrix')]

@@ -24,6 +24,7 @@ Release process for the `rustyfarian-peripherals` workspace.
 - [ ] Non-modifying gate passes: `just verify` (fmt-check, check, clippy `-D warnings`, test)
 - [ ] `tamer` feature matrix passes: `just test-all-features` and `just clippy-all-features`
 - [ ] Device tiers compile: `just check-hal` and `just check-idf`
+- [ ] Every example links on its chip: `just build-all-examples` (`cargo check` misses an SDK function ESP-IDF declares but does not build)
 - [ ] `cargo deny` clean: `just deny`
 - [ ] `cargo audit` clean: `just audit`
 - [ ] `tamer` packages cleanly: `just release-dry-run`
@@ -58,7 +59,7 @@ A gate passes when `--unattended` and `--attended` both pass on one commit; a ch
 | `c3/oled` | rerun: `signwriter` P1 fix | 2026-11-08 | 2d04fbd | C3 bench rig |
 | `c3/mpu6050` | open: idf attended | 2026-11-12 | d905622 | C3 SuperMini |
 | `c3/sht3x` | open | | | C3 SuperMini |
-| `c3/rotary` | open | | | |
+| `c3-rotary/rotary` | open | | | |
 | `c3/rig` | open | | | |
 | `c6/b3f` | open | | | |
 | `c6/rotary` | open | | | |
@@ -66,7 +67,7 @@ A gate passes when `--unattended` and `--attended` both pass on one commit; a ch
 | `c6/oled-sh1106` | open: no SH1106 module | | | |
 | `esp32-feather/oled-*` | deferred: no STEMMA QT cable | | | |
 | `c3/bme680`, `c3/bme680-async` | deferred: `bme680` experimental | | | |
-| `s3/oled` | n/a: I2C is the touch bus | | | |
+| `s3/oled` | n/a: no 3V3 I2C connector (ADR-014) | | | |
 
 Manual items without a scenario:
 

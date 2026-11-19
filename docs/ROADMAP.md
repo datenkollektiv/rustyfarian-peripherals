@@ -51,6 +51,7 @@ timeline
 - **Shared-logic ladder:** generic `embedded-hal` driver first, then event machine, then sans-IO action machine only on a trigger.
 - **Ladder review rule:** adapter branches that are not error/event mapping move to `tamer` ([ADR-010](adr/010-shared-logic-ladder.md)).
 - **Two mirrored tiers:** `rustyfarian-esp-hal-peripherals` (bare-metal) and `rustyfarian-esp-idf-peripherals` (std) keep parallel module layouts.
+- **Bench pogo set:** every board with free headers carries an I2C, a 3V3 and a 5V pogo (5 V supply, 3V3 logic) plus a fixed button pin that is the wake input, soldered or on a pogo per rig; modules adapt, the rig has no translator ([ADR-015](adr/015-pogo-ports.md)).
 - **Demand-driven:** no peripheral lands without a real consumer.
 - **Exact-pinned esp stacks:** pins follow the wave the sibling repos are on and move via the cycle in [`maintenance-plan.md`](../maintenance-plan.md).
 

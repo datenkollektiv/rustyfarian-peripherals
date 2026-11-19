@@ -74,6 +74,8 @@ Host work needs only `rustc`, `cargo`, and `just`.
 - `just check-matrix-hal-chip <chip>` / `just check-matrix-idf-chip <chip>`: one chip of the matrix; `<chip>` is `esp32`, `esp32c3`, `esp32c6` or `esp32s3`.
 - `just build-matrix`: build and link the `b3f` smoke example for every chip on both tiers (`-hal` / `-idf` forms).
 - `check-matrix` never links.
+- `just build-all-examples [prefix]`: build and link every example of both tiers on its chip, flashing nothing; the release gate, because only a link sees an SDK function ESP-IDF declares but does not build.
+- `KEEP_GOING=1` makes it continue past a failure.
 - `just setup [esp|avr|tools]`: install what a fresh clone is missing (no args: all).
 - `just setup avr` installs the pinned AVR nightly (`nightly-2025-04-27`) with `rust-src` via `rustup`.
 - `just check-avr-target`: check `tamer --features hal` on `avr-none` (needs `just setup avr` and `avr-gcc`).
@@ -91,8 +93,9 @@ Their device target config, including the ESP-IDF pin, is the committed `.cargo/
 
 `just bench <board> [check]` runs a guided on-device check from `bench/<board>/`, builds and flashes it, and judges each step; `bench/README.md` lists the boards and checks.
 `just bench-list` lists every scenario, and `just bench-detect` shows the chip and MAC of each connected board.
-The runner is `rustyfarian-bench`; `RUSTYFARIAN_BENCH=<path>` points the recipes at a local checkout instead of the pinned `v0.5.0` release (ADR-011 records the pin and the bench layout).
+The runner is `rustyfarian-bench`; `RUSTYFARIAN_BENCH=<path>` points the recipes at a local checkout instead of the pinned `v0.6.0` release (ADR-011 records the pin and the bench layout).
 Bench logs and `results.jsonl` are git-ignored, because they record board MACs.
+The C3 has two rigs, `c3` and `c3-rotary` (the EC11); with both attached, pass `--port`.
 
 ### Chip matrix
 

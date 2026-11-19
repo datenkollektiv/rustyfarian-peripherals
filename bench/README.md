@@ -1,7 +1,7 @@
 # Bench
 
 Guided hardware checks for the final hardware pass, one directory per board ([ADR-011](../docs/adr/011-adopt-rustyfarian-bench.md)).
-The runner is [`rustyfarian-bench`](https://github.com/datenkollektiv/rustyfarian-bench), pinned to `v0.5.0` in the justfile; `RUSTYFARIAN_BENCH=<path>` uses a local checkout.
+The runner is [`rustyfarian-bench`](https://github.com/datenkollektiv/rustyfarian-bench), pinned to `v0.6.0` in the justfile; `RUSTYFARIAN_BENCH=<path>` uses a local checkout.
 
 | Where | Source of truth for |
 |:--|:--|
@@ -14,6 +14,7 @@ The runner is [`rustyfarian-bench`](https://github.com/datenkollektiv/rustyfaria
 |:--|:--|:--|
 | CrowPanel 1.28" HMI (ESP32-S3) | [s3/](s3/) | 2026-11-11 |
 | ESP32-C3 SuperMini | [c3/](c3/) | open |
+| ESP32-C3 SuperMini, EC11 rig | [c3-rotary/](c3-rotary/) | open |
 | ESP32-C6-DevKitC-1 | [c6/](c6/) | open |
 | ESP32-WROOM-32 DevKit | [esp32/](esp32/) | open |
 | Adafruit ESP32 Feather V2 | [esp32-feather/](esp32-feather/) | open |
@@ -30,7 +31,8 @@ just bench-list                             # all scenarios
 just bench-detect                           # chip and MAC per port
 ```
 
-Add `--port <port>` when two boards of the same chip are attached.
+Add `--port <port>` when two boards of the same chip are attached (`c3` and `c3-rotary`, `esp32` and `esp32-feather`).
+A MAC pin in the git-ignored `bench/bench.local.toml` replaces `--port` once the runner pin moves past `v0.6.0`.
 A gate passes only when both modes pass on the same commit; record it as one row in the release plan.
 Logs and `results.jsonl` stay local and git-ignored, because they record board MACs.
 

@@ -26,3 +26,5 @@ tmp/
 # bench run artefacts (rustyfarian-bench): per-run serial logs
 bench/*/logs/
 bench/*/results.jsonl
+# per-machine bench board pins (MACs), see bench/README.md
+bench/bench.local.toml

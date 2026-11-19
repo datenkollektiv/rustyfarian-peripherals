@@ -38,6 +38,7 @@ This project follows [Semantic Versioning](https://semver.org/) (pre-1.0: minor 
 - `just test-sht3x` runs the host tests for the `sht3x`, `sht3x,hal` and `sht3x,hal-async` builds, and `verify` and `ci-test` include it.
 - Examples `hal_c3_sht3x` and `idf_c3_sht3x` read an SHT3x at address 0x44 on GPIO 6 / 7, and `bench/c3/sht3x.toml` adds the `c3/sht3x` bench check.
 - The SHT3x support is experimental: not yet verified on hardware.
+- `just build-all-examples [filter]` builds and links every example of both tiers on its chip, flashing nothing; the release checklist runs it (family recipe contract J26).
 
 ### Changed
 - The workspace builds its ESP-IDF examples against ESP-IDF v6.1 (was v5.3.3); the libraries still do not pin an ESP-IDF version.
@@ -52,6 +53,10 @@ This project follows [Semantic Versioning](https://semver.org/) (pre-1.0: minor 
 - just: `release-publish-tamer` → `release-publish`, and a new `semver` recipe runs `cargo semver-checks` (family recipe contract).
 - bench: board key `feather-v2` → `esp32-feather`; the `feather-v2` board profile is unchanged (family bench catalogue).
 - examples: the classic ESP32 chip token `esp` → `esp32` (`hal_esp32_b3f`, `idf_esp32_oled`, …), and `just ci-idf esp` → `just ci-idf esp32` (family chip tokens).
+- bench: the runner pin moves to `v0.6.0` (was `v0.5.0`), and `bench/bench.local.toml` is git-ignored (family bench convention).
+- bench: the EC11 check moves from `c3/rotary` to a second C3 rig, `c3-rotary/rotary`, because GPIO 1 is the C3 5V pogo ([ADR-015](docs/adr/015-pogo-ports.md)).
+- bench: each rig page lists its I2C, 3V3 and 5V pogos and its button pin ([ADR-015](docs/adr/015-pogo-ports.md)).
+- deny: RUSTSEC-2026-0543 (`chrono` unmaintained, via `esp-idf-sys` → `build-time`) is ignored until `esp-idf-sys` drops `build-time` (family CI convention).
 
 ## [0.2.0] - 2026-11-12
 
