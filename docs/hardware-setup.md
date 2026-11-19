@@ -34,6 +34,26 @@ The 4-pin header uses the Qwiic / STEMMA QT order GND, 3V3, SDA (GPIO 6), SCL (G
 - Isolated `AcknowledgeCheckFailed` reads while the power LED dims mean a loose VCC or GND jumper.
 - The SHT3x ADDR pin must be tied to GND or 3V3, never left floating (datasheet section 3.4, Table 8); a bare sensor needs that tie made explicitly.
 
+## Wiring — HX711 load cell on the I2C pogo pins (ESP32-C3, ESP32-C6)
+
+The HX711 module uses the same 4-pin header, but its two lines are a clocked protocol, not I2C.
+`hal_c3_hx711` / `idf_c3_hx711` read it on the pins below.
+`hal_c6_hx711` / `idf_c6_hx711` do the same on the C6 DevKitC-1's I2C pogo pins, DT GPIO 21 (J3-7) and SCK GPIO 22 (J3-6), with GND on J3-1 and 3V3 on J1-1, wired directly until the C6 pogo is fitted.
+
+| Signal | GPIO | Notes |
+|:--|:--|:--|
+| DT (DOUT) | 6 | Input; the module drives it low when a conversion is ready |
+| SCK (PD_SCK) | 7 | Push-pull output, low at power-up; held high for more than 60 µs it powers the chip down |
+| GND | pogo GND | Common ground with the load-cell bridge |
+| VCC | pogo 3V3 | Supply the module from 3V3 only |
+
+- Never run the module from 5 V: its DOUT would swing to 5 V, above the 3.3 V logic level of the C3 and the C6.
+- While the HX711 is plugged in, the pogo is not an I2C bus, so no I2C device shares these pins.
+- The rig's 4.7 kΩ pull-ups on GPIO 6 and 7 are harmless here, because the module drives DT and the MCU drives PD_SCK push-pull.
+- The bridge is excited from the 3V3 rail, so its output is about two thirds of a 5 V build for the same load; calibrate on the real rig.
+- Wait 400 ms after power-up for the 10 Hz output rate, and discard the first sample; the examples do both.
+- The examples read at 10 Hz and print once per second (every tenth sample).
+
 ## Wiring — passive piezo (C6)
 
 `hal_c6_passive_buzzer_arpeggio` drives the piezo from GPIO 6; it is compile-verified only and may sound an octave high (see its Caveats).

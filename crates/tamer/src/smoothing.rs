@@ -6,6 +6,9 @@
 //! threshold-based evaluators: smooth raw ADC readings before evaluation to
 //! absorb quantization noise (for example, ESP32-C6 errata ADC-1477).
 //!
+//! [`SignedSlidingAverage`] is its `i32` sibling for signed readings such as
+//! tared load-cell counts.
+//!
 //! The implementation is zero-alloc and `no_std` compatible — storage is an
 //! inline `[u16; N]` array and a running `u32` sum, so `push` is O(1).
 //!
@@ -211,6 +214,131 @@ impl EmaFilter {
     /// raw value.
     pub fn reset(&mut self) {
         self.value = None;
+    }
+}
+
+/// Fixed-size sliding window average over `i32` samples.
+///
+/// The signed sibling of [`SlidingAverage`], for readings that can be
+/// negative, such as tared load-cell counts.
+/// Storage is a plain `[i32; N]` array with a running `i64` sum, so
+/// [`push`](Self::push) is **O(1)** and cannot overflow for any realistic `N`.
+///
+/// The average divides in `i64`, so it truncates toward zero:
+/// the mean of `-1, -1, -2` is `-1`, not `-2`.
+///
+/// # Invariant
+///
+/// `N` must be greater than zero.
+/// `SignedSlidingAverage::<0>` is rejected at compile time:
+///
+/// ```compile_fail
+/// use tamer::smoothing::SignedSlidingAverage;
+///
+/// let _ = SignedSlidingAverage::<0>::new();
+/// ```
+///
+/// # Example
+///
+/// ```
+/// use tamer::smoothing::SignedSlidingAverage;
+///
+/// let mut avg = SignedSlidingAverage::<2>::new();
+/// assert_eq!(avg.push(-100), -100);
+/// assert_eq!(avg.push(50), -25);
+/// assert_eq!(avg.push(50), 50); // oldest (-100) dropped
+/// avg.reset();
+/// assert!(avg.is_empty());
+/// ```
+#[derive(Debug, Clone)]
+pub struct SignedSlidingAverage<const N: usize> {
+    buf: [i32; N],
+    head: usize,
+    count: usize,
+    sum: i64,
+}
+
+impl<const N: usize> SignedSlidingAverage<N> {
+    /// Compile-time guard: `SignedSlidingAverage::<0>` is forbidden because
+    /// the ring index would otherwise take a modulo by zero.
+    const _N_NONZERO: () = assert!(N > 0, "SignedSlidingAverage requires N > 0");
+
+    /// Creates a new empty sliding average.
+    #[must_use]
+    pub const fn new() -> Self {
+        // Force compile-time evaluation of the N > 0 invariant.
+        #[allow(clippy::let_unit_value)]
+        let _ = Self::_N_NONZERO;
+        Self {
+            buf: [0; N],
+            head: 0,
+            count: 0,
+            sum: 0,
+        }
+    }
+
+    /// Pushes a new sample into the window and returns the updated average.
+    ///
+    /// The oldest sample is discarded once the buffer is full.
+    #[must_use]
+    pub fn push(&mut self, sample: i32) -> i32 {
+        if let Some(slot) = self.buf.get_mut(self.head) {
+            if self.count == N {
+                // Buffer full: subtract the value being overwritten.
+                self.sum -= i64::from(*slot);
+            } else {
+                self.count += 1;
+            }
+            *slot = sample;
+            self.sum += i64::from(sample);
+            self.head = (self.head + 1) % N;
+        }
+        self.average()
+    }
+
+    /// Returns the current average without pushing a new sample.
+    ///
+    /// Returns `0` if no samples have been pushed yet.
+    /// The division truncates toward zero.
+    #[must_use]
+    pub fn average(&self) -> i32 {
+        if self.count == 0 {
+            return 0;
+        }
+        // The mean of `i32` samples always fits in `i32`.
+        (self.sum / self.count as i64) as i32
+    }
+
+    /// Empties the window; the next `push` starts a fresh average.
+    pub fn reset(&mut self) {
+        self.buf = [0; N];
+        self.head = 0;
+        self.count = 0;
+        self.sum = 0;
+    }
+
+    /// Returns the number of samples currently in the window.
+    #[must_use]
+    pub const fn len(&self) -> usize {
+        self.count
+    }
+
+    /// Returns `true` if no samples have been pushed.
+    #[must_use]
+    pub const fn is_empty(&self) -> bool {
+        self.count == 0
+    }
+
+    /// Returns `true` when the window holds exactly `N` samples.
+    #[must_use]
+    pub const fn is_full(&self) -> bool {
+        self.count == N
+    }
+}
+
+impl<const N: usize> Default for SignedSlidingAverage<N> {
+    fn default() -> Self {
+        Self::new()
     }
 }
 
@@ -438,5 +566,84 @@ mod tests {
     #[should_panic(expected = "EmaFilter alpha must be in 0.0..=1.0")]
     fn ema_new_panics_on_nan_alpha() {
         let _ = EmaFilter::new(f32::NAN);
+    }
+
+    // ── SignedSlidingAverage ────────────────────────────────────────────
+
+    #[test]
+    fn signed_empty_is_zero() {
+        let avg = SignedSlidingAverage::<4>::default();
+        assert_eq!(avg.average(), 0);
+        assert!(avg.is_empty());
+        assert!(!avg.is_full());
+        assert_eq!(avg.len(), 0);
+    }
+
+    #[test]
+    fn signed_partial_fill_averages_available_samples() {
+        let mut avg = SignedSlidingAverage::<4>::new();
+        assert_eq!(avg.push(-100), -100);
+        assert_eq!(avg.push(300), 100);
+        assert_eq!(avg.len(), 2);
+        assert!(!avg.is_full());
+    }
+
+    #[test]
+    fn signed_rolls_off_oldest() {
+        let mut avg = SignedSlidingAverage::<3>::new();
+        let _ = avg.push(-30);
+        let _ = avg.push(0);
+        let _ = avg.push(30);
+        assert!(avg.is_full());
+        assert_eq!(avg.average(), 0);
+        // [-30, 0, 30] -> [60, 0, 30]
+        assert_eq!(avg.push(60), 30);
+        // [60, -3, 30]
+        assert_eq!(avg.push(-3), 29);
+    }
+
+    #[test]
+    fn signed_reset_empties_window() {
+        let mut avg = SignedSlidingAverage::<3>::new();
+        let _ = avg.push(10);
+        let _ = avg.push(20);
+        avg.reset();
+        assert!(avg.is_empty());
+        assert_eq!(avg.average(), 0);
+        assert_eq!(avg.push(-7), -7);
+    }
+
+    #[test]
+    fn signed_extreme_samples_do_not_overflow() {
+        let mut avg = SignedSlidingAverage::<8>::new();
+        for _ in 0..20 {
+            let _ = avg.push(i32::MAX);
+        }
+        assert_eq!(avg.average(), i32::MAX);
+        let mut avg = SignedSlidingAverage::<8>::new();
+        for _ in 0..20 {
+            let _ = avg.push(i32::MIN);
+        }
+        assert_eq!(avg.average(), i32::MIN);
+    }
+
+    #[test]
+    fn signed_average_truncates_toward_zero() {
+        let mut avg = SignedSlidingAverage::<3>::new();
+        let _ = avg.push(-1);
+        let _ = avg.push(-1);
+        assert_eq!(avg.push(-2), -1); // -4/3 = -1.33
+        let mut avg = SignedSlidingAverage::<3>::new();
+        let _ = avg.push(1);
+        let _ = avg.push(1);
+        assert_eq!(avg.push(2), 1); // 4/3
+    }
+
+    #[test]
+    fn signed_window_size_one_is_passthrough() {
+        let mut avg = SignedSlidingAverage::<1>::new();
+        assert_eq!(avg.push(-42), -42);
+        assert_eq!(avg.push(99), 99);
+        assert!(avg.is_full());
     }
 }

@@ -129,6 +129,17 @@ Cause: `esp-idf-svc`'s `critical-section` feature forwards to `esp-idf-hal`'s `E
 Fix: guard ISR-shared state with `IsrCriticalSection` (`xPortEnterCriticalTimeout` on a `portMUX_TYPE` on ESP32/S3, `vPortEnterCritical` on C3/C6 — interrupt mask plus spinlock, valid in ISR and task context), as `rotary::IsrLocked` does. The esp-hal tier's provider (`esp_sync::RawMutex`, interrupt mask + core-owned spinlock) *is* ISR-safe. Repeat this source check on every `esp-idf-hal` bump (see `maintenance-plan.md`).
 The FreeRTOS port side was re-verified unchanged against ESP-IDF v6.1 on 2026-11-12 (Xtensa `port.c:482/509`, RISC-V `port.c:526/553/602/616`).
 
+## esp-hal — `Delay` is quantised to whole microseconds
+
+**esp-hal's `Delay` rounds every request to whole microseconds on the timer, so `delay_us(1)` can last under 1 µs.**
+Symptom: a bit-bang phase requested as `delay_us(1)` can end within nanoseconds of a microsecond tick, so the HX711 PD_SCK high time could fall below the datasheet minimum; found in the requester's source review, since no bench run had exercised the driver yet.
+Cause: esp-hal 1.2.2 `Delay::delay` spins on `start.elapsed() < delay` (`src/delay.rs:53-57`), and `delay_nanos` rounds the request up with `div_ceil` (`src/delay.rs:70-71`).
+`Instant::now()` is floored to whole microseconds (`src/time.rs:715-719`): the systimer chips C3, C6 and S3 convert through `SystemTimer::ticks_to_us` (`src/time.rs:832-833`), the classic ESP32 through `ticks / 16` (`src/time.rs:771-772`), so `delay_us(1)` lasts (0, 1] µs and `delay_us(2)` lasts (1, 2] µs.
+esp-idf-hal 0.47.0 `Ets::delay_us` is the ROM `ets_delay_us` busy loop and waits the full time (`src/delay.rs:192-195`), so the same code behaves differently on the two tiers.
+Fix: `tamer::hx711::PULSE_US = 2` sets both clock phases, so each phase lasts more than 1 µs on esp-hal.
+Any bit-banged protocol on esp-hal must request n + 1 µs to get n µs, and esp-idf-hal `Ets` needs no such margin.
+Confirmed 2026-11-19 on the HX711 review, from the pinned crate sources.
+
 ## AVR — fresh lockfile fails on the pinned nightly
 
 **A fresh `cargo` resolution of `examples/avr-nano-tamer` fails on `nightly-2025-04-27`; seed `Cargo.lock` from `rustyfarian-ws2812`'s AVR example and let Cargo extend it.**

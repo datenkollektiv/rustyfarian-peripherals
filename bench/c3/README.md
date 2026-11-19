@@ -9,6 +9,7 @@ The pogo set and the button pin follow [ADR-015](../../docs/adr/015-pogo-ports.m
 | 3V3 pogo (GND, 3V3, SIG) | 4 | ADC1: 49E Hall or potentiometer wiper |
 | 5V pogo (GND, 5V, SIG) | 1 | 3V3 logic; not fitted yet |
 | I2C pogo (GND, 3V3, SDA, SCL) | 6 / 7 | 4.7 kΩ pull-ups; OLED, MPU6050, BME680, SHT3x |
+| HX711 on the I2C pogo (GND, 3V3, DT, SCK) | 6 / 7 | DT on GPIO 6, SCK on GPIO 7, not I2C; 3V3 supply; experimental |
 | Passive piezo via NPN | 10 | LEDC tone |
 | LED, active-low | 8 | not fitted yet |
 
@@ -19,4 +20,4 @@ The pogo set and the button pin follow [ADR-015](../../docs/adr/015-pogo-ports.m
 - The EC11 sits on the second C3 rig, [`c3-rotary`](../c3-rotary/README.md), because its B input would take GPIO 1, the 5V pogo.
 - With both C3 rigs attached, pass `--port` to `just bench` (see [bench/README.md](../README.md)).
 
-Checks: `b3f`, `buzzer`, `hall-linear`, `poti`, `oled`, `mpu6050`, `rig`, `sht3x`; `bme680` and `bme680-async` are experimental.
+Checks: `b3f`, `buzzer`, `hall-linear`, `poti`, `oled`, `mpu6050`, `rig`, `sht3x`; `bme680`, `bme680-async` abd `hx711` are experimental.

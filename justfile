@@ -85,14 +85,14 @@ check-hal:
     echo "==> check-hal: ESP32-C3 ({{ hal_target }}, stable)"
     rustup target add {{ hal_target }}
     cargo check --target {{ hal_target }} \
-        --target-dir "{{ hal_dir }}" --no-default-features --features esp32c3,unstable,ir \
+        --target-dir "{{ hal_dir }}" --no-default-features --features esp32c3,unstable,ir,hx711 \
         -p rustyfarian-esp-hal-peripherals
     echo "==> check-hal: ESP32-S3 (xtensa-esp32s3-none-elf, esp toolchain)"
     # shellcheck source=./scripts/xtensa-toolchain.sh
     . "{{ justfile_directory() }}/scripts/xtensa-toolchain.sh"
     setup_xtensa_toolchain
     cargo +esp check -Zbuild-std=core,alloc --target xtensa-esp32s3-none-elf \
-        --target-dir "{{ hal_dir }}" --no-default-features --features esp32s3,unstable,ir \
+        --target-dir "{{ hal_dir }}" --no-default-features --features esp32s3,unstable,ir,hx711 \
         -p rustyfarian-esp-hal-peripherals
 
 # lint the esp-hal crate (lib + examples) for ESP32-C3 and ESP32-S3, denying warnings
@@ -103,17 +103,17 @@ clippy-hal:
     echo "==> clippy-hal: ESP32-C3 ({{ hal_target }}, stable)"
     rustup target add {{ hal_target }}
     cargo clippy --target {{ hal_target }} \
-        --target-dir "{{ hal_dir }}" --no-default-features --features esp32c3,unstable,ir \
+        --target-dir "{{ hal_dir }}" --no-default-features --features esp32c3,unstable,ir,hx711 \
         -p rustyfarian-esp-hal-peripherals -- -D warnings
     cargo clippy --target {{ hal_target }} \
-        --target-dir "{{ hal_dir }}" --no-default-features --features esp32c3,unstable,rt,ir \
+        --target-dir "{{ hal_dir }}" --no-default-features --features esp32c3,unstable,rt,ir,hx711 \
         -p rustyfarian-esp-hal-peripherals --lib --examples -- -D warnings
     echo "==> clippy-hal: ESP32-S3 (xtensa-esp32s3-none-elf, esp toolchain)"
     # shellcheck source=./scripts/xtensa-toolchain.sh
     . "{{ justfile_directory() }}/scripts/xtensa-toolchain.sh"
     setup_xtensa_toolchain
     cargo +esp clippy -Zbuild-std=core,alloc --target xtensa-esp32s3-none-elf \
-        --target-dir "{{ hal_dir }}" --no-default-features --features esp32s3,unstable,rt,embassy,ir \
+        --target-dir "{{ hal_dir }}" --no-default-features --features esp32s3,unstable,rt,embassy,ir,hx711 \
         -p rustyfarian-esp-hal-peripherals --lib --examples -- -D warnings
 
 # build the esp-hal crate's rustdoc for ESP32-C3 (the docs.rs target), denying warnings
@@ -121,13 +121,13 @@ clippy-hal:
 doc-hal:
     rustup target add {{ hal_target }}
     RUSTDOCFLAGS="-D warnings" cargo doc --no-deps --target {{ hal_target }} \
-        --target-dir "{{ hal_dir }}" --no-default-features --features esp32c3,unstable,ir \
+        --target-dir "{{ hal_dir }}" --no-default-features --features esp32c3,unstable,ir,hx711 \
         -p rustyfarian-esp-hal-peripherals
 
 # check the ESP-IDF (std) crate for the ESP32-C3 device target (requires the ESP toolchain)
 [group('build')]
 check-idf:
-    MCU=esp32c3 cargo +esp check -p rustyfarian-esp-idf-peripherals --target {{ idf_target }} \
+    MCU=esp32c3 cargo +esp check -p rustyfarian-esp-idf-peripherals --target {{ idf_target }} --features hx711 \
         --target-dir {{ idf_dir }}
 
 # --- Chip matrix ----------------------------------------------------------
@@ -285,7 +285,7 @@ clippy:
     cargo clippy {{ host_flags }} -- -D warnings
     cargo clippy {{ signwriter_flags }} --all-targets -- -D warnings
 
-# run clippy with every tamer feature enabled (hal + tilt + bme680 + sht3x + ir), denying warnings
+# run clippy with every tamer feature enabled (hal + tilt + bme680 + sht3x + ir + hx711), denying warnings
 [group('quality')]
 clippy-all-features:
     cargo clippy {{ tamer_all_features_flags }} -- -D warnings
@@ -316,13 +316,20 @@ test-sht3x:
     cargo test {{ host_flags }} --features sht3x,hal
     cargo test {{ host_flags }} --features sht3x,hal-async
 
+# `--all-features` never builds the `hx711`-without-`hal` combination.
+[group('quality')]
+[doc('run host-side unit tests for the HX711 module alone and with its GPIO driver')]
+test-hx711:
+    cargo test {{ host_flags }} --features hx711
+    cargo test {{ host_flags }} --features hx711,hal
+
 # `--all-features` also never builds `ir` alone; this pins the dependency-free build.
 [group('quality')]
 [doc('run host-side unit tests for the IR codec module alone')]
 test-ir:
     cargo test {{ host_flags }} --features ir
 
-# run host-side unit tests with every tamer feature enabled (hal + tilt + bme680 + sht3x + ir)
+# run host-side unit tests with every tamer feature enabled (hal + tilt + bme680 + sht3x + ir + hx711)
 [group('quality')]
 test-all-features:
     cargo test {{ tamer_all_features_flags }}
@@ -480,7 +487,7 @@ pre-commit: fmt verify
 
 # non-modifying, offline host verification: format check, check, lint, test
 [group('gates')]
-verify: fmt-check check clippy test test-sht3x test-ir
+verify: fmt-check check clippy test test-sht3x test-hx711 test-ir
 
 # CI-equivalent host gate: verify + deny (device jobs: `just ci-riscv`, `ci-xtensa`, `ci-idf <chip>`, `ci-avr`, `ci-avr-upstream`)
 [group('gates')]
@@ -501,7 +508,7 @@ ci-clippy: clippy
 
 # CI job: type-check and test the host-buildable crates
 [group('ci')]
-ci-test: check test test-sht3x test-ir
+ci-test: check test test-sht3x test-hx711 test-ir
 
 # CI job: licences, advisories, bans and sources
 [group('ci')]

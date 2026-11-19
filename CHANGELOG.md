@@ -42,6 +42,36 @@ This project follows [Semantic Versioning](https://semver.org/) (pre-1.0: minor 
 - Examples `hal_c6_sht3x` and `idf_c6_sht3x` read the same sensor on the C6 board profile's I2C pins (SDA 21 / SCL 22, ADR-014), and `bench/c6/sht3x.toml` adds the `c6/sht3x` check.
 - The SHT3x support is verified on hardware: an SHT31 on the ESP32-C6-DevKitC-1 reads on both tiers (`c6/sht3x`).
 - `just build-all-examples [filter]` builds and links every example of both tiers on its chip, flashing nothing; the release checklist runs it (family recipe contract J26).
+- `tamer::hx711` (opt-in `hx711` feature, no dependency): the HX711 24-bit load-cell ADC protocol, with sign extension for the 24-bit word and `Gain` for the 1, 2 or 3 extra clock pulses that select the next conversion.
+- `hx711::Calibration` holds the tare offset, counts per gram and temperature drift, with `new`, `identity`, `tared`, `grams` and `compensate`.
+- `Calibration::to_bytes` / `from_bytes` is a 16-byte little-endian codec; `from_bytes` returns `None` on a wrong magic or version, or on content that `new` would reject.
+- `hx711::LoadCellScale<N>` is the weigh pipeline: `weigh` averages the tared reading over `N` samples, then applies the scale and optional temperature compensation.
+- `LoadCellScale::tare` takes a raw reading as the new zero and clears the window; `calibrate` and `set_temperature_compensation` reject bad input with `CalibrationError` and leave the state untouched.
+- `hx711::InterruptMask` runs the pulse train with interrupts masked, and `NoopInterruptMask` runs it unmasked for host tests.
+- `smoothing::SignedSlidingAverage<N>` is the `i32` sibling of `SlidingAverage`, with an `i64` sum that truncates toward zero.
+- `mock::MockOutputPin` records the set level and the rising edges, beside `MockInputPin`.
+- With `hal`, `hx711::Hx711` is a blocking driver over `InputPin` (DOUT) and `OutputPin` (PD_SCK) with `power_up`, `power_down`, `is_ready`, `read`, `read_blocking` and `release`.
+- A pin fault inside the pulse train drives PD_SCK low and completes the remaining pulses clock-only before `read` returns the error, so the fault cannot hold the line high past 60 µs and the chip ends the transfer with the requested gain.
+- `hx711::Error::{Dout, Sck, NotReady}` tells a pin fault from an HX711 that has not answered.
+- `LoadCellScale` and, with `hal`, `Hx711` are re-exported at the crate root; `Calibration`, `Gain`, `CalibrationError`, `InterruptMask` and the constants stay under `tamer::hx711::`.
+- `rustyfarian-esp-hal-peripherals` and `rustyfarian-esp-idf-peripherals` (opt-in `hx711` feature): `hx711::MaskedSection` implements `InterruptMask`.
+- The esp-hal `MaskedSection` wraps `critical_section::with`; the ESP-IDF one wraps `IsrCriticalSection`, never `critical_section`, which is a FreeRTOS mutex on ESP-IDF.
+- Both tiers re-export the pure `tamer::hx711` items except `Hx711`, because the tier libraries build `tamer` without `hal`.
+- Examples `hal_c3_hx711` and `idf_c3_hx711` read an HX711 with DOUT on GPIO 6 and PD_SCK on GPIO 7, and `bench/c3/hx711.toml` adds the `c3/hx711` bench check.
+- Examples `hal_c6_hx711` and `idf_c6_hx711` read the same module on the C6 I2C pogo pins (DOUT GPIO 21, PD_SCK GPIO 22, ADR-015), and `bench/c6/hx711.toml` adds the `c6/hx711` check.
+- The examples read at the HX711's 10 Hz rate and print once per second, every tenth sample.
+- `just test-hx711` runs the host tests for the `hx711` and `hx711,hal` builds, and `verify` and `ci-test` include it.
+- `hx711::PULSE_US` (2 µs) sets both PD_SCK phases, because esp-hal's `Delay` rounds to whole microseconds and a 1 µs request can last under 1 µs.
+- The masked pulse train takes about 100 to 135 µs for 25 to 27 pulses on both tiers.
+- `Calibration::new`, `from_bytes` and `LoadCellScale::calibrate` reject subnormal scales with `CalibrationError::InvalidScale`, whose message reads "scale must be a normal number: finite, non-zero, not subnormal".
+- `read_blocking` checks DOUT `max_polls + 1` times, so `max_polls = 0` is one non-blocking attempt, and it holds the CPU for about `max_polls` × 100 µs.
+- `LoadCellScale::averaged_raw()` returns the window average with the tare offset applied, or `None` while the window is empty.
+- `LoadCellScale::window_len()` and `window_is_full()` report how many samples the window holds.
+- `hx711::is_saturated(raw)` reports a reading at the 24-bit limits, which usually means a wiring fault.
+- Examples `hal_c3_hx711` and `idf_c3_hx711` tare on the average of ten samples and print `HX711 saturated: check the bridge wiring` once when a reading saturates.
+- `hx711::MaskedSection` on ESP-IDF masks interrupts up to the FreeRTOS syscall level on the calling core only; higher-level interrupts may still run, and a second core is not stopped.
+- `PULSE_US` and `is_saturated` stay under `tamer::hx711::`.
+- The HX711 support is experimental: not yet verified on hardware.
 
 ### Changed
 - The workspace builds its ESP-IDF examples against ESP-IDF v6.1 (was v5.3.3); the libraries still do not pin an ESP-IDF version.

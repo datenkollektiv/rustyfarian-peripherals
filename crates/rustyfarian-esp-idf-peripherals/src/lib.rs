@@ -43,6 +43,9 @@
 //! established, hardware-verified need for zero event loss under load — that
 //! is a deliberately high bar for taking on raw-FFI interrupt plumbing.
 //!
+//! With the `hx711` feature, [`hx711`] adds [`hx711::MaskedSection`], the
+//! `IsrCriticalSection` interrupt mask for the `tamer::hx711` load-cell driver.
+//!
 //! With a `board-*` feature, the [`board`] module names the board's I2C pins
 //! and bus power (ADR-014).
 //!
@@ -65,6 +68,8 @@ pub mod analog;
     feature = "board-feather-v2"
 ))]
 pub mod board;
+#[cfg(feature = "hx711")]
+pub mod hx711;
 pub mod rotary;
 
 // Compile-time guard: fails to build if the concrete type stops implementing
@@ -101,6 +106,17 @@ const _: fn() = || {
     assert_impl::<analog::AdcReader<'static, <Pin as esp_idf_hal::gpio::ADCPin>::AdcChannel>>();
     let _: core::marker::PhantomData<tamer::analog::MockAnalogRead> =
         core::marker::PhantomData::<analog::MockAnalogRead>;
+};
+
+// Conformance guard: the local `hx711` module shadows the glob re-export, so
+// `MaskedSection` must implement the tamer `InterruptMask` and the no-op mask
+// must still be the tamer item.
+#[cfg(feature = "hx711")]
+const _: fn() = || {
+    fn assert_mask<M: tamer::hx711::InterruptMask>() {}
+    assert_mask::<hx711::MaskedSection>();
+    let _: core::marker::PhantomData<tamer::hx711::NoopInterruptMask> =
+        core::marker::PhantomData::<hx711::NoopInterruptMask>;
 };
 
 #[doc(inline)]

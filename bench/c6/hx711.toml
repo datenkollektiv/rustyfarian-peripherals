@@ -1,0 +1,35 @@
+# HX711 load-cell ADC wired directly to the C6 I2C pogo pins (DT GPIO 21, SCK GPIO 22, 3V3 supply), blocking driver, both tiers; experimental.
+# Same steps and log lines as `c3/hx711` (only the pin numbers in the banner differ), so a fix to one scenario applies to the other.
+# Prints `HX711 ready: DT=GPIO21 SCK=GPIO22 gain A128, tare <raw>` once, then `HX711 raw=<raw> net=<net> counts` every second.
+# A floating DT passes the ready check and shifts out a constant word (0xFFFFFF read as -1 on esp-hal, 0 on ESP-IDF in the first C6 run), so the rest step rejects raw 0 / -1 and wants net within 99 counts of the tare.
+# The load steps are armed (Enter, then act) and log-judged: a net reading of 500 counts or more under a weight of 100 g or more, then back under 100 counts once it is removed.
+examples = ["hal_c6_hx711", "idf_c6_hx711"]
+
+[[step]]
+say = "Wait for the banner"
+expect = 'HX711 ready: DT=GPIO21 SCK=GPIO22 gain A128, tare -?\d+'
+reject = 'no HX711|pin fault|PANIC|panicked|Guru Meditation|abort\(\)|WDT'
+timeout = 15
+optional = true
+arm = false
+
+[[step]]
+say = "Leave the scale alone: two quiet readings, net within 99 counts of the tare and raw not a stuck 0 or -1"
+expect = ['HX711 raw=-?\d+ net=-?\d{1,2} counts', 'HX711 raw=-?\d+ net=-?\d{1,2} counts']
+reject = 'no HX711|pin fault|reading failed|HX711 saturated|HX711 raw=-?[01] net=|PANIC|panicked|Guru Meditation|abort\(\)|WDT'
+timeout = 30
+arm = false
+
+[[step]]
+say = "Put a weight of 100 g or more on the load cell and leave it there: the bench waits for a net reading of 500 counts or more"
+attended = true
+expect = 'HX711 raw=-?\d+ net=-?(?:[5-9]\d{2}|\d{4,}) counts'
+reject = 'reading failed|HX711 saturated|HX711 raw=-?[01] net=|PANIC|panicked|Guru Meditation|abort\(\)|WDT'
+timeout = 30
+
+[[step]]
+say = "Take the weight off: the bench waits for a net reading back under 100 counts"
+attended = true
+expect = 'HX711 raw=-?\d+ net=-?\d{1,2} counts'
+reject = 'reading failed|HX711 saturated|HX711 raw=-?[01] net=|PANIC|panicked|Guru Meditation|abort\(\)|WDT'
+timeout = 30

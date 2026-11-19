@@ -67,8 +67,8 @@ if [ "$tier" = hal ]; then
     if [ "$EX_XTENSA" = 0 ]; then
         rustup target add "$EX_TARGET"
     fi
-    # esp-hal lib feature set mirrors `just check-hal`: the chip feature plus `unstable` and `ir`.
-    feat="${EX_MCU},unstable,ir"
+    # esp-hal lib feature set mirrors `just check-hal`: the chip feature plus `unstable`, `ir` and `hx711`.
+    feat="${EX_MCU},unstable,ir,hx711"
 
     printf '==> check-matrix: hal %s (%s, features=%s) check\n' "$chip" "$EX_TARGET" "$feat"
     "${cargo_bin[@]}" check --lib ${std_args[@]+"${std_args[@]}"} \
@@ -83,9 +83,9 @@ else
     # ESP-IDF std targets ship only with the `esp` toolchain; the chip is selected via MCU.
     printf '==> check-matrix: idf %s (%s, MCU=%s) check\n' "$chip" "$EX_TARGET" "$EX_MCU"
     MCU="$EX_MCU" "${cargo_bin[@]}" check --lib \
-        --target "$EX_TARGET" --target-dir "$EX_TARGET_DIR" -p "$EX_PKG"
+        --target "$EX_TARGET" --target-dir "$EX_TARGET_DIR" --features hx711 -p "$EX_PKG"
 
     printf '==> check-matrix: idf %s (%s) clippy -D warnings\n' "$chip" "$EX_TARGET"
     MCU="$EX_MCU" "${cargo_bin[@]}" clippy --lib \
-        --target "$EX_TARGET" --target-dir "$EX_TARGET_DIR" -p "$EX_PKG" -- -D warnings
+        --target "$EX_TARGET" --target-dir "$EX_TARGET_DIR" --features hx711 -p "$EX_PKG" -- -D warnings
 fi
