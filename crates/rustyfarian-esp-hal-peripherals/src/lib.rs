@@ -15,6 +15,9 @@
 //! With the `ir` feature, [`ir`] adds RMT-based [`ir::IrTransmitter`] and
 //! [`ir::IrReceiver`] bridges over `tamer::ir`.
 //!
+//! With the `hx711` feature, [`hx711`] adds [`hx711::MaskedSection`], the
+//! `critical_section` interrupt mask for the `tamer::hx711` load-cell driver.
+//!
 //! With a `board-*` feature, the [`board`] module names the board's I2C pins
 //! and bus power (ADR-014).
 //!
@@ -42,6 +45,8 @@ pub mod analog;
     feature = "board-feather-v2"
 ))]
 pub mod board;
+#[cfg(feature = "hx711")]
+pub mod hx711;
 #[cfg(feature = "ir")]
 pub mod ir;
 pub mod rotary;
@@ -95,6 +100,17 @@ const _: fn() = || {
         core::marker::PhantomData::<ir::MockPulseSink<8>>;
     let _: core::marker::PhantomData<tamer::ir::MockPulseSource<'static>> =
         core::marker::PhantomData::<ir::MockPulseSource<'static>>;
+};
+
+// Conformance guard: the local `hx711` module shadows the glob re-export, so
+// `MaskedSection` must implement the tamer `InterruptMask` and the no-op mask
+// must still be the tamer item.
+#[cfg(feature = "hx711")]
+const _: fn() = || {
+    fn assert_mask<M: tamer::hx711::InterruptMask>() {}
+    assert_mask::<hx711::MaskedSection>();
+    let _: core::marker::PhantomData<tamer::hx711::NoopInterruptMask> =
+        core::marker::PhantomData::<hx711::NoopInterruptMask>;
 };
 
 #[doc(inline)]

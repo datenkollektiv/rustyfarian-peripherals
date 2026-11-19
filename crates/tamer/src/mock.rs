@@ -1,4 +1,4 @@
-//! Test-support mocks for digital input pins, I2C buses, and delays.
+//! Test-support mocks for digital input and output pins, I2C buses, and delays.
 //!
 //! [`MockInputPin`] implements `embedded_hal::digital::InputPin` with an
 //! `Infallible` error type.
@@ -27,6 +27,23 @@
 //! assert!(pin.is_low().unwrap());
 //! ```
 //!
+//! [`MockOutputPin`] implements `embedded_hal::digital::OutputPin` with an
+//! `Infallible` error type and counts rising edges, so drivers that clock a
+//! pin (such as the HX711) can be checked on the host.
+//!
+//! ```
+//! use tamer::mock::MockOutputPin;
+//! use embedded_hal::digital::OutputPin;
+//!
+//! let mut pin = MockOutputPin::new(false);
+//! pin.set_high().unwrap();
+//! pin.set_high().unwrap(); // already high: not a new edge
+//! pin.set_low().unwrap();
+//! pin.set_high().unwrap();
+//! assert!(pin.is_set_high());
+//! assert_eq!(pin.rising_edges(), 2);
+//! ```
+//!
 //! [`MockI2c`] replays a scripted slice of [`Transaction`](crate::mock::Transaction)s and [`NoopDelay`]
 //! is a `DelayNs` that returns immediately; together they let the
 //! [`Mpu6050`](crate::mpu6050::Mpu6050) driver run on the host.
@@ -49,7 +66,7 @@
 
 use core::convert::Infallible;
 use embedded_hal::delay::DelayNs;
-use embedded_hal::digital::{ErrorType, InputPin};
+use embedded_hal::digital::{ErrorType, InputPin, OutputPin};
 use embedded_hal::i2c::{
     self, ErrorKind, ErrorType as I2cErrorType, I2c, NoAcknowledgeSource, Operation,
     SevenBitAddress,
@@ -104,6 +121,61 @@ impl InputPin for MockInputPin {
 
     fn is_low(&mut self) -> Result<bool, Self::Error> {
         Ok(!self.high)
+    }
+}
+
+/// Recording mock that implements [`embedded_hal::digital::OutputPin`].
+///
+/// The `Error` associated type is [`Infallible`], so `.unwrap()` is safe.
+/// It remembers its level and counts rising edges (a `set_high` while the pin
+/// was low).
+///
+/// [`Default`] yields a low pin with no edges.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub struct MockOutputPin {
+    high: bool,
+    rising_edges: u32,
+}
+
+impl MockOutputPin {
+    /// Creates a new mock pin with the given initial level and no recorded edges.
+    #[must_use]
+    pub fn new(high: bool) -> Self {
+        Self {
+            high,
+            rising_edges: 0,
+        }
+    }
+
+    /// Returns `true` if the pin was last driven high.
+    #[must_use]
+    pub fn is_set_high(&self) -> bool {
+        self.high
+    }
+
+    /// Returns the number of low-to-high transitions driven so far.
+    #[must_use]
+    pub fn rising_edges(&self) -> u32 {
+        self.rising_edges
+    }
+}
+
+impl ErrorType for MockOutputPin {
+    type Error = Infallible;
+}
+
+impl OutputPin for MockOutputPin {
+    fn set_low(&mut self) -> Result<(), Self::Error> {
+        self.high = false;
+        Ok(())
+    }
+
+    fn set_high(&mut self) -> Result<(), Self::Error> {
+        if !self.high {
+            self.rising_edges = self.rising_edges.saturating_add(1);
+        }
+        self.high = true;
+        Ok(())
     }
 }
 

@@ -17,6 +17,10 @@ readme = "README.md"
 name = "rustyfarian_esp_idf_peripherals"
 
 [features]
+# HX711 load-cell amplifier (`hx711` module): `MaskedSection` interrupt mask over
+# `IsrCriticalSection` plus re-exports of the pure `tamer::hx711` items. Opt-in.
+hx711 = ["tamer/hx711"]
+
 # ── Board profiles (ADR-014) ─────────────────────────────────────────────────
 #
 # At most one; compiled into the public `board` module. `scripts/lib.sh` adds the
@@ -53,7 +57,7 @@ log = { workspace = true }
 [dev-dependencies]
 # Dev-dependency features apply only to examples/tests under resolver 2, so the
 # library itself stays pure and unaffected by `tamer`'s `hal`/`tilt` features.
-tamer = { workspace = true, features = ["hal", "tilt", "bme680", "sht3x"] }
+tamer = { workspace = true, features = ["hal", "tilt", "bme680", "sht3x", "hx711"] }
 # OLED examples only (`idf_c3_oled`): SSD1306/SH1106 driver and its draw API.
 signwriter = { workspace = true }
 embedded-graphics = { workspace = true }
@@ -87,6 +91,10 @@ name = "idf_c3_passive_buzzer_arpeggio"
 
 [[example]]
 name = "idf_c3_hall_linear"
+
+[[example]]
+name = "idf_c3_hx711"
+required-features = ["hx711"]
 
 [[example]]
 name = "idf_c3_i2c_scan"
@@ -149,3 +157,7 @@ required-features = ["board"]
 [[example]]
 name = "idf_c6_sht3x"
 required-features = ["board"]
+
+[[example]]
+name = "idf_c6_hx711"
+required-features = ["hx711"]

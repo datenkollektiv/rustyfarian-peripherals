@@ -59,6 +59,7 @@ A gate passes when `--unattended` and `--attended` both pass on one commit; a ch
 | `c3/oled` | rerun: `signwriter` P1 fix | 2026-11-08 | 2d04fbd | C3 bench rig |
 | `c3/mpu6050` | open: idf attended | 2026-11-12 | d905622 | C3 SuperMini |
 | `c3/sht3x` | open | | | C3 SuperMini |
+| `c3/hx711` | open | | | C3 SuperMini |
 | `c3-rotary/rotary` | open | | | |
 | `c3/rig` | open | | | |
 | `c6/b3f` | open | | | |
@@ -66,6 +67,7 @@ A gate passes when `--unattended` and `--attended` both pass on one commit; a ch
 | `c6/oled-ssd1306` | open | | | |
 | `c6/oled-sh1106` | open: no SH1106 module | | | |
 | `c6/sht3x` | rerun: in-flight recovery | 2026-11-20 | 2c07872 | C6 DevKitC-1 |
+| `c6/hx711` | open: DT floated in the first run (both modes went green on it; scenarios tightened) | | | C6 DevKitC-1 |
 | `esp32-feather/oled-*` | deferred: no STEMMA QT cable | | | |
 | `c3/bme680`, `c3/bme680-async` | deferred: `bme680` experimental | | | |
 | `s3/oled` | n/a: no 3V3 I2C connector (ADR-014) | | | |

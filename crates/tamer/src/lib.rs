@@ -28,8 +28,8 @@
 //!   ([`hall`], [`hotplug`], [`mpu6050`], [`touch`]) have no trait to mock — the raw-sample
 //!   feed itself is the test seam.
 //! - **The `hal` feature is the only hardware seam.** Enabling it adds thin
-//!   adapters over `embedded_hal::digital::InputPin` that feed the pure logic,
-//!   plus the `embedded_hal::i2c::I2c` / `embedded_hal::delay::DelayNs`
+//!   adapters over `embedded_hal::digital::InputPin` (and `OutputPin` for the
+//!   HX711 clock) that feed the pure logic, plus the `embedded_hal::i2c::I2c` / `embedded_hal::delay::DelayNs`
 //!   sensor drivers such as [`Mpu6050`]; the default build pulls in nothing
 //!   hardware-related.
 //! - **`hal-async` adds opt-in async runners.** It implies `hal` and pulls in
@@ -52,7 +52,8 @@
 //! - [`latch`] — report-once latch for persistent conditions
 //! - [`hall`] — Hall-effect magnetic presence detection via configurable
 //!   deviation threshold; calibrates the no-magnet midpoint from samples.
-//! - [`smoothing`] — fixed-size O(1) sliding-window average and an
+//! - [`smoothing`] — fixed-size O(1) sliding-window averages (unsigned and
+//!   signed ([`SignedSlidingAverage`])) and an
 //!   exponential moving average ([`EmaFilter`]) for absorbing ADC
 //!   quantization noise before threshold evaluation.
 //! - [`presence`] — polarity-aware debounced present / absent detection for
@@ -81,6 +82,12 @@
 //!   command set, CRC-8, fixed-point conversion (centi-degrees, centi-percent,
 //!   rounded to nearest), and the sans-io `SingleShot` action machine.
 //!   With `hal` it adds the [`Sht3x`] I2C driver.
+//!   Experimental: not yet verified on hardware.
+//! - `hx711` (feature `hx711`) — HX711 load-cell ADC: sign extension, the
+//!   tare / scale / temperature-compensation pipeline (`LoadCellScale`) with
+//!   a 16-byte calibration codec, and the `InterruptMask` trait guarding the
+//!   pulse train.
+//!   With `hal` it adds the `Hx711` driver over `InputPin` and `OutputPin`.
 //!   Experimental: not yet verified on hardware.
 //! - [`tone`] — a tone/duration sequencer (melody player) stepping a borrowed
 //!   `&[Note]` table into [`ToneOutput`] values;
@@ -155,17 +162,19 @@ pub use latch::OnceLatch;
 pub mod hall;
 pub use hall::{HallCalibrationError, HallSensor, Pole};
 
-/// Sliding-window average smoother — [`SlidingAverage`](smoothing::SlidingAverage) —
+/// Sliding-window average smoothers — [`SlidingAverage`](smoothing::SlidingAverage)
+/// and its signed sibling [`SignedSlidingAverage`](smoothing::SignedSlidingAverage) —
 /// and exponential moving average filter — [`EmaFilter`](smoothing::EmaFilter).
 ///
 /// `SlidingAverage` maintains a circular `[u16; N]` buffer with a running
-/// `u32` sum so each `push` is O(1).
+/// `u32` sum so each `push` is O(1);
+/// `SignedSlidingAverage` does the same over `i32` samples with an `i64` sum.
 /// `EmaFilter` is its `f32`, exponentially-weighted sibling: a single
 /// accumulator updated by `output = alpha * input + (1 - alpha) * previous`.
 /// Compose with [`hall`] or any threshold-based evaluator to absorb ADC
 /// quantization noise before detection.
 pub mod smoothing;
-pub use smoothing::{EmaFilter, SlidingAverage};
+pub use smoothing::{EmaFilter, SignedSlidingAverage, SlidingAverage};
 
 /// Digital presence detection — [`Presence`](presence::Presence),
 /// [`Polarity`](presence::Polarity), and
@@ -228,6 +237,7 @@ pub use button::ButtonInput;
 ///
 /// [`MockInputPin`](mock::MockInputPin) implements
 /// `embedded_hal::digital::InputPin` with an `Infallible` error type.
+/// [`MockOutputPin`](mock::MockOutputPin) is the `OutputPin` counterpart that counts rising edges.
 /// [`MockI2c`](mock::MockI2c) replays a scripted slice of
 /// [`Transaction`](mock::Transaction)s as an `embedded_hal::i2c::I2c`, and
 /// [`NoopDelay`](mock::NoopDelay) is a no-op `DelayNs`.
@@ -236,7 +246,7 @@ pub use button::ButtonInput;
 pub mod mock;
 
 #[cfg(feature = "hal")]
-pub use mock::{MockI2c, MockInputPin, NoopDelay};
+pub use mock::{MockI2c, MockInputPin, MockOutputPin, NoopDelay};
 
 /// MPU6050 IMU protocol constants, raw-burst parsing, and accelerometer
 /// calibration — [`RawReading`](mpu6050::RawReading),
@@ -310,6 +320,26 @@ pub mod sht3x;
 pub use sht3x::Repeatability;
 #[cfg(all(feature = "sht3x", feature = "hal"))]
 pub use sht3x::Sht3x;
+
+/// Avia HX711 load-cell ADC protocol constants, sign extension, the tare /
+/// scale / temperature-compensation pipeline, and the `InterruptMask` trait.
+///
+/// Gated behind the `hx711` feature, which adds no dependency.
+/// The pipeline [`LoadCellScale`] and, under `hal`, the `Hx711` driver are
+/// re-exported at the crate root; the other names stay module-scoped.
+/// The 60 us power-down hazard of the pulse train is handled by passing an
+/// `InterruptMask` to `Hx711::read` (ADR-016).
+///
+/// Experimental: not yet verified on hardware, so readings and the API may
+/// change in a minor release.
+#[cfg(feature = "hx711")]
+pub mod hx711;
+
+#[cfg(feature = "hx711")]
+pub use hx711::LoadCellScale;
+
+#[cfg(all(feature = "hx711", feature = "hal"))]
+pub use hx711::Hx711;
 
 /// Tone/duration sequencer (melody player) — [`ToneSequencer`], [`Note`],
 /// [`SequenceMode`], [`ToneOutput`], and [`SequenceEvent`].
@@ -402,7 +432,7 @@ pub mod prelude {
     pub use crate::rotary::{
         DetentStepsError, EncoderDirection, NoopRotaryEncoder, QuadratureDecoder, RotaryEncoder,
     };
-    pub use crate::smoothing::{EmaFilter, SlidingAverage};
+    pub use crate::smoothing::{EmaFilter, SignedSlidingAverage, SlidingAverage};
     pub use crate::staged::{Stage, StagedMode, StagedTimer};
     pub use crate::tone::{Note, SequenceMode, ToneSequencer};
     pub use crate::touch::{SwipeDirection, TouchEvent, TouchPoint, TouchTracker};
@@ -415,13 +445,17 @@ pub mod prelude {
     pub use crate::button::ButtonInput;
     #[cfg(feature = "hal")]
     pub use crate::debounce::DebouncedInput;
+    #[cfg(all(feature = "hx711", feature = "hal"))]
+    pub use crate::hx711::Hx711;
+    #[cfg(feature = "hx711")]
+    pub use crate::hx711::LoadCellScale;
     #[cfg(feature = "ir")]
     pub use crate::ir::{
         FrameAssembler, MockPulseSink, MockPulseSource, NecFrame, PulseBuf, PulseCodec, PulseSink,
         PulseSource,
     };
     #[cfg(feature = "hal")]
-    pub use crate::mock::{MockI2c, MockInputPin, NoopDelay};
+    pub use crate::mock::{MockI2c, MockInputPin, MockOutputPin, NoopDelay};
     #[cfg(feature = "hal")]
     pub use crate::mpu6050::Mpu6050;
     #[cfg(feature = "tilt")]

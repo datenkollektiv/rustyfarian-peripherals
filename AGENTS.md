@@ -23,13 +23,14 @@
 Four workspace members under `crates/`:
 
 - `tamer` (`no_std`): pure logic behind traits with `Noop*` mocks.
-- `tamer` modules: `debounce`, `presence`, `rotary`, `button`, `analog`, `range_map`, `smoothing`, `hall`, `tilt`, `mpu6050`, `bme680`, `sht3x`, `tone`, `morse`, `staged`, `touch`, `hotplug`.
+- `tamer` modules: `debounce`, `presence`, `rotary`, `button`, `analog`, `range_map`, `smoothing`, `hall`, `tilt`, `mpu6050`, `bme680`, `sht3x`, `hx711`, `tone`, `morse`, `staged`, `touch`, `hotplug`.
 - `signwriter` (`no_std`): graphics-side driver for 128x64 I2C OLEDs (SSD1306 and SH1106) behind `embedded-graphics` `DrawTarget`.
 - `signwriter` hot-plugs through `tamer::hotplug`; see [ADR-013](docs/adr/013-signwriter.md).
 - `rustyfarian-esp-hal-peripherals` (`no_std`): bare-metal esp-hal drivers plus device examples.
 - It ships async `rotary::Encoder` (edge futures; `embassy` feature for examples) and re-exports `tamer`.
 - `rustyfarian-esp-idf-peripherals` (`std`, ESP-IDF): ESP-IDF drivers.
 - It ships `rotary::Encoder` (interrupt-driven, persistent raw-FFI) and re-exports `tamer`.
+- Both tiers have an opt-in `hx711` feature that enables `tamer/hx711` and ships the `hx711::MaskedSection` interrupt mask ([ADR-016](docs/adr/016-clocked-gpio-drivers-in-tamer.md)).
 
 The pure logic in `tamer` is the contract.
 The hardware crates are thin wrappers that delegate all decoding/rendering to it.
@@ -42,6 +43,7 @@ Each hardware tier has a `board` module, selected by one `board-*` feature per b
 - `hal-async`: implies `hal`; async runners over `embedded-hal-async`.
 - `bme680`: BME680 register map and compensation.
 - `sht3x`: SHT3x command set, CRC-8, fixed-point conversion and single-shot machine; the I2C driver needs `hal`.
+- `hx711`: HX711 load-cell ADC sign extension, tare / scale / temperature math and the `InterruptMask` trait; the clocked driver needs `hal` (ADR-016).
 - `tilt`: `atan2` trig via `micromath`.
 - The default build is dependency-free.
 
@@ -67,7 +69,7 @@ Host work needs only `rustc`, `cargo`, and `just`.
 - `just act` with no args runs the five host jobs.
 - `just act idf:chip:c3` runs one matrix cell.
 - `just act list` lists the jobs.
-- `just test-all-features` / `just clippy-all-features`: exercise the `hal`, `hal-async`, `bme680`, `sht3x` + `tilt` features.
+- `just test-all-features` / `just clippy-all-features`: exercise the `hal`, `hal-async`, `bme680`, `sht3x`, `hx711` + `tilt` features.
 - `just check-hal` / `just check-idf`: check a hardware tier on device targets (`check-hal`: C3 + S3; `check-idf`: C3).
 - `just check-matrix`: check and clippy both tier libraries on all four ESP32 chips, one at a time.
 - `check-matrix` is slow, needs `espup`, and is not part of `verify`.
@@ -112,7 +114,7 @@ The chip tokens below are the recipe arguments and the example-name tokens.
 The matrix runs one chip at a time so that target directories and the RAM disk do not fill up.
 ESP-IDF builds for every chip use `cargo +esp`, and Xtensa esp-hal builds do too.
 The AVR gate covers `tamer` only, on `avr-none` with the pinned nightly.
-Feature examples stay on their reference chip unless a second bench board carries the part (the OLED and SHT3x pairs), while rotary examples exist per chip.
+Feature examples stay on their reference chip unless a second bench board carries the part (the OLED, SHT3x and HX711 pairs), while rotary examples exist per chip.
 The decisions behind the matrix are in `docs/features/chip-matrix-v1.md`.
 
 ## Key Conventions

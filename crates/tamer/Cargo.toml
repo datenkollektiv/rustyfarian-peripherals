@@ -43,6 +43,12 @@ sht3x = []
 # with a NEC preset, plus a sans-io edge-to-pulse frame assembler. Kept
 # optional so the default build carries no IR code; adds no dependency.
 ir = []
+# `hx711`: opt-in HX711 load-cell ADC support (`tamer::hx711`): sign
+# extension, tare / scale / temperature-compensation math and the
+# `InterruptMask` trait. Kept optional so the default build carries no HX711
+# code; adds no dependency. The clocked driver additionally needs `hal`
+# (ADR-016).
+hx711 = []
 
 [dependencies]
 embedded-hal = { workspace = true, optional = true }

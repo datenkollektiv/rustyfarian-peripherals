@@ -27,6 +27,7 @@ timeline
 
     Near term : BME680 hardware validation — lift `bme680` out of experimental (feature-doc)
               : SHT3x temperature / humidity driver — beekeeper brood sensor, ADR-009 placement (feature-doc)
+              : HX711 load-cell scale — beekeeper hive weight, ADR-016 placement (feature-doc)
               : Docs-sync — align README / AGENTS framing with VISION input+output scope
 
     Mid term  : IRAM-safe encoder ISR — run from SRAM for OTA / flash-cache-off safety
@@ -48,6 +49,7 @@ timeline
 - **Trait-first + mocks:** every hardware interaction sits behind a trait, and every trait ships its `Noop*` mock in the same change.
 - **`embedded-hal` is the seam:** adapters behind `tamer`'s `hal` feature read the `embedded-hal` traits and feed the pure logic.
 - **I2C sensor drivers live in `tamer`:** per-device feature, driver compiled with `hal`, `MockI2c` in `tamer::mock` ([ADR-009](adr/009-i2c-sensor-drivers-in-tamer.md)).
+- **Clocked-GPIO drivers live in `tamer` too:** a timing-critical pulse train runs inside a tier-provided interrupt mask ([ADR-016](adr/016-clocked-gpio-drivers-in-tamer.md)).
 - **Shared-logic ladder:** generic `embedded-hal` driver first, then event machine, then sans-IO action machine only on a trigger.
 - **Ladder review rule:** adapter branches that are not error/event mapping move to `tamer` ([ADR-010](adr/010-shared-logic-ladder.md)).
 - **Two mirrored tiers:** `rustyfarian-esp-hal-peripherals` (bare-metal) and `rustyfarian-esp-idf-peripherals` (std) keep parallel module layouts.
@@ -60,7 +62,7 @@ timeline
 ## Near term — BME680 hardware validation
 
 **Goal:** lift `tamer::bme680` out of experimental (it ships so in 0.2.0) by passing `c3/bme680` and `c3/bme680-async` and the manual register checks.
-HX711 is not I2C and needs its own decision.
+HX711 is not I2C; [ADR-016](adr/016-clocked-gpio-drivers-in-tamer.md) places it.
 See [Feature: BME680 v1](features/bme680-v1.md).
 
 ## Near term — SHT3x temperature / humidity driver
@@ -68,6 +70,12 @@ See [Feature: BME680 v1](features/bme680-v1.md).
 **Goal:** `tamer::sht3x` (pure core, `Sht3x` driver, async runner) plus C3 example twins and a bench check, for the beekeeper's brood temperature within 0.5 °C.
 Same placement as the BME680 ([ADR-009](adr/009-i2c-sensor-drivers-in-tamer.md)); single-shot mode only.
 See [Feature: SHT3x v1](features/sht3x-v1.md).
+
+## Near term — HX711 load-cell scale
+
+**Goal:** `tamer::hx711` (pure decode and calibration math, `Hx711` driver, tier interrupt masks) plus C3 example twins and a bench check, for the beekeeper's hive weight.
+Placement per [ADR-016](adr/016-clocked-gpio-drivers-in-tamer.md); blocking reads only.
+See [Feature: HX711 v1](features/hx711-v1.md).
 
 ## Mid term — IRAM-safe interrupt handler
 
