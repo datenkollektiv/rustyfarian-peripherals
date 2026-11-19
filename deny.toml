@@ -17,7 +17,12 @@ no-default-features = false
 # the firmware. `esp-config 0.8.0` is the latest release and still needs
 # `serde_yaml`, so there is no safe upgrade. Mirrors `rustyfarian-power`.
 # Review by 2026-12-31 or at the next esp-hal wave.
-ignore = ["RUSTSEC-2024-0436", "RUSTSEC-2024-0449"]
+#
+# RUSTSEC-2026-0543 (`chrono` unmaintained, no safe upgrade) comes in through
+# `esp-idf-sys 0.38.1` -> `build-time 0.1.3` -> `chrono`. `build-time` is a
+# build-time proc macro with no runtime use. Remove this ignore once
+# `esp-idf-sys` drops `build-time` (rustyfarian-ci conventions/ci.md).
+ignore = ["RUSTSEC-2024-0436", "RUSTSEC-2024-0449", "RUSTSEC-2026-0543"]
 
 [licenses]
 # Allow-list shared with the sibling rustyfarian repos. The pure graph

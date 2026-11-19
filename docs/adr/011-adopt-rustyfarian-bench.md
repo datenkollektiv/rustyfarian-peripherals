@@ -29,11 +29,12 @@ It runs the hardware pass that ADR-010 requires.
    - No bench-only build or flash recipe is added.
 3. Boards are bench sessions: one board is finished before the next one starts.
    - A board's checks are the evidence for its cells in the final pass.
-4. `just bench <board> [check]`, `just bench-list` and `just bench-detect` run `rustyfarian-bench` pinned to the `v0.5.0` release.
-   - The pin is `uvx --from git+https://github.com/datenkollektiv/rustyfarian-bench@v0.5.0`.
+4. `just bench <board> [check]`, `just bench-list` and `just bench-detect` run `rustyfarian-bench` pinned to the `v0.6.0` release.
+   - The pin is `uvx --from git+https://github.com/datenkollektiv/rustyfarian-bench@v0.6.0`.
    - Bumping the tag is how this repo opts into a new runner.
    - `RUSTYFARIAN_BENCH=<path>` points the recipes at a local checkout instead, for bench development.
 5. Run logs and results stay git-ignored: `bench/*/logs/` and `bench/*/results.jsonl` record board MACs, and `bench.toml` pins no MAC.
+   - A MAC pin goes into the git-ignored `bench/bench.local.toml`, which needs the runner release after `v0.6.0`.
 6. `release-plan.md` § Final hardware pass stays the authority for what must pass before a release.
    - A bench run is evidence for its items.
    - The gate id is `<board>/<check>`, the same string as the `just bench <board> <check>` command.
@@ -56,6 +57,9 @@ It runs the hardware pass that ADR-010 requires.
 - 2026-11-11: pinned to `v0.5.0`.
   - The scenarios use step captures (`(?P<name>…)` / `(?P=name)`) and `reset = true` from `v0.4.0`.
   - `v0.3.0` rejects both at load time.
+- 2026-11-19: pinned to `v0.6.0`, the family pin of rustyfarian-ci `conventions/bench.md` 1.3.0.
+  - It adds `run --unique-board`, `--no-twins` and `--detect-timeout`, and the shared bench (`serve` / `submit`).
+  - The second C3 rig, `c3-rotary`, makes two boards of one chip a normal case; `--port` picks between them.
 
 ## Alternatives Considered
 | Alternative                                      | Pros                            | Cons                                                       | Why Rejected                                              |

@@ -13,6 +13,12 @@ name = "CrowPanel 1.28\" HMI (ESP32-S3)"
 chip = "esp32c3"
 name = "ESP32-C3 SuperMini"
 
+# Second C3 SuperMini rig for the EC11 (GPIO 0 / 1 / 5): GPIO 1 is the 5V pogo on `c3`.
+# With both C3 rigs attached, pass `--port`; a MAC pin needs bench.local.toml (runner after v0.6.0).
+[boards.c3-rotary]
+chip = "esp32c3"
+name = "ESP32-C3 SuperMini, EC11 rotary rig"
+
 [boards.c6]
 chip = "esp32c6"
 name = "ESP32-C6-DevKitC-1"

@@ -12,7 +12,7 @@ An ESP32 example has to run unedited on two boards.
 - A plain WROOM-32 board uses SDA 21 / SCL 22, which is the de-facto ESP32 default.
 
 The C6 DevKitC-1 uses SDA 21 / SCL 22, which is a hardware-tested convention from a sibling project.
-The S3 CrowPanel has no free I2C connector, because its I2C pins 6 and 7 are the touch bus, so it gets no OLED example.
+The S3 CrowPanel gets no OLED example: its I2C pins 6 and 7 are the touch bus, and its external I2C connector J36 (GPIO 38 / 39) is shifted to 5 V with a switched 5 V supply (corrected by [ADR-015](015-pogo-ports.md); the first version said it had no I2C connector).
 
 Pin choice cannot be a plain constant in the examples.
 esp-hal pins are distinct types that are moved out of `Peripherals`, so a helper function cannot take "GPIO 21" as a value and return a typed pin.
