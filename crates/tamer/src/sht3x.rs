@@ -396,6 +396,10 @@ pub enum ShotAction {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum ShotState {
+    /// A command from an earlier run may still be converting: wait it out.
+    Recovering,
+    /// The recovery wait has elapsed; the command may go out.
+    Settling,
     Idle,
     Writing,
     Waiting,
@@ -409,6 +413,8 @@ enum ShotState {
 /// [`Repeatability::max_duration_us`], and one 6-byte read, then finishes
 /// with [`ShotAction::Done`] or [`ShotAction::Fail`]. It never reads a clock and never touches a
 /// bus: a runner performs each action and feeds the answer back.
+/// [`recovering`](Self::recovering) prepends one wait for a command that an
+/// earlier, abandoned run may have left converting.
 ///
 /// ```
 /// use tamer::sht3x::{crc8, Repeatability, ShotAction, ShotInput, SingleShot};
@@ -429,6 +435,8 @@ enum ShotState {
 pub struct SingleShot {
     state: ShotState,
     repeatability: Repeatability,
+    /// Leading wait for a command still in flight; 0 on a fresh run.
+    recovery_us: u32,
 }
 
 impl SingleShot {
@@ -438,6 +446,25 @@ impl SingleShot {
         Self {
             state: ShotState::Idle,
             repeatability,
+            recovery_us: 0,
+        }
+    }
+
+    /// Creates a machine that first waits out a command left unanswered;
+    /// `in_flight` is that command's repeatability.
+    ///
+    /// After a cancelled run, or a read that found the sensor not ready, the
+    /// sensor may still be converting. The first action is then
+    /// `Wait { us: in_flight.max_duration_us() }`, so the new command meets
+    /// an idle sensor and keeps the datasheet's 1 ms command spacing
+    /// (section 4.4 asks for a break command before a command during a
+    /// measurement; the wait needs no extra command).
+    #[must_use]
+    pub const fn recovering(repeatability: Repeatability, in_flight: Repeatability) -> Self {
+        Self {
+            state: ShotState::Recovering,
+            repeatability,
+            recovery_us: in_flight.max_duration_us(),
         }
     }
 
@@ -448,7 +475,13 @@ impl SingleShot {
     /// After a terminal action every input yields `OutOfPhase`.
     pub fn poll(&mut self, input: ShotInput) -> ShotAction {
         match (self.state, input) {
-            (ShotState::Idle, ShotInput::Start) => {
+            (ShotState::Recovering, ShotInput::Start) => {
+                self.state = ShotState::Settling;
+                ShotAction::Wait {
+                    us: self.recovery_us,
+                }
+            }
+            (ShotState::Settling, ShotInput::Waited) | (ShotState::Idle, ShotInput::Start) => {
                 self.state = ShotState::Writing;
                 ShotAction::WriteCommand(self.repeatability.command())
             }
@@ -481,11 +514,12 @@ impl SingleShot {
 
     /// Upper bound on the polls a complete run needs, for runner fuel.
     ///
-    /// A run takes four polls (start, written, waited, frame); the bound adds
-    /// slack, as `Mpu6050`'s sampler does.
+    /// A run takes four polls (start, written, waited, frame), five after
+    /// [`recovering`](Self::recovering); the bound adds slack, as
+    /// `Mpu6050`'s sampler does.
     #[must_use]
     pub const fn max_polls(&self) -> u64 {
-        6
+        8
     }
 }
 
@@ -601,10 +635,17 @@ impl<E: core::fmt::Debug> core::fmt::Display for Error<E> {
 pub struct Sht3x<I2C> {
     i2c: I2C,
     address: u8,
+    /// Repeatability of a measurement command that may still be converting:
+    /// set before the command goes out, cleared once a frame is read or the
+    /// write is refused.
+    in_flight: Option<Repeatability>,
 }
 
+/// Construction and release need no bus trait, so a bus that implements only
+/// the `embedded-hal-async` `I2c` (an embassy shared-bus device, say) can hold
+/// the driver and use `measure_async`.
 #[cfg(feature = "hal")]
-impl<I2C: I2c> Sht3x<I2C> {
+impl<I2C> Sht3x<I2C> {
     /// Creates a driver on `i2c` for the device at `address`.
     ///
     /// Pass [`I2C_ADDR`] or [`I2C_ADDR_ALT`] (ADDR high). No bus traffic
@@ -612,11 +653,58 @@ impl<I2C: I2c> Sht3x<I2C> {
     /// sensor from a switched rail can construct the driver first.
     #[must_use]
     pub const fn new(i2c: I2C, address: u8) -> Self {
-        Self { i2c, address }
+        Self {
+            i2c,
+            address,
+            in_flight: None,
+        }
     }
 
+    /// Consumes the driver and returns the I2C bus.
+    #[must_use]
+    pub fn release(self) -> I2C {
+        self.i2c
+    }
+
+    /// Builds the measurement machine, waiting out a command in flight first.
+    const fn shot(&self, repeatability: Repeatability) -> SingleShot {
+        match self.in_flight {
+            Some(pending) => SingleShot::recovering(repeatability, pending),
+            None => SingleShot::new(repeatability),
+        }
+    }
+}
+
+#[cfg(feature = "hal")]
+impl<I2C: I2c> Sht3x<I2C> {
     fn write_command(&mut self, command: [u8; 2]) -> Result<(), Error<I2C::Error>> {
         self.i2c.write(self.address, &command).map_err(Error::Bus)
+    }
+
+    /// Waits out a measurement command still in flight, if any, so the next
+    /// command meets an idle sensor and keeps the 1 ms spacing.
+    fn settle<D: DelayNs>(&mut self, delay: &mut D) {
+        if let Some(pending) = self.in_flight.take() {
+            delay.delay_us(pending.max_duration_us());
+        }
+    }
+
+    /// Writes `command`, then waits `gap_us` so the next command stays that
+    /// far behind it. A write that fails with anything but a NACK may still
+    /// have reached the sensor, so the wait happens on that path too; a
+    /// refused write (NACK) needs none.
+    fn write_command_then_wait<D: DelayNs>(
+        &mut self,
+        command: [u8; 2],
+        gap_us: u32,
+        delay: &mut D,
+    ) -> Result<(), Error<I2C::Error>> {
+        let result = self.write_command(command);
+        let refused = matches!(&result, Err(e) if e.is_nack());
+        if !refused {
+            delay.delay_us(gap_us);
+        }
+        result
     }
 
     /// Brings the sensor up and returns its status register.
@@ -641,29 +729,35 @@ impl<I2C: I2c> Sht3x<I2C> {
     ///
     /// The wait covers `t_SR`, counted from the ACK of the command, and
     /// leaves the bus quiet for the datasheet's 1 ms command spacing.
+    /// A measurement command still in flight (a cancelled `measure_async`,
+    /// or a read that found the sensor not ready) is waited out first.
+    /// A write that fails with anything but a NACK may have reached the
+    /// sensor, so the wait still happens before the error returns; a refused
+    /// write returns at once.
     ///
     /// # Errors
     ///
     /// Returns [`Error::Bus`] if the write fails.
     pub fn soft_reset<D: DelayNs>(&mut self, delay: &mut D) -> Result<(), Error<I2C::Error>> {
-        self.write_command(CMD_SOFT_RESET)?;
-        delay.delay_us(SOFT_RESET_US);
-        Ok(())
+        self.settle(delay);
+        self.write_command_then_wait(CMD_SOFT_RESET, SOFT_RESET_US, delay)
     }
 
     /// Reads the status register.
     ///
     /// Writes [`CMD_READ_STATUS`], waits 1 ms, then reads 3 bytes. The wait
     /// keeps the next command at least 1 ms behind this one, so any call
-    /// may follow.
+    /// may follow. A measurement command still in flight is waited out
+    /// first, and a write that fails with anything but a NACK still waits
+    /// the 1 ms before the error returns.
     ///
     /// # Errors
     ///
     /// Returns [`Error::Bus`] if a transfer fails, or [`Error::Crc`] with
     /// [`CrcError::Status`] if the CRC does not match.
     pub fn status<D: DelayNs>(&mut self, delay: &mut D) -> Result<Status, Error<I2C::Error>> {
-        self.write_command(CMD_READ_STATUS)?;
-        delay.delay_us(COMMAND_GAP_US);
+        self.settle(delay);
+        self.write_command_then_wait(CMD_READ_STATUS, COMMAND_GAP_US, delay)?;
         let mut buf = [0u8; 3];
         self.i2c.read(self.address, &mut buf).map_err(Error::Bus)?;
         Ok(parse_status(&buf)?)
@@ -676,11 +770,16 @@ impl<I2C: I2c> Sht3x<I2C> {
     /// It sends the command, waits exactly
     /// [`max_duration_us`](Repeatability::max_duration_us), then reads 6
     /// bytes once. A NACK on that read is reported, not retried.
+    /// If a command is still in flight (a read that found the sensor not
+    /// ready, or a cancelled `measure_async`), the run first waits that
+    /// repeatability's maximum duration, see [`SingleShot::recovering`].
     ///
     /// # Errors
     ///
     /// Returns [`Error::Bus`] if a transfer fails; a NACK on the read
-    /// ([`Error::is_nack`]) means the sensor is absent or not ready.
+    /// ([`Error::is_nack`]) means the sensor is absent or not ready. After a
+    /// not-ready read the command stays in flight for the next call to wait
+    /// out; a refused write clears it, since no conversion started.
     /// Returns [`Error::Crc`] naming the first word (temperature, then
     /// humidity) whose CRC does not match.
     /// Returns [`Error::Sequence`] if the state machine answers
@@ -690,12 +789,21 @@ impl<I2C: I2c> Sht3x<I2C> {
         delay: &mut D,
         repeatability: Repeatability,
     ) -> Result<Measurement, Error<I2C::Error>> {
-        let mut shot = SingleShot::new(repeatability);
+        let mut shot = self.shot(repeatability);
         let mut input = ShotInput::Start;
         for _ in 0..shot.max_polls() {
             input = match shot.poll(input) {
                 ShotAction::WriteCommand(command) => {
-                    self.write_command(command)?;
+                    // Set before the write: a command that may have landed
+                    // counts as in flight until a frame comes back. A refused
+                    // write (NACK) never started a conversion.
+                    self.in_flight = Some(repeatability);
+                    if let Err(e) = self.write_command(command) {
+                        if e.is_nack() {
+                            self.in_flight = None;
+                        }
+                        return Err(e);
+                    }
                     ShotInput::Written
                 }
                 ShotAction::Wait { us } => {
@@ -707,6 +815,7 @@ impl<I2C: I2c> Sht3x<I2C> {
                     self.i2c
                         .read(self.address, &mut frame)
                         .map_err(Error::Bus)?;
+                    self.in_flight = None;
                     ShotInput::Frame(frame)
                 }
                 ShotAction::Done(m) => return Ok(m),
@@ -716,12 +825,6 @@ impl<I2C: I2c> Sht3x<I2C> {
         }
         // Unreachable: each input is built from the action just received.
         Err(Error::Sequence)
-    }
-
-    /// Consumes the driver and returns the I2C bus.
-    #[must_use]
-    pub fn release(self) -> I2C {
-        self.i2c
     }
 }
 
@@ -739,8 +842,12 @@ impl<I2C: embedded_hal_async::i2c::I2c> Sht3x<I2C> {
     ///
     /// # Cancellation
     ///
-    /// Dropping the future mid-measurement leaves the sensor to finish on its
-    /// own; the next call starts a fresh measurement.
+    /// Dropping the future mid-measurement leaves the sensor converting, and
+    /// the driver remembers the command as in flight. The next call on this
+    /// driver (`measure`, `measure_async`, `soft_reset` or `status`) first
+    /// waits that repeatability's maximum duration, so no command lands on a
+    /// busy sensor or inside the datasheet's 1 ms command spacing; see
+    /// [`SingleShot::recovering`].
     ///
     /// # Errors
     ///
@@ -752,14 +859,21 @@ impl<I2C: embedded_hal_async::i2c::I2c> Sht3x<I2C> {
     ) -> Result<Measurement, Error<I2C::Error>> {
         use embedded_hal_async::i2c::I2c as AsyncI2c;
 
-        let mut shot = SingleShot::new(repeatability);
+        let mut shot = self.shot(repeatability);
         let mut input = ShotInput::Start;
         for _ in 0..shot.max_polls() {
             input = match shot.poll(input) {
                 ShotAction::WriteCommand(command) => {
-                    AsyncI2c::write(&mut self.i2c, self.address, &command)
-                        .await
-                        .map_err(Error::Bus)?;
+                    // As in `measure`: in flight from before the write until a
+                    // frame, unless the write itself is refused.
+                    self.in_flight = Some(repeatability);
+                    if let Err(e) = AsyncI2c::write(&mut self.i2c, self.address, &command).await {
+                        let e = Error::Bus(e);
+                        if e.is_nack() {
+                            self.in_flight = None;
+                        }
+                        return Err(e);
+                    }
                     ShotInput::Written
                 }
                 ShotAction::Wait { us } => {
@@ -771,6 +885,7 @@ impl<I2C: embedded_hal_async::i2c::I2c> Sht3x<I2C> {
                     AsyncI2c::read(&mut self.i2c, self.address, &mut frame)
                         .await
                         .map_err(Error::Bus)?;
+                    self.in_flight = None;
                     ShotInput::Frame(frame)
                 }
                 ShotAction::Done(m) => return Ok(m),
@@ -1133,6 +1248,48 @@ mod machine_tests {
             assert_eq!(polls, 4);
             assert!(polls <= m.max_polls());
         }
+    }
+
+    #[test]
+    fn recovering_waits_out_the_in_flight_command_before_writing() {
+        let mut m = SingleShot::recovering(Repeatability::Low, Repeatability::High);
+        assert_eq!(m.poll(ShotInput::Start), ShotAction::Wait { us: 15_500 });
+        assert_eq!(
+            m.poll(ShotInput::Waited),
+            ShotAction::WriteCommand([0x24, 0x16])
+        );
+        assert_eq!(m.poll(ShotInput::Written), ShotAction::Wait { us: 4_500 });
+        assert_eq!(m.poll(ShotInput::Waited), ShotAction::ReadFrame);
+        assert!(!m.is_finished());
+    }
+
+    #[test]
+    fn recovering_run_stays_within_the_poll_bound() {
+        let mut m = SingleShot::recovering(Repeatability::High, Repeatability::High);
+        let mut input = ShotInput::Start;
+        let mut polls = 0;
+        loop {
+            polls += 1;
+            input = match m.poll(input) {
+                ShotAction::WriteCommand(_) => ShotInput::Written,
+                ShotAction::Wait { .. } => ShotInput::Waited,
+                ShotAction::ReadFrame => ShotInput::Frame(good_frame()),
+                ShotAction::Done(_) => break,
+                ShotAction::Fail(e) => panic!("crc {e:?}"),
+                ShotAction::OutOfPhase => panic!("out of phase"),
+            };
+        }
+        assert_eq!(polls, 5);
+        assert!(polls <= m.max_polls());
+    }
+
+    #[test]
+    fn fresh_machine_rejects_waited_and_recovering_rejects_written() {
+        let mut fresh = SingleShot::new(Repeatability::High);
+        assert_eq!(fresh.poll(ShotInput::Waited), ShotAction::OutOfPhase);
+        let mut rec = SingleShot::recovering(Repeatability::High, Repeatability::Low);
+        assert_eq!(rec.poll(ShotInput::Written), ShotAction::OutOfPhase);
+        assert_eq!(rec.poll(ShotInput::Start), ShotAction::Wait { us: 4_500 });
     }
 }
 
@@ -1515,6 +1672,197 @@ mod driver {
         assert!(seq.to_string().contains("library bug"));
         assert!(!seq.is_nack());
     }
+
+    #[test]
+    fn not_ready_read_leaves_the_command_in_flight_and_the_retry_waits_it_out() {
+        let cmd = Repeatability::High.command();
+        let f = frame([0x66, 0x66], [0x80, 0x00]);
+        let script = [
+            Transaction::Write {
+                address: A,
+                bytes: &cmd,
+            },
+            Transaction::Error(MockI2cError::nack()),
+            Transaction::Write {
+                address: A,
+                bytes: &cmd,
+            },
+            Transaction::Read {
+                address: A,
+                response: &f,
+            },
+        ];
+        let mut s = Sht3x::new(MockI2c::new(&script), A);
+        let mut d = counting();
+        assert!(s
+            .measure(&mut d, Repeatability::High)
+            .unwrap_err()
+            .is_nack());
+        assert_eq!(d.total_ns, 15_500_000);
+        let m = s.measure(&mut d, Repeatability::High).unwrap();
+        assert_eq!(m.temperature_centi_c(), 2_500);
+        // The in-flight High command is waited out, then the new conversion.
+        assert_eq!(d.total_ns, 3 * 15_500_000);
+        s.release().done();
+    }
+
+    #[test]
+    fn status_after_a_not_ready_read_waits_out_the_command_first() {
+        let cmd = Repeatability::Low.command();
+        let script = [
+            Transaction::Write {
+                address: A,
+                bytes: &cmd,
+            },
+            Transaction::Error(MockI2cError::nack()),
+            Transaction::Write {
+                address: A,
+                bytes: &CMD_READ_STATUS,
+            },
+            Transaction::Read {
+                address: A,
+                response: &STATUS_DEFAULT,
+            },
+        ];
+        let mut s = Sht3x::new(MockI2c::new(&script), A);
+        let mut d = counting();
+        assert!(s.measure(&mut d, Repeatability::Low).is_err());
+        d.total_ns = 0;
+        s.status(&mut d).unwrap();
+        // 4.5 ms for the Low command in flight, then the 1 ms command gap.
+        assert_eq!(d.total_ns, 5_500_000);
+        s.release().done();
+    }
+
+    #[test]
+    fn successful_measurements_add_no_recovery_wait() {
+        let cmd = Repeatability::Medium.command();
+        let f = frame([0x66, 0x66], [0x80, 0x00]);
+        let script = [
+            Transaction::Write {
+                address: A,
+                bytes: &cmd,
+            },
+            Transaction::Read {
+                address: A,
+                response: &f,
+            },
+            Transaction::Write {
+                address: A,
+                bytes: &cmd,
+            },
+            Transaction::Read {
+                address: A,
+                response: &f,
+            },
+        ];
+        let mut s = Sht3x::new(MockI2c::new(&script), A);
+        let mut d = counting();
+        s.measure(&mut d, Repeatability::Medium).unwrap();
+        s.measure(&mut d, Repeatability::Medium).unwrap();
+        assert_eq!(d.total_ns, 2 * 6_500_000);
+        s.release().done();
+    }
+
+    #[test]
+    fn refused_write_clears_the_in_flight_command() {
+        // An absent sensor NACKs every command: no conversion runs, so no wait.
+        let script = [
+            Transaction::Error(MockI2cError::nack()),
+            Transaction::Error(MockI2cError::nack()),
+        ];
+        let mut s = Sht3x::new(MockI2c::new(&script), A);
+        let mut d = counting();
+        assert!(s
+            .measure(&mut d, Repeatability::High)
+            .unwrap_err()
+            .is_nack());
+        assert!(s
+            .measure(&mut d, Repeatability::High)
+            .unwrap_err()
+            .is_nack());
+        assert_eq!(d.total_ns, 0);
+        s.release().done();
+    }
+
+    #[test]
+    fn ambiguous_write_fault_keeps_the_command_in_flight() {
+        let cmd = Repeatability::High.command();
+        let f = frame([0x66, 0x66], [0x80, 0x00]);
+        let script = [
+            Transaction::Error(MockI2cError::bus()),
+            Transaction::Write {
+                address: A,
+                bytes: &cmd,
+            },
+            Transaction::Read {
+                address: A,
+                response: &f,
+            },
+        ];
+        let mut s = Sht3x::new(MockI2c::new(&script), A);
+        let mut d = counting();
+        assert!(matches!(
+            s.measure(&mut d, Repeatability::High),
+            Err(Error::Bus(_))
+        ));
+        s.measure(&mut d, Repeatability::High).unwrap();
+        // The faulted write may have landed: wait it out, then the new conversion.
+        assert_eq!(d.total_ns, 2 * 15_500_000);
+        s.release().done();
+    }
+
+    #[test]
+    fn soft_reset_bus_fault_still_waits_before_the_next_command() {
+        // The reset may have reached the sensor: wait t_SR out, then the
+        // status command follows with its own gap.
+        let script = [
+            Transaction::Error(MockI2cError::bus()),
+            Transaction::Write {
+                address: A,
+                bytes: &CMD_READ_STATUS,
+            },
+            Transaction::Read {
+                address: A,
+                response: &STATUS_DEFAULT,
+            },
+        ];
+        let mut s = Sht3x::new(MockI2c::new(&script), A);
+        let mut d = counting();
+        assert!(matches!(s.soft_reset(&mut d), Err(Error::Bus(_))));
+        assert_eq!(d.total_ns, 2_000_000);
+        s.status(&mut d).unwrap();
+        assert_eq!(d.total_ns, 3_000_000);
+        s.release().done();
+    }
+
+    #[test]
+    fn soft_reset_nack_returns_without_waiting() {
+        let script = [Transaction::Error(MockI2cError::nack())];
+        let mut s = Sht3x::new(MockI2c::new(&script), A);
+        let mut d = counting();
+        assert!(s.soft_reset(&mut d).unwrap_err().is_nack());
+        assert_eq!(d.total_ns, 0);
+        s.release().done();
+    }
+
+    #[test]
+    fn status_write_bus_fault_still_waits_the_command_gap() {
+        let script = [
+            Transaction::Error(MockI2cError::bus()),
+            Transaction::Write {
+                address: A,
+                bytes: &CMD_SOFT_RESET,
+            },
+        ];
+        let mut s = Sht3x::new(MockI2c::new(&script), A);
+        let mut d = counting();
+        assert!(matches!(s.status(&mut d), Err(Error::Bus(_))));
+        assert_eq!(d.total_ns, 1_000_000);
+        s.soft_reset(&mut d).unwrap();
+        assert_eq!(d.total_ns, 3_000_000);
+        s.release().done();
+    }
 }
 
 // ── Async runner parity ─────────────────────────────────────────────────
@@ -1523,6 +1871,9 @@ mod driver {
 mod parity {
     use super::*;
     use crate::mock::{block_on, MockI2c, MockI2cError, Transaction};
+    use core::future::Future;
+    use core::pin::{pin, Pin};
+    use core::task::{Context, Poll, Waker};
 
     const A: u8 = I2C_ADDR;
 
@@ -1641,5 +1992,128 @@ mod parity {
             both(&script, Repeatability::Low),
             Err(Error::Bus(_))
         ));
+    }
+
+    #[test]
+    fn parity_refused_write_clears_in_flight_in_both_runners() {
+        let script = [
+            Transaction::Error(MockI2cError::nack()),
+            Transaction::Error(MockI2cError::nack()),
+        ];
+        let mut blocking = Sht3x::new(MockI2c::new(&script), A);
+        let mut bd = BothDelay { total_ns: 0 };
+        assert!(blocking.measure(&mut bd, Repeatability::High).is_err());
+        assert!(blocking.measure(&mut bd, Repeatability::High).is_err());
+        blocking.release().done();
+
+        let mut asynch = Sht3x::new(MockI2c::new(&script), A);
+        let mut ad = BothDelay { total_ns: 0 };
+        assert!(block_on(asynch.measure_async(&mut ad, Repeatability::High)).is_err());
+        assert!(block_on(asynch.measure_async(&mut ad, Repeatability::High)).is_err());
+        asynch.release().done();
+
+        assert_eq!((bd.total_ns, ad.total_ns), (0, 0));
+    }
+
+    /// A bus that implements only the async `I2c`, like an embassy shared-bus device.
+    struct AsyncOnly<'a>(MockI2c<'a>);
+
+    impl embedded_hal::i2c::ErrorType for AsyncOnly<'_> {
+        type Error = MockI2cError;
+    }
+
+    impl embedded_hal_async::i2c::I2c for AsyncOnly<'_> {
+        async fn transaction(
+            &mut self,
+            address: u8,
+            operations: &mut [embedded_hal::i2c::Operation<'_>],
+        ) -> Result<(), Self::Error> {
+            embedded_hal_async::i2c::I2c::transaction(&mut self.0, address, operations).await
+        }
+    }
+
+    #[test]
+    fn async_only_bus_constructs_measures_and_releases() {
+        let f = frame([0x66, 0x66], [0x80, 0x00]);
+        let cmd = Repeatability::High.command();
+        let script = script_for(&cmd, &f);
+        let mut s = Sht3x::new(AsyncOnly(MockI2c::new(&script)), A);
+        let mut d = BothDelay { total_ns: 0 };
+        let m = block_on(s.measure_async(&mut d, Repeatability::High)).unwrap();
+        assert_eq!(m.humidity_centi_rh(), 5_000);
+        assert_eq!(d.total_ns, 15_500_000);
+        s.release().0.done();
+    }
+
+    /// Future that is `Pending` on its first poll and `Ready` afterwards.
+    struct Yield(bool);
+
+    impl Future for Yield {
+        type Output = ();
+
+        fn poll(mut self: Pin<&mut Self>, _cx: &mut Context<'_>) -> Poll<()> {
+            if self.0 {
+                Poll::Ready(())
+            } else {
+                self.0 = true;
+                Poll::Pending
+            }
+        }
+    }
+
+    /// Async delay that suspends once, so a test can drop a future mid-run.
+    struct YieldOnce {
+        yielded: bool,
+        total_ns: u64,
+    }
+
+    impl embedded_hal_async::delay::DelayNs for YieldOnce {
+        async fn delay_ns(&mut self, ns: u32) {
+            self.total_ns += u64::from(ns);
+            if !self.yielded {
+                self.yielded = true;
+                Yield(false).await;
+            }
+        }
+    }
+
+    #[test]
+    fn cancelled_measure_async_makes_the_next_call_wait_out_the_command() {
+        let cmd = Repeatability::High.command();
+        let f = frame([0x66, 0x66], [0x80, 0x00]);
+        // The first command goes out and the future is dropped inside the
+        // conversion wait; the retry waits that command out before its own.
+        let script = [
+            Transaction::Write {
+                address: A,
+                bytes: &cmd,
+            },
+            Transaction::Write {
+                address: A,
+                bytes: &cmd,
+            },
+            Transaction::Read {
+                address: A,
+                response: &f,
+            },
+        ];
+        let mut s = Sht3x::new(MockI2c::new(&script), A);
+        let mut d = YieldOnce {
+            yielded: false,
+            total_ns: 0,
+        };
+        {
+            let mut fut = pin!(s.measure_async(&mut d, Repeatability::High));
+            let mut cx = Context::from_waker(Waker::noop());
+            assert!(fut.as_mut().poll(&mut cx).is_pending());
+        }
+        assert_eq!(
+            d.total_ns, 15_500_000,
+            "suspended inside the conversion wait"
+        );
+        let m = block_on(s.measure_async(&mut d, Repeatability::High)).unwrap();
+        assert_eq!(m.temperature_centi_c(), 2_500);
+        assert_eq!(d.total_ns, 3 * 15_500_000);
+        s.release().done();
     }
 }

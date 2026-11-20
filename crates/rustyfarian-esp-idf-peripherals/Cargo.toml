@@ -145,3 +145,7 @@ required-features = ["board"]
 [[example]]
 name = "idf_esp32_oled"
 required-features = ["board"]
+
+[[example]]
+name = "idf_c6_sht3x"
+required-features = ["board"]

@@ -48,6 +48,7 @@ The AVR link of `tamer` (`just check-avr-target`, `just build-avr-example`) is n
 - `hal_c3_rig_check` is a hal-only diagnostic for the C3 bench rig; it has no ESP-IDF twin by design.
 - The S3 has no OLED check: its I2C 6/7 is the touch bus.
 - The OLED examples take their I2C pins from a board profile ([ADR-014](../adr/014-board-profiles.md)), so each profile is its own bench board.
+- The SHT3x examples exist on the C3 (ADR-012 pins) and on the C6 (board profile pins); `c6/sht3x` is its own gate.
 
 ## Constraints
 - `tamer` `rust-version` stays at or below what the AVR nightly reports (`1.88.0-nightly`).
