@@ -112,7 +112,7 @@ The chip tokens below are the recipe arguments and the example-name tokens.
 The matrix runs one chip at a time so that target directories and the RAM disk do not fill up.
 ESP-IDF builds for every chip use `cargo +esp`, and Xtensa esp-hal builds do too.
 The AVR gate covers `tamer` only, on `avr-none` with the pinned nightly.
-Feature examples stay on their reference chip, while rotary examples exist per chip.
+Feature examples stay on their reference chip unless a second bench board carries the part (the OLED and SHT3x pairs), while rotary examples exist per chip.
 The decisions behind the matrix are in `docs/features/chip-matrix-v1.md`.
 
 ## Key Conventions

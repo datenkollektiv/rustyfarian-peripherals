@@ -32,12 +32,15 @@ This project follows [Semantic Versioning](https://semver.org/) (pre-1.0: minor 
 - `tamer::sht3x` (opt-in `sht3x` feature, no dependency): the Sensirion SHT3x command set, CRC-8, and fixed-point conversion to centi-degrees Celsius and centi-percent relative humidity, rounded to nearest.
 - `sht3x::SingleShot` is a sans-IO action machine: `poll(ShotInput)` returns the next `ShotAction`, and the terminal action is `Done(Measurement)` or `Fail(CrcError)`.
 - With `hal`, `sht3x::Sht3x` is a blocking I2C driver with `init`, `soft_reset`, `status` and `measure`, where `measure` takes a `Repeatability` and waits the datasheet maximum before its single read; `release` returns the bus.
+- `Sht3x::new` and `release` need no bus trait, so a bus that implements only the async `I2c` (an embassy shared-bus device, say) can hold the driver.
 - With `hal-async`, `Sht3x::measure_async` drives the same machine over `embedded-hal-async`.
+- A cancelled `measure_async`, or a read that found the sensor not ready, leaves the command in flight (a refused write does not); the next `measure`, `measure_async`, `soft_reset` or `status` first waits that repeatability's maximum duration (`SingleShot::recovering`), so no command lands on a busy sensor or inside the 1 ms command spacing; a soft-reset or status write that fails with anything but a NACK still waits its gap before the error returns.
 - Driver errors are `sht3x::Error::{Bus, Crc, Sequence}`, and `is_nack()` tells an absent sensor from a bus fault.
 - `Sht3x` and `Repeatability` are re-exported at the crate root; `Measurement`, `Status`, `Error` and `CrcError` stay under `tamer::sht3x::`.
 - `just test-sht3x` runs the host tests for the `sht3x`, `sht3x,hal` and `sht3x,hal-async` builds, and `verify` and `ci-test` include it.
 - Examples `hal_c3_sht3x` and `idf_c3_sht3x` read an SHT3x at address 0x44 on GPIO 6 / 7, and `bench/c3/sht3x.toml` adds the `c3/sht3x` bench check.
-- The SHT3x support is experimental: not yet verified on hardware.
+- Examples `hal_c6_sht3x` and `idf_c6_sht3x` read the same sensor on the C6 board profile's I2C pins (SDA 21 / SCL 22, ADR-014), and `bench/c6/sht3x.toml` adds the `c6/sht3x` check.
+- The SHT3x support is verified on hardware: an SHT31 on the ESP32-C6-DevKitC-1 reads on both tiers (`c6/sht3x`).
 - `just build-all-examples [filter]` builds and links every example of both tiers on its chip, flashing nothing; the release checklist runs it (family recipe contract J26).
 
 ### Changed

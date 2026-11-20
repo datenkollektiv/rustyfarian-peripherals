@@ -258,3 +258,7 @@ required-features = ["esp32c6", "rt", "unstable", "board"]
 [[example]]
 name = "hal_esp32_oled"
 required-features = ["esp32", "rt", "unstable", "board"]
+
+[[example]]
+name = "hal_c6_sht3x"
+required-features = ["esp32c6", "rt", "unstable", "board"]

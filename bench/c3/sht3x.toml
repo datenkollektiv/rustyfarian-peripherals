@@ -1,5 +1,7 @@
 # SHT3x (SHT31) on the shared I2C pogo header (SDA GPIO 6, SCL GPIO 7, ADDR low = address 0x44), blocking driver, both tiers.
 # Prints `T: 23.45 degC  RH: 41.20 %`; a wrong address prints an ADDR hint and needs a rebuild with I2C_ADDR_ALT (not a bench step).
+# The breath step is armed (Enter, then act) and log-judged: a reading of 70 %RH or more within 30 s; a room already above 70 %RH passes it trivially.
+# `c6/sht3x` mirrors these steps; a fix to one scenario applies to the other.
 examples = ["hal_c3_sht3x", "idf_c3_sht3x"]
 
 [[step]]
@@ -18,5 +20,8 @@ timeout = 30
 arm = false
 
 [[step]]
-say = "Breathe gently on the sensor for a few seconds"
-confirm = "Did the relative humidity (RH) rise noticeably within a few readings?"
+say = "Breathe gently on the sensor: the bench waits for a reading of 70 %RH or more"
+attended = true
+expect = 'RH: (?:[7-9]\d|100)\.\d\d %'
+reject = 'measurement failed|PANIC|panicked|Guru Meditation|abort\(\)|WDT'
+timeout = 30
