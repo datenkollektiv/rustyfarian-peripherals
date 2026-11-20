@@ -6,7 +6,7 @@ It answers the open point of [ADR-009](009-i2c-sensor-drivers-in-tamer.md): a de
 The first instance is the HX711 load-cell ADC (`tamer::hx711`, [feature doc](../features/hx711-v1.md)).
 
 ## Context
-The beekeeper weighs a hive with an HX711 and four load cells and asked for the driver here (`review-queue/feature-request-peripherals-hx711.md`).
+The beekeeper weighs a hive with an HX711 and four load cells and asked for the driver here (feature request filed 2026-10-27).
 The HX711 speaks a two-wire clocked protocol, DOUT in and PD_SCK out, not I2C, so ADR-009 excluded it.
 
 - A conversion is read as 24 PD_SCK pulses, MSB first, plus one to three pulses that select the input and gain of the next conversion.

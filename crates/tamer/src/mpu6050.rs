@@ -13,8 +13,8 @@
 //! [`TiltEstimator`](crate::mpu6050::TiltEstimator) turns raw readings into a
 //! smoothed tilt angle.
 //!
-//! This module is device-specific by design (see the [feature
-//! doc](https://github.com/datenkollektiv/rustyfarian-peripherals/blob/main/docs/features/mpu6050-imu-v1.md)):
+//! This module is device-specific by design (see
+//! [ADR-003](https://github.com/datenkollektiv/rustyfarian-peripherals/blob/main/docs/adr/003-mpu6050-micromath-dependency.md)):
 //! the register addresses, init sequence, and 14-byte burst layout are fixed
 //! MPU6050 datasheet facts, not a generic IMU abstraction.
 //!

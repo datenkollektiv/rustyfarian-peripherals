@@ -20,4 +20,4 @@ The pogo set and the button pin follow [ADR-015](../../docs/adr/015-pogo-ports.m
 - The EC11 sits on the second C3 rig, [`c3-rotary`](../c3-rotary/README.md), because its B input would take GPIO 1, the 5V pogo.
 - With both C3 rigs attached, pass `--port` to `just bench` (see [bench/README.md](../README.md)).
 
-Checks: `b3f`, `buzzer`, `hall-linear`, `poti`, `oled`, `mpu6050`, `rig`, `sht3x`; `bme680`, `bme680-async` abd `hx711` are experimental.
+Checks: `b3f`, `buzzer`, `hall-linear`, `poti`, `oled`, `mpu6050`, `rig`, `sht3x`; `bme680`, `bme680-async` and `hx711` are experimental.

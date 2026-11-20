@@ -19,7 +19,8 @@ The encoder driver sidesteps this by calling the underlying ESP-IDF C API direct
 This correction inverts the skeleton's implicit assumption that polled, one-shot HAL subscriptions are the universal solution for interrupt-driven input.
 
 ## Decision
-Accept raw-FFI persistent `AnyEdge` interrupts (`gpio_install_isr_service`, `gpio_isr_handler_add`, `gpio_intr_enable` / `disable`) via `esp_idf_svc::sys` as the **sanctioned pattern for edge-dense inputs** in the ESP-IDF tier.
+Accept raw-FFI persistent `AnyEdge` interrupts via `esp_idf_svc::sys` as the **sanctioned pattern for edge-dense inputs** in the ESP-IDF tier.
+The calls are `gpio_install_isr_service`, `gpio_isr_handler_add` and `gpio_intr_enable` / `disable`.
 
 This is distinct from polled one-shot HAL subscriptions.
 Choose **polled one-shot** for low-frequency, one-edge-at-a-time signals (e.g. waking on a button press).
@@ -35,8 +36,9 @@ That is a deliberately high bar.
 - The public API exports zero `unsafe`.
 - **ISR lock (amended 2026-10-28):** the ISR synchronizes shared state through esp-idf-hal's `interrupt::IsrCriticalSection` (interrupt mask + `portMUX_TYPE` spinlock), *not* `critical_section::with`.
 - The ESP-IDF `critical-section` provider is a FreeRTOS recursive mutex and is not ISR-safe; using it from the ISR crashed an ESP32-S3 (see ADR-006, amendment "ISR-safe lock").
-- **Link-time contract (historical, still relevant to downstream users of `critical_section`):** `critical_section::with` is an *interface* — some crate must supply the `critical-section` **implementation**.
-  - The tier still enables `esp-idf-svc`'s `critical-section` feature (`esp-idf-svc = { workspace = true, features = ["critical-section"] }`), a task-context-only FreeRTOS mutex backend, so downstream binaries keep linking.
+- **Link-time contract (historical, still relevant downstream):** `critical_section::with` is an *interface*; some crate must supply the `critical-section` **implementation**.
+  - The tier still enables `esp-idf-svc`'s `critical-section` feature (`esp-idf-svc = { workspace = true, features = ["critical-section"] }`).
+  - That backend is a task-context-only FreeRTOS mutex; it keeps downstream binaries linking.
   - On the original `critical_section` path this was a hard build requirement: without a provider, linking fails with `undefined reference to _critical_section_1_0_acquire/_release`.
   - It is easy to miss because `cargo check` (and thus `just check-idf`) does **not** link — only a real device build/flash surfaces it.
   - It is also easy to miss because promoting the dep to `workspace = true` silently drops per-crate `features`.

@@ -105,7 +105,8 @@ Dotted edge: a natural fit, not adopted yet.
 | [`rustyfarian-esp-hal-peripherals`](crates/rustyfarian-esp-hal-peripherals) | esp-hal (bare-metal), `no_std` | [![crates.io](https://img.shields.io/crates/v/rustyfarian-esp-hal-peripherals.svg)](https://crates.io/crates/rustyfarian-esp-hal-peripherals) | [![docs.rs](https://img.shields.io/docsrs/rustyfarian-esp-hal-peripherals)](https://docs.rs/rustyfarian-esp-hal-peripherals) |
 | [`rustyfarian-esp-idf-peripherals`](crates/rustyfarian-esp-idf-peripherals) | ESP-IDF (std), `std` | [![crates.io](https://img.shields.io/crates/v/rustyfarian-esp-idf-peripherals.svg)](https://crates.io/crates/rustyfarian-esp-idf-peripherals) | [![readme](https://img.shields.io/badge/docs-readme-blue)](crates/rustyfarian-esp-idf-peripherals/README.md) |
 
-- `tamer`: debounce, digital presence detection, rotary decoding, analog normalization, tone sequencing, and button-event logic behind traits, with `Noop*` mocks, plus an opt-in `ir` feature with an infrared pulse codec (NEC preset) and frame assembler.
+- `tamer`: debounce, digital presence detection, rotary decoding, analog normalization, tone sequencing and button-event logic behind traits, with `Noop*` mocks.
+- `tamer`'s opt-in `ir` feature adds an infrared pulse codec (NEC preset) and a frame assembler.
 - `tamer` has no hardware dependency.
 - `signwriter`: 128x64 I2C OLED driver for SSD1306 and SH1106 behind `embedded-graphics` `DrawTarget`, with hot-plug over `tamer::hotplug`.
 - `signwriter` is not part of the `tamer` core.

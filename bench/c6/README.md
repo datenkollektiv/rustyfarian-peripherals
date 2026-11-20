@@ -7,7 +7,7 @@ The pogo set and the button pin follow [ADR-015](../../docs/adr/015-pogo-ports.m
 | B3F button to GND | 4 | button pin, wired directly; internal pull-up; deep-sleep wake |
 | EC11 A / B / button | 18 / 19 / 20 | adjacent on J3; common to GND |
 | I2C pogo (GND, 3V3, SDA, SCL) | 21 / 22 (J3-7 / J3-6) | board profile `c6-devkitc`; not fitted yet |
-| HX711 on the I2C pogo pins (GND, 3V3, DT, SCK) | 21 / 22 | DT on GPIO 21, SCK on GPIO 22, not I2C; 3V3 supply; wired directly; experimental |
+| HX711 on the I2C pogo pins (GND, 3V3, DT, SCK) | 21 / 22 | DT GPIO 21, SCK GPIO 22, not I2C; 3V3 supply; wired directly; experimental |
 | 3V3 pogo (GND, 3V3, SIG) | 2 (J1-12) | ADC1; 3V3 from J1-1, the only 3V3 pin; not fitted yet |
 | 5V pogo (GND, 5V, SIG) | 3 (J1-13) | 3V3 logic; J1 15 / 14 / 13 = GND / 5V / GPIO 3; not fitted yet |
 
