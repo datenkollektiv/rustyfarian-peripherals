@@ -3,7 +3,8 @@
 ## Status
 Accepted (2026-11-08); the I2C pin choice in ADR-004 is amended by this record.
 The I2C pins of the C3 come from the C3 board profile, see [ADR-014](014-board-profiles.md).
-The pogo rows are amended by [ADR-015](015-pogo-ports.md): GPIO 4 is the 3V3 pogo, the button pin stays GPIO 3 and may sit on a button pogo, and the 5V pogo shares GPIO 1 with the rotary B input, so the EC11 sits on the `c3-rotary` rig.
+The pogo rows are amended by [ADR-015](015-pogo-ports.md): GPIO 4 is the 3V3 pogo, and the button pin stays GPIO 3 and may sit on a button pogo.
+The 5V pogo shares GPIO 1 with the rotary B input, so the EC11 sits on the `c3-rotary` rig.
 
 ## Context
 The closed ESP32-C3 bench rig is becoming the main C3 bench part, and the examples for both tiers must be wired to one map so that no board needs a mixed assembly.

@@ -26,9 +26,7 @@ timeline
     title rustyfarian-peripherals Roadmap
 
     Near term : BME680 hardware validation — lift `bme680` out of experimental (feature-doc)
-              : SHT3x temperature / humidity driver — beekeeper brood sensor, ADR-009 placement (feature-doc)
-              : HX711 load-cell scale — beekeeper hive weight, ADR-016 placement (feature-doc)
-              : Docs-sync — align README / AGENTS framing with VISION input+output scope
+              : HX711 hardware validation — lift `hx711` out of experimental (feature-doc)
 
     Mid term  : IRAM-safe encoder ISR — run from SRAM for OTA / flash-cache-off safety
 
@@ -62,19 +60,12 @@ timeline
 ## Near term — BME680 hardware validation
 
 **Goal:** lift `tamer::bme680` out of experimental (it ships so in 0.2.0) by passing `c3/bme680` and `c3/bme680-async` and the manual register checks.
-HX711 is not I2C; [ADR-016](adr/016-clocked-gpio-drivers-in-tamer.md) places it.
 See [Feature: BME680 v1](features/bme680-v1.md).
 
-## Near term — SHT3x temperature / humidity driver
+## Near term — HX711 hardware validation
 
-**Goal:** `tamer::sht3x` (pure core, `Sht3x` driver, async runner) plus C3 example twins and a bench check, for the beekeeper's brood temperature within 0.5 °C.
-Same placement as the BME680 ([ADR-009](adr/009-i2c-sensor-drivers-in-tamer.md)); single-shot mode only.
-See [Feature: SHT3x v1](features/sht3x-v1.md).
-
-## Near term — HX711 load-cell scale
-
-**Goal:** `tamer::hx711` (pure decode and calibration math, `Hx711` driver, tier interrupt masks) plus C3 example twins and a bench check, for the beekeeper's hive weight.
-Placement per [ADR-016](adr/016-clocked-gpio-drivers-in-tamer.md); blocking reads only.
+**Goal:** lift `tamer::hx711` out of experimental by passing `c3/hx711` and `c6/hx711` in both modes on both tiers.
+The first `c6/hx711` run read a floating DT line, so it proved nothing; the scenarios now reject stuck words.
 See [Feature: HX711 v1](features/hx711-v1.md).
 
 ## Mid term — IRAM-safe interrupt handler

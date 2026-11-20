@@ -67,7 +67,7 @@ A gate passes when `--unattended` and `--attended` both pass on one commit; a ch
 | `c6/oled-ssd1306` | open | | | |
 | `c6/oled-sh1106` | open: no SH1106 module | | | |
 | `c6/sht3x` | rerun: in-flight recovery | 2026-11-20 | 2c07872 | C6 DevKitC-1 |
-| `c6/hx711` | open: DT floated in the first run (both modes went green on it; scenarios tightened) | | | C6 DevKitC-1 |
+| `c6/hx711` | open: DT floated in the first run; scenarios tightened | | | C6 DevKitC-1 |
 | `esp32-feather/oled-*` | deferred: no STEMMA QT cable | | | |
 | `c3/bme680`, `c3/bme680-async` | deferred: `bme680` experimental | | | |
 | `s3/oled` | n/a: no 3V3 I2C connector (ADR-014) | | | |

@@ -2,7 +2,8 @@
 
 ## Status
 Accepted (2026-11-19).
-It amends [ADR-012](012-esp32-c3-pin-map.md): the C3 3-pin pogo row becomes the 3V3 pogo, the button pin stays GPIO 3 and may sit on a button pogo, and the 5V pogo shares GPIO 1 with the rotary B input.
+It amends [ADR-012](012-esp32-c3-pin-map.md): the C3 3-pin pogo row becomes the 3V3 pogo, and the button pin stays GPIO 3 and may sit on a button pogo.
+The 5V pogo shares GPIO 1 with the rotary B input.
 It corrects the CrowPanel I2C sentence of [ADR-014](014-board-profiles.md).
 The family rule lives in the rustyfarian-ci convention `conventions/pogo.md`; this record adopts it and keeps the reasoning.
 Amended (2026-11-19): the EC11 moves to a second C3 rig, `c3-rotary`, and an open-collector module brings its own pull-up, both as `conventions/pogo.md` 1.0.0 has it.
@@ -53,7 +54,8 @@ The electrical limits shape the design.
    - The 3V3 and button pogos share one layout, so swapping those two harms nothing.
 8. The button pin is fixed per board; its form is the rig's choice.
    - A rig solders the B3F, attaches it directly from the pin to GND, or puts it on a button pogo.
-   - The pin is the wake input, read active-low; a B3F needs a pull-up that holds through deep sleep (the internal RTC/LP pull-up, or 10 kΩ to 3V3 on the rig where the firmware tier drops it, as the family convention details).
+   - The pin is the wake input, read active-low.
+   - A B3F needs a pull-up that holds through deep sleep: the internal RTC/LP pull-up, or 10 kΩ to 3V3 on the rig where the firmware tier drops it (family convention).
    - Only a button pogo takes a TTP223-style touch module, set to active-low (pad A closed).
    - A touch module on the 3V3 pogo keeps its default active-high output and wakes the board on a high level.
 9. The pogos sit on these pins:

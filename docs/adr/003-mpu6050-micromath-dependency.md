@@ -40,6 +40,12 @@ dependency list, and gate it behind a new, opt-in `tilt` feature.
   - Conversely, a consumer may want EMA smoothing on ADC readings without touching an IMU.
   - The split respects the separation of concerns: device parsing, generic smoothing, and the specific math that only some applications need.
 
+- **Device-named module (2026-11-20, from the retired feature doc):** `tamer::mpu6050` encodes one part's datasheet, so it is named for the device, not a generic `imu` / `accel` façade.
+  - A façade waits until a second IMU makes the abstraction boundary real.
+- **Decided 2026-11-20:** `AccelCalibration` stays local to `mpu6050` (Y/Z semantics, `RawReading` coupling); a shared `Calibration<T>` is extracted only when a second consumer needs the shape.
+- **Decided 2026-11-20:** the tilt functions stay out of the prelude, which exports types and traits only; callers name `tamer::tilt::tilt_degrees` explicitly.
+- **Not planned:** gyro-based sensor fusion (an angle comes from accel tilt only); full-scale ranges beyond ±2 g are a later, additive change.
+
 ## Consequences
 
 - `tamer` gains its first optional dependency (`micromath`), but only under an
@@ -90,7 +96,7 @@ dependency list, and gate it behind a new, opt-in `tilt` feature.
 - `#[forbid(unsafe_code)]` in `micromath` (verified via crate docs) means no
   FFI or platform-specific unsafety.
 - The pure module ships with host unit tests and runnable doctests covering the `mpu6050` + `calibration` + `tilt` workflow (147 unit + 18 doctests on the default build; 184 + 25 with `--all-features`).
-- Hardware-tier example twins (`rustyfarian-esp-hal-peripherals`, `rustyfarian-esp-idf-peripherals`) are deferred to an on-demand follow-up per the feature doc's open questions.
+- Hardware-tier example twins `hal_c3_mpu6050_tilt` / `idf_c3_mpu6050_tilt` landed 2026-10-30 with the `Mpu6050` driver (ADR-009); the bench gate is `c3/mpu6050` in `release-plan.md`.
 - `micromath`'s advisory-clean status is independent of a separate, pre-existing
   `just deny` advisories failure in the esp-idf tier's build-dependency chain
   (`crossbeam-epoch`, an `anyhow`-family `downcast_mut` unsoundness); that finding

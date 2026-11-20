@@ -43,7 +43,7 @@ The HX711 module uses the same 4-pin header, but its two lines are a clocked pro
 | Signal | GPIO | Notes |
 |:--|:--|:--|
 | DT (DOUT) | 6 | Input; the module drives it low when a conversion is ready |
-| SCK (PD_SCK) | 7 | Push-pull output, low at power-up; held high for more than 60 µs it powers the chip down |
+| SCK (PD_SCK) | 7 | Push-pull output, low at power-up; high for over 60 µs powers the chip down |
 | GND | pogo GND | Common ground with the load-cell bridge |
 | VCC | pogo 3V3 | Supply the module from 3V3 only |
 

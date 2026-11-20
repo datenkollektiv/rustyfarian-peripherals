@@ -21,7 +21,7 @@ Every tier compiles, lints and links on all four ESP32 chips, `tamer` links on A
 | CI like ws2812: path-filtered `cross-target-{riscv,xtensa,avr}` | Per-PR gate for esp-hal chips and AVR link | Local-only matrix |
 | Weekly AVR upstream canary and an `idf` job | The pinned rev hides upstream breakage | No canary |
 |                                    ESP-IDF runs in CI as one `cross-target-idf` cell per chip | One cell per chip keeps cold esp-idf-sys builds within the timeout (see note) | One IDF job for all four chips; local-only `check-matrix` |
-|                 Rotary examples per chip: `hal_{esp32,c3,c6}_rotary_isr`, `idf_{esp32,c3,c6}_rotary` | The ISR is the chip-sensitive code                                                 | Rotary on S3 only                                             |
+|                 Rotary per chip: `hal_{esp32,c3,c6}_rotary_isr`, `idf_{esp32,c3,c6}_rotary` | The ISR is the chip-sensitive code                                                 | Rotary on S3 only                                             |
 |                     A chip x tier cell is covered only by its own bench run; builds never tick it | Build and link evidence is not hardware evidence; C3 does not stand in for C6      | Inherit coverage across chips or tiers                        |
 
 Note: the ESP-IDF tier was never built in CI before `cross-target-idf`.

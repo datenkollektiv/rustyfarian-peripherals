@@ -5,13 +5,13 @@ Accepted
 
 ## Context
 
-Downstream projects need I2C sensor drivers: BME680 first, then SHT3x.
-ADR-004 fixed the I2C bus pins and the diagnostics exemption, but not where a sensor driver lives.
-`tamer::mpu6050` set the decode-only precedent: `tamer` parses a burst buffer and the caller owns the transport.
-A sensor driver adds a sequence on top of the decoding: reset, chip-ID check, calibration reads, trigger, bounded polling.
-That sequence is generic over `embedded_hal::i2c::I2c` and `embedded_hal::delay::DelayNs`.
-Both pinned stacks implement those traits for their own types: esp-hal 1.2.2 (`I2c`, `Delay`) and esp-idf-hal 0.47.0 (`I2cDriver`, `Delay`).
-So the same generic code runs on either tier, and a mock bus can test it on the host.
+- Downstream projects need I2C sensor drivers: BME680 first, then SHT3x.
+- ADR-004 fixed the I2C bus pins and the diagnostics exemption, but not where a sensor driver lives.
+- `tamer::mpu6050` set the decode-only precedent: `tamer` parses a burst buffer and the caller owns the transport.
+- A sensor driver adds a sequence on top of the decoding: reset, chip-ID check, calibration reads, trigger, bounded polling.
+- That sequence is generic over `embedded_hal::i2c::I2c` and `embedded_hal::delay::DelayNs`.
+- Both pinned stacks implement those traits for their own types: esp-hal 1.2.2 (`I2c`, `Delay`) and esp-idf-hal 0.47.0 (`I2cDriver`, `Delay`).
+- So the same generic code runs on either tier, and a mock bus can test it on the host.
 
 ## Decision
 

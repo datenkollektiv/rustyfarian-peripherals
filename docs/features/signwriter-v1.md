@@ -9,13 +9,13 @@ The decision and its alternatives are recorded in [ADR-013](../adr/013-signwrite
 ## Decisions
 | Decision | Reason | Rejected Alternative |
 |----------|--------|----------------------|
-| New workspace crate `crates/signwriter` | Graphics-side driver; graphics stay out of `tamer` ([ADR-008](../adr/008-display-scope.md)) | A display driver inside `tamer` behind a feature |
+| New workspace crate `crates/signwriter`, a graphics-side driver | Graphics stay out of `tamer` ([ADR-008](../adr/008-display-scope.md)) | A display driver inside `tamer` behind a feature |
 | One in-house driver for both controllers | They differ only in the init table and a column offset of 0 or 2 | Upstream `ssd1306` plus `sh1106` (see note below) |
 | Written from scratch, no code copied | Keeps the licence and provenance clean; the driver is small | Adapting an existing SH1106 driver |
 | Controller detected by a RAM read-back before every init | Neither controller has an ID register; the read-back only works on the SH1106 | Status-byte matching (a log line only, it varies between clones) |
 | Hot-plug through `tamer::hotplug::Hotplug` | The attach/detach state machine is already pure and host-tested | A second debounce implementation in the driver |
 | Manual `redetect()` for a swap that happens between two probes | Idle bus traffic stays zero; a fast swap is rare and bench data is not in yet | Periodic re-detection every N ms |
-| Owned generic `I2c` bus, no auto-scan of the address | The application shares the bus via `embedded-hal-bus`; the address is known per board | A bus wrapper inside the driver; scanning 0x3C and 0x3D at boot |
+| Owned generic `I2c` bus, no auto-scan of the address | The app shares the bus via `embedded-hal-bus`; the address is known per board | A bus wrapper inside the driver; scanning 0x3C and 0x3D at boot |
 | `tamer` and `signwriter` 0.2.0 released in one wave (lockstep version) | `signwriter` needs `tamer::hotplug`, which is not yet on crates.io | Publishing `signwriter` on a path dependency only |
 
 Why upstream drivers were rejected:
@@ -62,14 +62,14 @@ For each of the two test values `0xA5` and `0x5A`, the driver:
 3. Sets page 0 and column 130 again.
 4. Reads two bytes after the `0x40` control byte; the first is a dummy byte and the second is the RAM value.
 
-The panel is an SH1106 only when both values read back unchanged.
-Any other result classifies it as an SSD1306, including a clone that answers differently.
-A read that the device rejects after its writes were acknowledged also classifies it as an SSD1306.
-The datasheet documents its serial mode as write-only, while the SH1106 always supports RAM read-back.
-A failure of the address-select or test-value writes is returned to the caller and the panel is not classified.
-`Oled::with_controller(i2c, address, controller, attach_debounce_ms, detach_errors, probe_every_ms)` pins the controller and skips detection.
-Attach and `redetect()` then go straight to init.
-The status byte read after control `0x00` is logged for diagnosis and is never used to decide.
+- The panel is an SH1106 only when both values read back unchanged.
+- Any other result classifies it as an SSD1306, including a clone that answers differently.
+- A read that the device rejects after its writes were acknowledged also classifies it as an SSD1306.
+- The SSD1306 datasheet documents its serial mode as write-only, while the SH1106 always supports RAM read-back.
+- A failure of the address-select or test-value writes is returned to the caller and the panel is not classified.
+- `Oled::with_controller(i2c, address, controller, attach_debounce_ms, detach_errors, probe_every_ms)` pins the controller and skips detection.
+- Attach and `redetect()` then go straight to init.
+- The status byte read after control `0x00` is logged for diagnosis and is never used to decide.
 
 Column 130 is off-screen on the SH1106, and the full flush on attach overwrites it on the SSD1306.
 
