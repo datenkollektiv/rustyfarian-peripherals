@@ -2,7 +2,7 @@
 
 Release process for the `rustyfarian-peripherals` workspace.
 
-> **Status:** Active process — last exercised for `v0.2.0` (published to crates.io 2026-11-12, all four crates).
+> **Status:** Active process — last exercised for `v0.2.1` (crates.io, 2026-11-22, all four crates; additive patch).
 > The staged publication flow below is proven; update this note after each release.
 
 ## Versioning
@@ -11,7 +11,7 @@ Release process for the `rustyfarian-peripherals` workspace.
 - **Model:** Single workspace version in `[workspace.package]` — `tamer`, `signwriter` and the two hardware tiers move together.
 - **Publish order:** `signwriter` is published right after `tamer`, because it depends on it.
 - **Snapshot convention:** None; crates live at the released version between releases.
-- **Who decides version:** Maintainer; minor bump for new or breaking public API, patch for fixes only.
+- **Who decides version:** Maintainer; minor bump for breaking public API, patch for fixes and additive API (Cargo treats `0.Y.Z` → `0.Y.Z+1` as compatible, so `0.Y` consumers keep one copy per crate).
 
 ## Branch and Tag Convention
 
@@ -68,7 +68,7 @@ A gate passes when `--unattended` and `--attended` both pass on one commit; a ch
 | `c6/oled-sh1106` | open: no SH1106 module | | | |
 | `c6/sht3x` | rerun: in-flight recovery | 2026-11-20 | 2c07872 | C6 DevKitC-1 |
 | `c6/hx711` | open: DT floated in the first run; scenarios tightened | | | C6 DevKitC-1 |
-| `c6/ir-tx` | pass (C3 receiver judged 28 consecutive NEC decodes) | 2026-11-21 | pending | C6 DevKitC-1 |
+| `c6/ir-tx` | pass (C3 receiver judged 28 consecutive NEC decodes) | 2026-11-21 | 1df1daf | C6 DevKitC-1 |
 | `esp32-feather/oled-*` | deferred: no STEMMA QT cable | | | |
 | `c3/bme680`, `c3/bme680-async` | deferred: `bme680` experimental | | | |
 | `s3/oled` | n/a: no 3V3 I2C connector (ADR-014) | | | |
@@ -88,6 +88,7 @@ Files to update when bumping to `X.Y.Z`:
 - `Cargo.toml` — `[workspace.dependencies] tamer = { path = ..., version = "X.Y.Z", ... }`
 - `Cargo.toml` — `[workspace.dependencies] signwriter = { path = ..., version = "X.Y.Z" }`
 - `Cargo.lock` — refreshed by any `just check` after the bump
+- `examples/avr-nano-tamer/Cargo.lock` — the `tamer` entry's `version`, by hand; `ci-avr` builds `--locked`, and a fresh resolution breaks on the AVR nightly (lore "AVR — fresh lockfile …")
 
 Post-release version bump: none.
 

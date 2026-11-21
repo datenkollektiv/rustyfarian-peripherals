@@ -118,6 +118,7 @@ Status: implemented; C6 → C3 NEC end to end passed on hardware (2026-11-21), R
 - Distance: the emitter faced the receiver at the operator's placement (aimed at about 1 m, not measured).
 
 ## Session Log
+- 2026-11-22 — Review: `IrReceiver` settle after a timeout floored at 10 ms (`RX_SETTLE_MIN`), independent of `idle_us`; Xtensa matrix green.
 - 2026-11-21 — `c6/ir-tx` run 1 failed on judge timing (1 s gap = 1 s receive timeout); TX gap now 700 ms; run 2 passed with 28 consecutive decodes.
 - 2026-11-21 — C6 transmit request: `hal_c6_ir_tx` on GPIO 3, NEC only (the C3 example lost its device-style frame), carrier predictions in both boot logs, `c6/ir-tx` prepared; first try with the emitter module as-is.
 - 2026-11-20 — Request retired from the review queue; dates: RMT spike Thu 26 Nov, C3 transmit Sat 28 Nov (own fallback if unusable by Mon 23 Nov), event Sat 5 Dec; candle profile verified downstream
