@@ -1,6 +1,6 @@
 # Feature: IR codec v1
 
-A pure infrared pulse codec, `tamer::ir` (feature `ir`), for the Krampusnacht props that drive and read consumer IR remotes.
+A pure infrared pulse codec, `tamer::ir` (feature `ir`), for a downstream project's props that drive and read consumer IR remotes.
 The hardware bridge is `rustyfarian-esp-hal-peripherals::ir` (feature `ir`), `IrTransmitter` and `IrReceiver` on the RMT peripheral.
 
 Status: implemented; C6 → C3 NEC end to end passed on hardware (2026-11-21), RMT carrier frequency not yet measured.
@@ -11,14 +11,14 @@ Status: implemented; C6 → C3 NEC end to end passed on hardware (2026-11-21), R
 | One flat module `tamer::ir`, feature `ir = []`, no dependency | Matches `morse`/`tone`; NEC is only a preset, so not named `nec` | A `nec` module |
 | `&[u32]` µs pulses, mark first, odd length legal; `PulseBuf<N>` for encode only | Natural RMT/timer width; the idle gap is never a pulse | `u16` pulses |
 | `PulseCodec` is data; positional validating `const fn new` returns `Result` | Invariants (1..=32 bits, distinguishable bits) hold; no panics | Public fields |
-| Bits are classified by mark and space | The ALDI remote differs from NEC in both | Space only |
+| Bits are classified by mark and space | A downstream project's 8-bit remote differs from NEC in both | Space only |
 | Header mark is checked as an upper bound only; the header space is the anchor | Captures start with marks of 61..8721 us | Two-sided header mark |
 | Pulse count is checked before bit classification | A 24-bit frame against NEC reports `WrongBitCount`, not a misleading bit error | Classify first |
 | `Tolerance { Percent, Micros }`, inclusive, division-free matching | No divide on RISC-V C3 | Fixed windows as in the Python reference |
 | Glitch filter merges: a short pulse is removed and the previous pulse reopened | Keeps alternation and total duration; the reference only dropped it | Drop and keep going |
 | `FrameAssembler::edge(now, mark)` / `update(now)`, lazy reset, explicit `arm` | Same idiom as `ToneSequencer`; stray space edges never open a frame | Implicit late-arm |
 | NEC repeat: `NEC_REPEAT` and `is_nec_repeat` only (about 15 lines) | Cheap, host-tested; the ~110 ms cadence stays with the caller | A repeat state machine |
-| ALDI timings stay downstream; here only a test fixture | Device tables are not a `tamer` concern | An ALDI preset |
+| Device timings stay downstream; here only a test fixture | Device tables are not a `tamer` concern | A device preset |
 | `carrier_ticks(clock_hz, freq_hz, duty)` lives in `tamer` | The bridge does no arithmetic and the result is host-tested | Computing ticks in the tier |
 | Bridge types own the RMT channel creator and the pin, by value | Generic over `Tx` / `RxChannelCreator`: no per-chip cfg; owning prevents sharing | Per-chip channel types |
 | RX uses RMT RX, not GPIO edge capture | Hardware 1 us timestamps, no ISR, no static state | GPIO edge plus timer (kept as the fallback for gaps over 32 ms) |
@@ -62,7 +62,7 @@ Status: implemented; C6 → C3 NEC end to end passed on hardware (2026-11-21), R
   A reading near 475 Hz means the channel clock is used and `carrier_ticks` must be fed `clock / divider`.
 - **Hardware check, not yet done:** `hal_c3_ir_rx` against a real remote must print the same command as the MicroPython receiver.
   The first captured pulse is a Low mark (a leading High segment is ignored by the assembler either way), and a repeat shows as a separate short frame.
-- **Hardware check, not yet done:** `hal_c3_ir_tx` aimed at the ALDI candle, or at a TSOP feeding `hal_c3_ir_rx` on a second board.
+- **Hardware check, not yet done:** `hal_c3_ir_tx` aimed at the downstream project's remote, or at a TSOP feeding `hal_c3_ir_rx` on a second board.
 - RMT idle threshold tops out at 32767 us at 1 us ticks, so the reference's 150 ms end gap is not reachable.
   The bridge delimits frames with a 20 ms idle: above the longest internal gap of NEC and the candle remote (the 4.5 ms header space), below the NEC repeat gap.
   Protocols with internal gaps over 20 ms split into several frames; a GPIO-edge receiver feeding `FrameAssembler` would be needed for them (deferred).
@@ -88,6 +88,8 @@ Status: implemented; C6 → C3 NEC end to end passed on hardware (2026-11-21), R
 - [x] `hal_c6_ir_tx` (GPIO 3), in `ci-riscv`; bench check `c6/ir-tx` prepared
 - [x] End to end on hardware: C6 transmit → C3 receive, NEC, `c6/ir-tx` (2026-11-21, emitter module)
 - [ ] Hardware verification (RMT carrier frequency; `hal_c3_ir_rx` with a NEC remote)
+- [x] C6 → C3, 8-bit codec frames every 2 s against `receive(500)`: 16 of 16 decoded with the settle-after-abort fix, 1 of 15 without (2026-11-21)
+- [x] C6 carrier near 38 kHz: a consumer device with a demodulating receiver follows the C6 at 3.5 m with the emitter module on 5V (2026-11-21)
 
 ## Bench — C6 transmit, C3 receive
 - Emitter: `hal_c6_ir_tx` on the ESP32-C6-DevKitC-1, the OPEN-SMART emitter module on J1 15 / 14 / 13 (GND / 5V / GPIO 3).
@@ -101,14 +103,14 @@ Status: implemented; C6 → C3 NEC end to end passed on hardware (2026-11-21), R
   - C6 DevKitC-1: `just bench c6 ir-tx` 2/2; boot `RMT clock 80000000 Hz`, `high 694 low 1411 ticks`, `carrier if group clock: 38005 Hz`, `carrier if channel clock (1 MHz): 475 Hz`, 20 × `sent NEC 0x00/0x45 (67 pulses)`.
   - C3 DevKitM-1 judge: 28 consecutive `67 pulses: NEC address=0x00 command=0x45`, ok 1 → 28, no failure after the reflash.
     The 8 failures before them are frames of the run-1 firmware, received before the reflash.
-  - Logs: `bench/c6/logs/hal_c6_ir_tx-20261121-202534.log` (git-ignored) and the receive bench's `knir-c6-tx-2.log` (downstream `tmp/`).
+  - Logs: `bench/c6/logs/hal_c6_ir_tx-20261121-202534.log` (git-ignored) and the downstream project's receive-bench log (not tracked here).
   - 21:37: after a review renamed the 700 ms "period" to a gap (frames start about 768 ms apart, as `send` blocks for the 68 ms frame), the C6 side reran 2/2 on the reworded ready line; timing unchanged (`hal_c6_ir_tx-20261121-213739.log`).
 - **Run 1, 2026-11-21 20:21 — fail (judge timing, not signal).** Frame gap 1000 ms.
   - C6 side passed 2/2; the judge decoded the first frame, then 64 frames arrived as 43 pulses, `not candle nor NEC`, 0 receive errors.
   - The missing 24 pulses are the header and the first 11 bits (about 29 ms); the rest is the NEC 0x00/0x45 tail with marks 516–594 us and spaces 536–590 / 1691–1748 us.
   - Cause: the judge re-arms `receive(1000 ms)` about 29 ms after each frame (20 ms idle plus its log line); a 1000 ms gap puts that timeout 29 ms into every next frame, and `receive` drops the frame in flight.
   - Fix: both TX examples now wait 700 ms; a frame then closes about 760 ms after the re-arm.
-  - Logs: `bench/c6/logs/hal_c6_ir_tx-20261121-202105.log`, downstream `knir-c6-tx.log`.
+  - Logs: `bench/c6/logs/hal_c6_ir_tx-20261121-202105.log`, plus the downstream project's receive-bench log.
 - What the pass shows: C6 RMT TX → emitter → 38 kHz band-pass receiver → C3 RMT RX → `FrameAssembler` → NEC decode, bit timing well inside tolerance.
 - It also rules out the channel-clock case: a 475 Hz carrier (694 us on, 1411 us off) would split the 9 ms header mark into several pulses, and every frame arrived whole with 67 pulses.
 - What it does not show: that the 38 kHz comes from the RMT rather than the module, which may generate its own (see Open Questions).

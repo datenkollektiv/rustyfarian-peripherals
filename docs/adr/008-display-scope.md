@@ -8,7 +8,7 @@ Accepted
 [Character Display](../ROADMAP.md) item as a "`tamer` text/framebuffer layer —
 glyph maps, line layout, and framebuffer diffing" plus a `hal`-feature bus adapter.
 [`tamer::touch`](007-touch-event-detection.md) has landed — a pure tracker that already emits points in **display coordinates**.
-The natural next question surfaced from a downstream consumer (the CYD / rustbox-midway journey):
+The natural next question surfaced from a downstream consumer (the CYD journey):
 *before adopting touch, do we benefit from a "display abstraction"?*
 
 Four panels are in view as consumers:

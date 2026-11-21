@@ -1132,7 +1132,7 @@ impl PulseSource for MockPulseSource<'_> {
 mod tests {
     use super::*;
 
-    fn aldi() -> PulseCodec {
+    fn remote8() -> PulseCodec {
         PulseCodec::new(
             Some(MarkSpace::new(8400, 4470)),
             MarkSpace::new(560, 540),
@@ -1256,15 +1256,15 @@ mod tests {
     }
 
     #[test]
-    fn aldi_pulse_len_is_19() {
-        assert_eq!(aldi().pulse_len(), 19);
+    fn remote8_pulse_len_is_19() {
+        assert_eq!(remote8().pulse_len(), 19);
     }
 
     #[test]
     fn encode_value_too_wide() {
         let mut out = [0u32; 32];
         assert_eq!(
-            aldi().encode_into(0x100, &mut out),
+            remote8().encode_into(0x100, &mut out),
             Err(EncodeError::ValueTooWide)
         );
     }
@@ -1273,11 +1273,11 @@ mod tests {
     fn encode_buffer_too_small_reports_needed() {
         let mut out = [0u32; 18];
         assert_eq!(
-            aldi().encode_into(1, &mut out),
+            remote8().encode_into(1, &mut out),
             Err(EncodeError::BufferTooSmall { needed: 19 })
         );
         assert_eq!(
-            aldi().encode::<10>(1),
+            remote8().encode::<10>(1),
             Err(EncodeError::BufferTooSmall { needed: 19 })
         );
     }
@@ -1308,8 +1308,8 @@ mod tests {
     }
 
     #[test]
-    fn aldi_8bit_round_trip_all_256() {
-        let c = aldi();
+    fn remote8_round_trip_all_256() {
+        let c = remote8();
         for v in 0..=255u32 {
             let p = c.encode::<19>(v).unwrap();
             assert_eq!(c.decode(p.as_slice()), Ok(v));
@@ -1501,9 +1501,9 @@ mod tests {
     }
 
     #[test]
-    fn golden_captures_decode_via_aldi_codec_six_buttons() {
+    fn golden_captures_decode_via_remote8_codec_six_buttons() {
         for (raw, want) in CAPTURES {
-            assert_eq!(aldi().decode(&capture(raw)), Ok(want), "{raw}");
+            assert_eq!(remote8().decode(&capture(raw)), Ok(want), "{raw}");
         }
     }
 
@@ -1577,7 +1577,7 @@ mod tests {
             assert!(asm.is_receiving());
             let frame = asm.update(end + 150_000).unwrap().unwrap();
             assert_eq!(frame, pulses.as_slice());
-            assert_eq!(aldi().decode(frame), Ok(want));
+            assert_eq!(remote8().decode(frame), Ok(want));
             t = end + 300_000;
         }
     }
@@ -1854,7 +1854,7 @@ mod tests {
             s
         });
         let frame = asm.feed_segments(segs).unwrap().unwrap();
-        assert_eq!(aldi().decode(frame), Ok(CAPTURES[0].1));
+        assert_eq!(remote8().decode(frame), Ok(CAPTURES[0].1));
     }
 
     #[test]

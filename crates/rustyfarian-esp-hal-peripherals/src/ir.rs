@@ -291,7 +291,18 @@ impl Default for IrRxConfig {
 pub struct IrReceiver<'d, const CODES: usize = 64, const PULSES: usize = 128> {
     channel: esp_hal::rmt::Channel<'d, Blocking, esp_hal::rmt::Rx>,
     assembler: FrameAssembler<PULSES>,
+    /// How long an aborted reception settles: the frame-end idle time, at least [`RX_SETTLE_MIN`].
+    settle: Duration,
 }
+
+/// Shortest settle after an aborted reception, independent of the frame-end idle time.
+///
+/// Measured on the ESP32-C3 (C6 transmitter, 2026-11-21): re-arming within about
+/// 1 ms of the abort captured only the tail of the next frame, a 10 ms or longer
+/// pause captured every frame whole.
+/// Applied on every chip, because the others are unmeasured and it costs at most
+/// 10 ms after a timeout.
+const RX_SETTLE_MIN: Duration = Duration::from_millis(10);
 
 impl<'d, const CODES: usize, const PULSES: usize> IrReceiver<'d, CODES, PULSES> {
     /// Take the RX channel creator and the input pin.
@@ -334,6 +345,7 @@ impl<'d, const CODES: usize, const PULSES: usize> IrReceiver<'d, CODES, PULSES> 
         Ok(Self {
             channel,
             assembler: FrameAssembler::new(config.min_pulse_us, 0),
+            settle: Duration::from_micros(u64::from(config.idle_us)).max(RX_SETTLE_MIN),
         })
     }
 
@@ -346,11 +358,23 @@ impl<'d, const CODES: usize, const PULSES: usize> IrReceiver<'d, CODES, PULSES> 
     /// A repeat code arrives as its own short frame.
     /// A frame in flight at a call boundary can arrive truncated; treat a decode error as droppable.
     ///
+    /// On timeout the reception is aborted and the call then waits the idle time,
+    /// but at least 10 ms, before it returns; so it can take up to `timeout_ms`
+    /// plus the larger of the idle time and 10 ms.
+    /// Use timeouts well above that wait: with the default 20 ms idle, a
+    /// `receive(5)` loop spends about 25 ms per call and listens for only 5 ms of it.
+    /// esp-hal 1.2.2 cannot stop an RX reception at once on the ESP32-C3: a
+    /// reception re-armed within about a millisecond of the abort captured only
+    /// the last one or two codes of the next frame, while a 10 ms or longer
+    /// pause captured every frame whole (C6 transmitter, C3 receiver, 2026-11-21).
+    ///
     /// # Errors
     ///
     /// [`IrRxError::Overflow`] if the frame exceeds the buffers or the RMT memory,
     /// [`IrRxError::Hardware`] for any other RMT receive error.
     pub fn receive(&mut self, timeout_ms: u32) -> Result<Option<&[u32]>, IrRxError> {
+        let start = Instant::now();
+        let timeout = Duration::from_millis(u64::from(timeout_ms));
         let mut buf = [PulseCode::default(); CODES];
         let total = {
             let mut transaction = self
@@ -358,11 +382,13 @@ impl<'d, const CODES: usize, const PULSES: usize> IrReceiver<'d, CODES, PULSES> 
                 .reborrow()
                 .receive(&mut buf)
                 .map_err(|_| IrRxError::Hardware)?;
-            let start = Instant::now();
-            let timeout = Duration::from_millis(u64::from(timeout_ms));
-            // Dropping the transaction on timeout stops the receiver.
+            // Dropping the transaction on timeout stops the receiver; it then needs
+            // to settle before the next call re-arms it (see above).
             while !transaction.poll() {
                 if start.elapsed() >= timeout {
+                    drop(transaction);
+                    let aborted = Instant::now();
+                    while aborted.elapsed() < self.settle {}
                     return Ok(None);
                 }
             }

@@ -192,3 +192,13 @@ The judge re-armed `IrReceiver::receive(1000 ms)` about 29 ms after each frame (
 So the timeout landed 29 ms into every next frame, and `receive` drops a frame still in flight: the header and the first 11 bits went missing, and the rest decoded cleanly.
 Fix: keep the TX gap well clear of the receiver's timeout; the TX examples wait 700 ms, and run 2 decoded 28 frames in a row.
 A clipped frame whose remaining marks and spaces are in tolerance points at receive windowing, not at the carrier or the optics.
+
+---
+
+## esp-hal — RMT RX abort needs a settle
+
+**On the ESP32-C3, esp-hal 1.2.2 does not stop an RMT RX reception at once when the `receive` transaction is dropped.**
+Symptom (C6 transmitter, C3 receiver, 2026-11-21): after a `receive` timeout, a reception re-armed within about 1 ms captured only the last one or two codes of the next frame; 1 of 15 frames decoded.
+A pause of 10 ms or more after the abort captured every frame whole (16 of 16).
+Fix: `IrReceiver::receive` waits after an abort for the frame-end idle time, floored at `RX_SETTLE_MIN` (10 ms), so a short `idle_us` cannot bring the loss back.
+The other chips are unmeasured; the floor applies to all of them.

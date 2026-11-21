@@ -7,7 +7,7 @@ Accepted
 Some GPIO inputs represent physical presence rather than button gestures.
 Examples include reed switches, beam breaks, PIR modules, digital Hall switches, and capacitive touch modules.
 
-`rustbox-peripherals-pure` added this boundary as `input::DigitalPresence`.
+A downstream project added this boundary as `input::DigitalPresence`.
 The same need exists here now that `tamer` already owns the shared `Debouncer` contract.
 
 Without a named primitive, callers compose polarity mapping and debouncing by hand.
