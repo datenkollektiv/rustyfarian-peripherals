@@ -1,8 +1,8 @@
 //! ESP32-C3 — IR transmitter (RMT, 38 kHz carrier)
 //!
-//! Sends two fixed frames every 2 s through an IR LED: the NEC preset
-//! (address 0x00, command 0x45) and an 8-bit "candle" style codec (header
-//! 8400/4470 us, bits 560/540 and 1000/1000, trailer 560 us, LSB first).
+//! Sends the NEC preset (address 0x00, command 0x45) with a 700 ms gap between
+//! frames (a frame starts about every 770 ms; `send` blocks for the frame) through an
+//! IR LED.
 //! All pulse timing comes from [`tamer::ir`]; the RMT only modulates.
 //!
 //! ## Status
@@ -10,9 +10,10 @@
 //! The 38 kHz / 33 % carrier is **not yet confirmed on hardware**.
 //! The carrier counts in the RMT group clock (derived from esp-hal and ESP-IDF
 //! sources).
-//! Put a scope or a TSOP receiver on the LED output: about 38 kHz and 33 % duty
-//! during each mark, nothing during spaces, line low at rest.
-//! A carrier near 475 Hz means the channel clock is used instead.
+//! The boot log prints the RMT clock, the carrier tick pair and the carrier
+//! each clock would give: about 38 kHz if the pair counts in the group clock,
+//! about 475 Hz if it counts in the 1 MHz channel clock.
+//! A scope or a demodulating receiver on a second board tells which.
 //! See `docs/features/ir-codec-v1.md`.
 //!
 //! ## Components
@@ -50,9 +51,19 @@ esp_bootloader_esp_idf::esp_app_desc!();
 use esp_hal::{delay::Delay, main, rmt::Rmt};
 use esp_println::{println, Printer};
 use rustyfarian_esp_hal_peripherals::ir::{
-    BitOrder, IrTransmitter, IrTxConfig, MarkSpace, NecFrame, PulseBuf, PulseCodec, Tolerance,
-    IR_RMT_CLOCK,
+    carrier_ticks, IrTransmitter, IrTxConfig, IrTxError, NecFrame, PulseCodec, IR_RMT_CLOCK,
 };
+
+/// Consumer-IR carrier: 38 kHz, 33 % of the period high.
+const CARRIER_HZ: u32 = 38_000;
+const CARRIER_DUTY: u8 = 33;
+/// The RMT channel clock after the bridge's divider: 1 tick per microsecond.
+const CHANNEL_CLOCK_HZ: u32 = 1_000_000;
+/// Gap after each frame; `send` blocks for the frame first (about 67 ms for NEC).
+///
+/// Kept clear of 1000 ms: a receiver that re-arms a 1 s `receive` timeout
+/// right after each frame would time out inside every next frame and drop its start.
+const FRAME_GAP_MS: u32 = 700;
 
 #[panic_handler]
 fn panic(info: &core::panic::PanicInfo) -> ! {
@@ -95,23 +106,37 @@ macro_rules! logln {
     };
 }
 
-/// Candle-style 8-bit codec (timings from the real remote captures).
-const fn candle() -> Result<PulseCodec, rustyfarian_esp_hal_peripherals::ir::CodecError> {
-    PulseCodec::new(
-        Some(MarkSpace::new(8400, 4470)),
-        MarkSpace::new(560, 540),
-        MarkSpace::new(1000, 1000),
-        Some(560),
-        8,
-        BitOrder::LsbFirst,
-        Tolerance::Percent(25),
-    )
-}
-
 /// Park forever after a fatal error (no watchdog feed: the chip resets and retries).
 fn halt() -> ! {
     loop {
         core::hint::spin_loop();
+    }
+}
+
+/// `clock / period`, rounded to the nearest Hz; `None` for an empty period.
+fn carrier_at(clock_hz: u32, period_ticks: u32) -> Option<u32> {
+    (clock_hz.checked_add(period_ticks / 2)?).checked_div(period_ticks)
+}
+
+/// Logs the carrier tick pair and the carrier each RMT clock would produce.
+fn report_carrier(clock_hz: u32) {
+    let Some((high, low)) = carrier_ticks(clock_hz, CARRIER_HZ, CARRIER_DUTY) else {
+        logln!("carrier does not fit the RMT clock");
+        return;
+    };
+    logln!(
+        "carrier {} Hz {} %: high {} low {} ticks",
+        CARRIER_HZ,
+        CARRIER_DUTY,
+        high,
+        low
+    );
+    let period = u32::from(high) + u32::from(low);
+    if let Some(hz) = carrier_at(clock_hz, period) {
+        logln!("carrier if group clock: {} Hz", hz);
+    }
+    if let Some(hz) = carrier_at(CHANNEL_CLOCK_HZ, period) {
+        logln!("carrier if channel clock (1 MHz): {} Hz", hz);
     }
 }
 
@@ -125,21 +150,23 @@ fn main() -> ! {
         halt()
     };
     let clock = rmt.frequency();
+    logln!("IR TX on GPIO 10, RMT clock {} Hz", clock.as_hz());
+    report_carrier(clock.as_hz());
+
     let Ok(mut tx) = IrTransmitter::<64>::new(
         rmt.channel0,
         peripherals.GPIO10,
         clock,
-        &IrTxConfig::default(),
+        &IrTxConfig::new(CARRIER_HZ, CARRIER_DUTY),
     ) else {
         logln!("IR TX init failed");
         halt()
     };
-    let Ok(candle) = candle() else {
-        logln!("candle codec invalid");
-        halt()
-    };
 
-    logln!("IR TX ready on GPIO 10 (38 kHz, 33 %) - sending every 2 s");
+    logln!(
+        "IR TX ready on GPIO 10 - sending NEC 0x00/0x45, {} ms gap between frames",
+        FRAME_GAP_MS
+    );
 
     let nec = PulseCodec::nec();
     let nec_word = NecFrame::new(0x00, 0x45).to_word();
@@ -148,22 +175,11 @@ fn main() -> ! {
             Ok(frame) => report("NEC 0x00/0x45", frame.as_slice(), tx.send(frame.as_slice())),
             Err(e) => logln!("NEC encode failed: {}", e),
         }
-        delay.delay_millis(1000u32);
-
-        let frame: Result<PulseBuf<20>, _> = candle.encode(0xC0);
-        match frame {
-            Ok(frame) => report("candle 0xC0", frame.as_slice(), tx.send(frame.as_slice())),
-            Err(e) => logln!("candle encode failed: {}", e),
-        }
-        delay.delay_millis(1000u32);
+        delay.delay_millis(FRAME_GAP_MS);
     }
 }
 
-fn report(
-    name: &str,
-    pulses: &[u32],
-    result: Result<(), rustyfarian_esp_hal_peripherals::ir::IrTxError>,
-) {
+fn report(name: &str, pulses: &[u32], result: Result<(), IrTxError>) {
     match result {
         Ok(()) => logln!("sent {} ({} pulses)", name, pulses.len()),
         Err(e) => logln!("send {} failed: {}", name, e),

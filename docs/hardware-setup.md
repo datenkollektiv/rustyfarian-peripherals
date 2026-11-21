@@ -77,6 +77,12 @@ Both pins reuse existing ADR-012 roles, so there is no new ADR.
 - The receiver output is active low; the examples need no pull-up.
 - The 38 kHz / 33 % carrier is source-derived and not yet confirmed: put a scope or a second board with a TSOP on the LED before relying on it.
 
+## Wiring — infrared transmit (ESP32-C6)
+
+- `hal_c6_ir_tx` drives the emitter from GPIO 3, the C6 5V pogo (ADR-015): J1 15 / 14 / 13 = GND / 5V / GPIO 3.
+- An emitter module takes GND / VCC / SIG on those pins directly; a bare IR LED needs the C3's NPN stage, from GPIO 3.
+- A module that generates its own 38 kHz expects an unmodulated envelope on SIG, so it hides the RMT carrier.
+
 ## Wiring — Arduino Nano button (examples/avr-nano-tamer)
 
 A button from D2 to GND (internal pull-up, active-low); the on-board LED on D13 toggles on each click; serial at 57600 baud through the ravedude runner.

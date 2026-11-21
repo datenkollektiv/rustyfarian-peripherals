@@ -1,0 +1,26 @@
+# IR transmit: NEC 0x00/0x45 with a 700 ms gap between frames (one about every 770 ms) from GPIO 3 (the 5V pogo, J1 15 / 14 / 13 = GND / 5V / GPIO 3), RMT with a 38 kHz / 33 % carrier.
+# This scenario judges the C6 side only: the RMT clock, the carrier tick pair and 20 frames sent without an error.
+# Reception is judged on a second board: a demodulating receiver that decodes NEC, logging to its own file (see docs/features/ir-codec-v1.md).
+# The carrier predictions (`carrier if group clock`, `carrier if channel clock`) are evidence for the log, not a pass criterion.
+examples = ["hal_c6_ir_tx"]
+
+[[step]]
+say = "Wait for the boot lines: RMT clock, carrier ticks, ready"
+expect = ['IR TX on GPIO 3, RMT clock 80000000 Hz', 'carrier 38000 Hz 33 %: high 694 low 1411 ticks', 'IR TX ready on GPIO 3 - sending NEC 0x00/0x45']
+reject = 'RMT init failed|IR TX init failed|carrier does not fit|PANIC|panicked|Guru Meditation|abort\(\)|WDT'
+timeout = 10
+optional = true   # can be printed before the port reopens after reset
+arm = false       # must read the backlog from the reset
+
+[[step]]
+say = "Point the emitter at the receiver, about 1 m away: 20 frames go out with a 700 ms gap after each"
+expect = [
+    'sent NEC 0x00/0x45 \(67 pulses\)', 'sent NEC 0x00/0x45 \(67 pulses\)', 'sent NEC 0x00/0x45 \(67 pulses\)', 'sent NEC 0x00/0x45 \(67 pulses\)',
+    'sent NEC 0x00/0x45 \(67 pulses\)', 'sent NEC 0x00/0x45 \(67 pulses\)', 'sent NEC 0x00/0x45 \(67 pulses\)', 'sent NEC 0x00/0x45 \(67 pulses\)',
+    'sent NEC 0x00/0x45 \(67 pulses\)', 'sent NEC 0x00/0x45 \(67 pulses\)', 'sent NEC 0x00/0x45 \(67 pulses\)', 'sent NEC 0x00/0x45 \(67 pulses\)',
+    'sent NEC 0x00/0x45 \(67 pulses\)', 'sent NEC 0x00/0x45 \(67 pulses\)', 'sent NEC 0x00/0x45 \(67 pulses\)', 'sent NEC 0x00/0x45 \(67 pulses\)',
+    'sent NEC 0x00/0x45 \(67 pulses\)', 'sent NEC 0x00/0x45 \(67 pulses\)', 'sent NEC 0x00/0x45 \(67 pulses\)', 'sent NEC 0x00/0x45 \(67 pulses\)',
+]
+reject = 'failed|PANIC|panicked|Guru Meditation|abort\(\)|WDT|ESP-ROM:|rst:0x'
+timeout = 30
+arm = false

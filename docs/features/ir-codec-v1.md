@@ -3,7 +3,7 @@
 A pure infrared pulse codec, `tamer::ir` (feature `ir`), for the Krampusnacht props that drive and read consumer IR remotes.
 The hardware bridge is `rustyfarian-esp-hal-peripherals::ir` (feature `ir`), `IrTransmitter` and `IrReceiver` on the RMT peripheral.
 
-Status: implemented, hardware unverified.
+Status: implemented; C6 → C3 NEC end to end passed on hardware (2026-11-21), RMT carrier frequency not yet measured.
 
 ## Decisions
 | Decision | Reason | Rejected Alternative |
@@ -32,6 +32,9 @@ Status: implemented, hardware unverified.
 | Headline types at the `tamer` root; errors and parameters under `tamer::ir::` | Names like `Tolerance` or `DecodeError` would clash as other codecs grow | Flattening everything |
 | `is_nec_repeat` fixes the tolerance at 25 % | Cheap helper; a tuned codec does not retune it | A tolerance parameter |
 | esp-idf tier: later | Maintainer call; group-clock `rmt_tx_modulate_carrier` suits `carrier_ticks` | Mirroring now |
+| TX examples send the NEC preset only | Device-specific codes and timings stay with their downstream profile | A second, device-style frame |
+| C6 TX on GPIO 3, the 5V pogo (ADR-015) | The output-capable pogo; J1 15 / 14 / 13 are GND / 5V / GPIO 3 in pogo order | GPIO 2, the 3V3 pogo (an ADC / wake input) |
+| TX examples log the clock, the tick pair and both carrier predictions | One boot log tells the group clock (about 38 kHz) from the channel clock (about 475 Hz) | A scope-only check |
 
 - `IrReceiver::receive` keeps the channel across calls via `Channel::reborrow`.
 
@@ -50,6 +53,9 @@ Status: implemented, hardware unverified.
 - At 80 MHz and 38 kHz: total 2105 ticks, high 694, low 1411, about 38.00 kHz and 32.97 %.
 - esp-hal writes the half-periods raw, with no `- 1`; if the TRM counts `N + 1` ticks the carrier is about 0.1 % off, which the scope check also covers.
 - This is source-derived only.
+- C6 (esp-hal 1.2.2): the default RMT source is PLL_F80M, selected by PCR `rmt_sclk_sel = 1` with `sclk_div_num = 0`, so `Rmt::new(.., IR_RMT_CLOCK)` holds 80 MHz.
+- `rmt.frequency()` returns the stored rate derived from the 80 MHz constant, not a hardware read-back; the C6 ESP-IDF `rmt_ll.h` writes the carrier ticks raw as well.
+- On the C3, a downstream receive bench printed `RMT clock 80000000 Hz` (2026-11-21).
 
 ## Open Questions
 - **Hardware check, not yet done:** scope or logic analyser on GPIO 10 must show a 38 kHz, about 33 % burst per mark, no carrier in spaces, line low at rest.
@@ -65,7 +71,13 @@ Status: implemented, hardware unverified.
 - The hardware glitch filter counts group-clock cycles in an 8-bit register (about 3 us at 80 MHz), so it stays off.
 - `IrTransmitter::send` busy-waits for the frame (about 70 ms for NEC).
 - C3 pins follow ADR-012: TX on GPIO 10 (NPN output row, shared with the buzzer), RX on GPIO 4 (3-pin pogo row).
-- Compile-verified only on C6, ESP32 (no RX wrap, `CODES` must fit one RAM block) and S3.
+- C6 TX on GPIO 3, the 5V pogo (ADR-015); no C6 RX example yet.
+- Hardware evidence by path: C6 transmit (`c6/ir-tx`) and C3 receive (the `c6/ir-tx` judge, plus a downstream bench with a real remote).
+- Compile-only paths: C3 transmit and C6 receive (bridge and examples link in `ci-riscv`; no C6 RX example), and ESP32 and S3 (library only, `check-matrix-hal`, no example).
+- ESP32 has no RX wrap, so an RX `CODES` must fit one RAM block.
+- An emitter module may make its own 38 kHz: the OPEN-SMART "Infrared Emitter" carries an 8-pin IC (marking unreadable), two SOT-23 transistors and "38k" on the silkscreen.
+  If it does, it wants an unmodulated envelope on SIG; yet it decoded cleanly when driven with the RMT carrier (`c6/ir-tx` run 2).
+  A carrier-off TX mode (`with_carrier_modulation(false)`) would serve these modules; it is a public API change, not done.
 - esp-idf tier: later, out of scope.
 
 ## State
@@ -73,7 +85,37 @@ Status: implemented, hardware unverified.
 - [x] `tamer::ir` implementation
 - [x] Host tests passing (six real captures as golden data)
 - [x] esp-hal bridge (`ir` module) and examples `hal_c3_ir_tx`, `hal_c3_ir_rx`; `just check-hal`, `clippy-hal`, `check-matrix-hal` and both example builds pass
-- [ ] Hardware verification (carrier, receive, end to end)
+- [x] `hal_c6_ir_tx` (GPIO 3), in `ci-riscv`; bench check `c6/ir-tx` prepared
+- [x] End to end on hardware: C6 transmit → C3 receive, NEC, `c6/ir-tx` (2026-11-21, emitter module)
+- [ ] Hardware verification (RMT carrier frequency; `hal_c3_ir_rx` with a NEC remote)
+
+## Bench — C6 transmit, C3 receive
+- Emitter: `hal_c6_ir_tx` on the ESP32-C6-DevKitC-1, the OPEN-SMART emitter module on J1 15 / 14 / 13 (GND / 5V / GPIO 3).
+- Judge: an ESP32-C3 DevKitM-1 with a demodulating receiver on GPIO 5, running a downstream receive bench that decodes NEC and logs `NEC address=0x00 command=0x45 (ok N failed M)`.
+- The C6 side runs as `just bench c6 ir-tx --port <c6>`; it judges the clock, the tick pair and 20 frames sent.
+- Pass: 20 consecutive NEC decodes at about 1 m in the receiver log, `failed 0`.
+- With two boards on the host, every flash and run names its port.
+
+### Results
+- **Run 2, 2026-11-21 20:25 — pass.** Tree `ir-round` on 7896418 plus this change (uncommitted), frame gap 700 ms.
+  - C6 DevKitC-1: `just bench c6 ir-tx` 2/2; boot `RMT clock 80000000 Hz`, `high 694 low 1411 ticks`, `carrier if group clock: 38005 Hz`, `carrier if channel clock (1 MHz): 475 Hz`, 20 × `sent NEC 0x00/0x45 (67 pulses)`.
+  - C3 DevKitM-1 judge: 28 consecutive `67 pulses: NEC address=0x00 command=0x45`, ok 1 → 28, no failure after the reflash.
+    The 8 failures before them are frames of the run-1 firmware, received before the reflash.
+  - Logs: `bench/c6/logs/hal_c6_ir_tx-20261121-202534.log` (git-ignored) and the receive bench's `knir-c6-tx-2.log` (downstream `tmp/`).
+  - 21:37: after a review renamed the 700 ms "period" to a gap (frames start about 768 ms apart, as `send` blocks for the 68 ms frame), the C6 side reran 2/2 on the reworded ready line; timing unchanged (`hal_c6_ir_tx-20261121-213739.log`).
+- **Run 1, 2026-11-21 20:21 — fail (judge timing, not signal).** Frame gap 1000 ms.
+  - C6 side passed 2/2; the judge decoded the first frame, then 64 frames arrived as 43 pulses, `not candle nor NEC`, 0 receive errors.
+  - The missing 24 pulses are the header and the first 11 bits (about 29 ms); the rest is the NEC 0x00/0x45 tail with marks 516–594 us and spaces 536–590 / 1691–1748 us.
+  - Cause: the judge re-arms `receive(1000 ms)` about 29 ms after each frame (20 ms idle plus its log line); a 1000 ms gap puts that timeout 29 ms into every next frame, and `receive` drops the frame in flight.
+  - Fix: both TX examples now wait 700 ms; a frame then closes about 760 ms after the re-arm.
+  - Logs: `bench/c6/logs/hal_c6_ir_tx-20261121-202105.log`, downstream `knir-c6-tx.log`.
+- What the pass shows: C6 RMT TX → emitter → 38 kHz band-pass receiver → C3 RMT RX → `FrameAssembler` → NEC decode, bit timing well inside tolerance.
+- It also rules out the channel-clock case: a 475 Hz carrier (694 us on, 1411 us off) would split the 9 ms header mark into several pulses, and every frame arrived whole with 67 pulses.
+- What it does not show: that the 38 kHz comes from the RMT rather than the module, which may generate its own (see Open Questions).
+  A bare LED or a scope run confirms the 38005 Hz prediction for drivers where the RMT carrier is the only carrier.
+- Distance: the emitter faced the receiver at the operator's placement (aimed at about 1 m, not measured).
 
 ## Session Log
+- 2026-11-21 — `c6/ir-tx` run 1 failed on judge timing (1 s gap = 1 s receive timeout); TX gap now 700 ms; run 2 passed with 28 consecutive decodes.
+- 2026-11-21 — C6 transmit request: `hal_c6_ir_tx` on GPIO 3, NEC only (the C3 example lost its device-style frame), carrier predictions in both boot logs, `c6/ir-tx` prepared; first try with the emitter module as-is.
 - 2026-11-20 — Request retired from the review queue; dates: RMT spike Thu 26 Nov, C3 transmit Sat 28 Nov (own fallback if unusable by Mon 23 Nov), event Sat 5 Dec; candle profile verified downstream
