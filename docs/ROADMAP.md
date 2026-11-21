@@ -27,6 +27,7 @@ timeline
 
     Near term : BME680 hardware validation — lift `bme680` out of experimental (feature-doc)
               : HX711 hardware validation — lift `hx711` out of experimental (feature-doc)
+              : IR hardware validation — RMT carrier, receive and C6 → C3 end to end (feature-doc)
 
     Mid term  : IRAM-safe encoder ISR — run from SRAM for OTA / flash-cache-off safety
 
@@ -67,6 +68,13 @@ See [Feature: BME680 v1](features/bme680-v1.md).
 **Goal:** lift `tamer::hx711` out of experimental by passing `c3/hx711` and `c6/hx711` in both modes on both tiers.
 The first `c6/hx711` run read a floating DT line, so it proved nothing; the scenarios now reject stuck words.
 See [Feature: HX711 v1](features/hx711-v1.md).
+
+## Near term — IR hardware validation
+
+**Goal:** confirm the IR bridge on hardware; `c6/ir-tx` (C6 transmit, C3 receive) passed on 2026-11-21.
+The run rules out the 475 Hz channel-clock case; still open: the RMT carrier near 38 kHz with a bare LED or a scope (the emitter module may make its own), and `hal_c3_ir_rx` with a NEC remote.
+The esp-idf tier stays out of scope.
+See [Feature: IR codec v1](features/ir-codec-v1.md).
 
 ## Mid term — IRAM-safe interrupt handler
 

@@ -9,7 +9,7 @@ Name files `feature-name-vN.md` and start from [`template.md`](template.md).
 | [Chip matrix](chip-matrix-v1.md) | ships in 0.2.0 |
 | [signwriter](signwriter-v1.md) | ships in 0.2.0 |
 | [BME680 environmental sensor](bme680-v1.md) | experimental in 0.2.0 |
-| [IR codec](ir-codec-v1.md) | implemented (`tamer::ir` + esp-hal RMT bridge), unreleased; hardware unverified |
+| [IR codec](ir-codec-v1.md) | implemented (`tamer::ir` + esp-hal RMT bridge), unreleased; C6 → C3 end to end passed, carrier unmeasured |
 | [SHT3x temperature / humidity](sht3x-v1.md) | implemented, unreleased; `c6/sht3x` rerun due (driver changed after its pass) |
 | [HX711 load-cell scale](hx711-v1.md) | implemented, unreleased; hardware unverified |
 | [IRAM-safe ISR](iram-safe-isr-v1.md) | designed, not started |

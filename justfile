@@ -518,9 +518,9 @@ ci-deny: deny
 [group('ci')]
 ci-audit: audit
 
-# CI job: esp-hal tier on ESP32-C3 and ESP32-C6 (stable): check + clippy, then link the b3f examples
+# CI job: esp-hal tier on ESP32-C3 and ESP32-C6 (stable): check + clippy, then link the b3f and IR examples
 [group('ci')]
-ci-riscv: (check-matrix-hal-chip "esp32c3") (check-matrix-hal-chip "esp32c6") (build-example "hal_c3_b3f") (build-example "hal_c6_b3f") (build-example "hal_c3_ir_tx") (build-example "hal_c3_ir_rx")
+ci-riscv: (check-matrix-hal-chip "esp32c3") (check-matrix-hal-chip "esp32c6") (build-example "hal_c3_b3f") (build-example "hal_c6_b3f") (build-example "hal_c3_ir_tx") (build-example "hal_c3_ir_rx") (build-example "hal_c6_ir_tx")
 
 # CI job: esp-hal tier on ESP32 and ESP32-S3 (esp toolchain): check + clippy, then link the b3f examples
 [group('ci')]

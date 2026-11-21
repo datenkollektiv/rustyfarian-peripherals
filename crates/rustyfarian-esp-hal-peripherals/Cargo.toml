@@ -275,3 +275,7 @@ required-features = ["esp32c6", "rt", "unstable", "board"]
 [[example]]
 name = "hal_c6_hx711"
 required-features = ["esp32c6", "rt", "unstable", "hx711"]
+
+[[example]]
+name = "hal_c6_ir_tx"
+required-features = ["esp32c6", "rt", "unstable", "ir"]

@@ -173,3 +173,22 @@ The status byte read after control `0x00` was `0x45` (SSD1306) vs `0x48` (SH1106
 Plain reads on the SH1106 drift once the controller is in data mode (`0xEA`, `0xDF`, …), so always set the mode with a control byte before reading.
 Rule: test with two different values; both come back → SH1106, otherwise SSD1306; column 130 is off-screen on the SH1106 and the driver init clears RAM anyway.
 Confirmed with both values at column 130: `signwriter` in `hal_c3_oled` classified both modules correctly across a live swap SSD1306 → SH1106 → SSD1306.
+
+## Bench — a floating data line passes
+
+**An HX711 whose DT line is not driven still produces "readings": `read` sees DOUT low once, then shifts out a constant word, so a shape-only bench step passes.**
+Symptom (`just bench c6 hx711`, 2026-11-20): both modes went green on both tiers while every sample was `raw=-1` (all ones) or `raw=0`.
+The word flipped between runs, with bursts and saturation hints when a hand neared the wires.
+`net` stayed 0 only because the tare itself was -1, and the old steps matched `raw=-?\d+ net=-?\d+`.
+Cause, inferred from the values and not yet confirmed with a meter: DT (GPIO 21) floats and picks up the adjacent PD_SCK, so the ready check and the bits read whatever the coupling gives.
+Fix: the `c3/hx711` and `c6/hx711` steps reject `HX711 raw=-?[01] net=` and want two rest readings within 99 counts of the tare; a live bridge never returns -1 or 0 twice in a row.
+Judge a bench step on a value a dead line cannot produce, not on the line's shape.
+
+## Bench — IR frame gap vs receive timeout
+
+**A transmitter whose frame gap equals the receiver's blocking `receive` timeout cuts the start off every frame after the first, so a clean link fails every decode.**
+Symptom (`c6/ir-tx` run 1, 2026-11-21): the C3 judge decoded one NEC frame, then logged 43-pulse frames as `not candle (HeaderMismatch) nor NEC`, 0 receive errors.
+The judge re-armed `IrReceiver::receive(1000 ms)` about 29 ms after each frame (the 20 ms frame-end idle plus its log line), and the C6 waited 1000 ms after each frame.
+So the timeout landed 29 ms into every next frame, and `receive` drops a frame still in flight: the header and the first 11 bits went missing, and the rest decoded cleanly.
+Fix: keep the TX gap well clear of the receiver's timeout; the TX examples wait 700 ms, and run 2 decoded 28 frames in a row.
+A clipped frame whose remaining marks and spaces are in tolerance points at receive windowing, not at the carrier or the optics.
