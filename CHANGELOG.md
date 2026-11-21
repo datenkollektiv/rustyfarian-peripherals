@@ -9,6 +9,8 @@ This project follows [Semantic Versioning](https://semver.org/) (pre-1.0: minor 
 
 ## [Unreleased]
 
+## [0.2.1] - 2026-11-22
+
 ### Added
 - `tamer::ir` (opt-in `ir`): a data-driven IR pulse codec (`PulseCodec`, NEC preset and repeat helpers, `FrameAssembler`, `carrier_ticks`, `PulseSink` / `PulseSource` with mocks), bridged to the RMT by the esp-hal tier's `ir::IrTransmitter` / `IrReceiver` with examples `hal_c3_ir_tx` / `hal_c3_ir_rx` / `hal_c6_ir_tx` (NEC only, boot log with both carrier predictions) and bench check `c6/ir-tx`; compile-verified on all four chips; C6 → C3 NEC end to end verified on hardware, the RMT carrier frequency itself still unmeasured.
 - `tamer::staged`: `StagedTimer` steps a borrowed `&[Stage]` table on a caller-driven clock in `StagedMode::Once` or `Loop`, `stage()` names the stage of the latest step, and an empty table reports `Finished` on the first update.
@@ -18,7 +20,7 @@ This project follows [Semantic Versioning](https://semver.org/) (pre-1.0: minor 
 - `smoothing::SignedSlidingAverage<N>`, `mock::MockOutputPin`, `just test-sht3x` / `test-hx711` (both in `verify` and `ci-test`), and `just build-all-examples [filter]` (family recipe contract J26).
 
 ### Changed
-- ESP-IDF examples build against ESP-IDF v6.1 (was v5.3.3), and `.cargo/config.toml` is committed, replacing `just setup-cargo-config`; the libraries pin no ESP-IDF version and downstream Cargo never reads the file.
+- ESP-IDF examples build against ESP-IDF v6.1 (was v5.3.3), and `.cargo/config.toml` is committed, replacing `just setup-cargo-config`; the libraries pin no ESP-IDF version (they still build against v5.3.3) and downstream Cargo never reads the file.
 - CI runs on the shared `rustyfarian-ci` workflows and setup actions, one `just ci-<job>` per job (`just act` runs them locally), with a per-chip `Cross-target IDF` workflow and the Xtensa toolchain at `1.97.0.0`.
 - Family conventions: `setup esp|avr`, `act list`, `release-publish`, a new `semver` recipe, `ci` = `verify deny`; chip token `esp` → `esp32`; bench board `feather-v2` → `esp32-feather`, runner `v0.6.0`, git-ignored `bench/bench.local.toml`.
 - Bench pogo set ([ADR-015](docs/adr/015-pogo-ports.md)): rig pages list the pogos and button pin, the EC11 check moves to `c3-rotary/rotary`; README and AGENTS frame the repo as input and output peripherals; `deny` ignores RUSTSEC-2026-0543 until `esp-idf-sys` drops `build-time`.

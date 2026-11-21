@@ -5,7 +5,7 @@ members = ["crates/*"]
 exclude = ["examples/avr-nano-tamer"]
 
 [workspace.package]
-version = "0.2.0"
+version = "0.2.1"
 authors = ["datenkollektiv"]
 edition = "2021"
 rust-version = "1.88"
@@ -17,10 +17,10 @@ repository = "https://github.com/datenkollektiv/rustyfarian-peripherals"
 # `version` must track `[workspace.package] version` — `cargo publish` rejects
 # path-only dependencies, and the tiers ship in lockstep with `tamer` (see
 # `release-plan.md`).
-tamer = { path = "crates/tamer", version = "0.2.0", default-features = false }
+tamer = { path = "crates/tamer", version = "0.2.1", default-features = false }
 # Lockstep with the workspace version; published right after tamer (see `release-plan.md`).
 # Dev-only for the tiers (the OLED examples).
-signwriter = { path = "crates/signwriter", version = "0.2.0" }
+signwriter = { path = "crates/signwriter", version = "0.2.1" }
 
 # External — pure, host-buildable.
 # `embedded-hal` is the trait boundary every hardware tier shares: the pure
