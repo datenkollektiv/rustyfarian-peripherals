@@ -18,7 +18,7 @@
 //! With the `hx711` feature, [`hx711`] adds [`hx711::MaskedSection`], the
 //! `critical_section` interrupt mask for the `tamer::hx711` load-cell driver.
 //!
-//! With a `board-*` feature, the [`board`] module names the board's I2C pins
+//! With a `board-*` feature, the `board` module names the board's I2C pins
 //! and bus power (ADR-014).
 //!
 //! # Status — first driver

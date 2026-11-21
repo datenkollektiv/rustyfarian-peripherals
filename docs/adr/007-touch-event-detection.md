@@ -151,7 +151,7 @@ Proposed surface (architectural sketch — **not the normative API**):
   - Rejected: wrong layer — `tamer` is chip-agnostic.
 - **Keep touch entirely in the knob**
   - Pros: no work.
-  - Cons: misses the planned `tamer::touch`; touch logic gets duplicated in the CYD and future rustbox projects.
+  - Cons: misses the planned `tamer::touch`; touch logic gets duplicated in the CYD and future downstream projects.
   - Rejected: touch is explicitly on `tamer`'s roadmap with two known consumers.
 - **Add a bespoke `tamer` `hal` touch trait + adapter**
   - Pros: API symmetry with the other primitives.

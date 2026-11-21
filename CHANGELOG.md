@@ -23,6 +23,9 @@ This project follows [Semantic Versioning](https://semver.org/) (pre-1.0: minor 
 - Family conventions: `setup esp|avr`, `act list`, `release-publish`, a new `semver` recipe, `ci` = `verify deny`; chip token `esp` → `esp32`; bench board `feather-v2` → `esp32-feather`, runner `v0.6.0`, git-ignored `bench/bench.local.toml`.
 - Bench pogo set ([ADR-015](docs/adr/015-pogo-ports.md)): rig pages list the pogos and button pin, the EC11 check moves to `c3-rotary/rotary`; README and AGENTS frame the repo as input and output peripherals; `deny` ignores RUSTSEC-2026-0543 until `esp-idf-sys` drops `build-time`.
 
+### Fixed
+- `IrReceiver::receive` no longer loses frames after a timeout on the ESP32-C3: it now waits the configured idle time, but at least 10 ms, after aborting a reception, so a call can take up to `timeout_ms` plus that wait.
+
 ## [0.2.0] - 2026-11-12
 
 ### Added

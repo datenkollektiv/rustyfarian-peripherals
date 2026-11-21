@@ -14,8 +14,8 @@ sibling projects by the same author:
   `rustyfarian-knob` project's `zoetrope` crate
   (`crates/zoetrope/src/encoder_state_machine.rs`, `button_state_machine.rs`,
   `touch_packet.rs`), licensed **MIT**.
-- The debounce/edge state machines come from `rustbox-peripherals`'
-  `rustbox-peripherals-pure` crate (`src/input/debounce.rs`, `src/input/edge.rs`),
+- The debounce/edge state machines come from a downstream
+  project's pure peripherals crate (`src/input/debounce.rs`, `src/input/edge.rs`),
   licensed **MIT OR Apache-2.0**.
 
 Both sources are authored solely by the rustyfarian maintainer (verified via
@@ -34,7 +34,7 @@ modules, rather than a verbatim copy or a git-history graft.
   The maintainer is the sole copyright holder of the donated files.
   Relicensing the originally MIT-only knob code under this repo's dual license is therefore the copyright holder's prerogative and needs no third-party consent.
 - Provenance is recorded in commit trailers (`Adapted-from: <repo> <module> @ <sha>`), in `CHANGELOG.md`, and in this ADR.
-- Source revision at donation time: `rustyfarian-knob` and `rustbox-peripherals` both at `a169dd8`.
+- Source revision at donation time: `rustyfarian-knob` and the downstream project both at `a169dd8`.
 - `rustyfarian-peripherals` does **not** depend on either source repo.
 - The donation is one-directional; the sources owe nothing back but a citation.
 
@@ -58,7 +58,7 @@ modules, rather than a verbatim copy or a git-history graft.
   - Pros: fastest.
   - Cons: no citation; carries MIT-only headers into a dual-licensed repo; non-idiomatic API.
   - Rejected: fails the "proper donation" bar; licensing left implicit.
-- **Develop in `rustbox-peripherals`, then migrate**
+- **Develop in the downstream project, then migrate**
   - Pros: reuses an active workspace.
   - Cons: entangles the repos; the new team never gets a clean origin.
   - Rejected: defeats the point of a fresh-start home for basic peripherals.
