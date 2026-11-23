@@ -78,7 +78,7 @@ embassy-futures    = { version = "=0.1.2", default-features = false }
 esp-idf-hal  = { version = "=0.47.0" }
 esp-idf-svc  = { version = "=0.53.0" }
 esp-idf-sys  = { version = "=0.38.1" }
-embuild      = { version = "=0.33.5", features = ["espidf"] }
+embuild      = { version = "=0.33.7", features = ["espidf"] }
 # Exact: the esp-hal tier's rotary ISR relies on esp-hal's ISR-safe
 # `critical-section` impl (interrupt mask + spinlock). The ESP-IDF provider is a
 # FreeRTOS mutex and NOT ISR-safe; see docs/project-lore.md.
